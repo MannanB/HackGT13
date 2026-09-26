@@ -17,6 +17,11 @@ export interface LatLng {
   longitude: number
 }
 
+export interface StationAccess {
+  stationId: string
+  walkingMinutes: number
+}
+
 export interface ResidentialZone {
   id: string
   name: string
@@ -24,8 +29,23 @@ export interface ResidentialZone {
   centroid: LatLng
   population: number
   medianIncome?: number | null
+  households?: number | null
+  noVehicleHouseholds?: number | null
+  workers?: number | null
+  transitCommuters?: number | null
+  povertyPopulation?: number | null
+  povertyUniverse?: number | null
+  employedPopulation?: number | null
+  disabledPopulation?: number | null
+  children?: number | null
+  seniors?: number | null
+  limitedEnglishHouseholds?: number | null
+  limitedEnglishUniverse?: number | null
+  commuteJobs?: number | null
+  margins?: Record<string, number | null>
   primaryStationId?: string
   transferStationIds: string[]
+  stationAccess?: StationAccess[]
 }
 
 export interface PointOfInterest {
@@ -34,5 +54,12 @@ export interface PointOfInterest {
   category: PoiCategory
   latitude: number
   longitude: number
+  source?: string | null
+  sourceId?: string | null
+  jobsCount?: number | null
+  enrollment?: number | null
+  capacity?: number | null
+  openingHours?: string | null
   nearestStationId?: string
+  stationAccess?: StationAccess[]
 }

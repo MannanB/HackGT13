@@ -444,7 +444,10 @@ function TooltipBody({
   return (
     <>
       <div className="text-[13px] font-medium">{zone.name}</div>
-      <div className="font-mono text-[10.5px] text-fog-500">{formatPopulation(zone.population)} residents</div>
+      <div className="font-mono text-[10.5px] text-fog-500">
+        {formatPopulation(zone.population)} residents
+        {zone.medianIncome != null && ` · $${Math.round(zone.medianIncome / 1000)}k median income`}
+      </div>
       {impact && impact.delayMinutes > 0 ? (
         <div className="mt-1.5 flex items-baseline gap-2 font-mono text-[11px]">
           <span className="text-fog-400">{impact.normalTravelMinutes}</span>

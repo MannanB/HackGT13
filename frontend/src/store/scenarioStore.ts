@@ -6,12 +6,18 @@ import {
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
 import {
-  hasCriticalCache,
   networkFingerprint,
   readCriticalCache,
   writeCriticalCache,
 } from '@/services/criticalCache'
-import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
+import {
+  attachAccess,
+  attachExperimental,
+  getAccessEdges,
+  getExperimentalContext,
+  getPointsOfInterest,
+  getZones,
+} from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
@@ -231,7 +237,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     appMode: 'disrupt',
     addedPois: [],
     mapCenter: { longitude: -84.39, latitude: 33.755 },
-    loadStatus: hasCriticalCache() ? 'ready' : 'loading',
+    loadStatus: 'loading',
     loadError: null,
     stations: [],
     transitEdges: [],
@@ -255,33 +261,34 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     extruded: false,
     focusRequest: null,
     poiCriticalById: {},
-    poiCriticalProgress: hasCriticalCache() ? 1 : 0,
+    poiCriticalProgress: 0,
     intelEvent: null,
     intelNarrative: null,
-    criticalFromCache: hasCriticalCache(),
+    criticalFromCache: false,
 
     loadNetwork: async () => {
       criticalGeneration += 1
       const alreadyShowingMap = get().stations.length > 0
-      const diskCache = hasCriticalCache()
-      if (!alreadyShowingMap && !diskCache) {
+      if (!alreadyShowingMap) {
         set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0, criticalFromCache: false })
       }
       try {
-        const [network, zones, pois, accessEdges] = await Promise.all([
+        const [network, zones, pois, accessEdges, experimental] = await Promise.all([
           getNetwork(),
           getZones(),
           getPointsOfInterest(),
           getAccessEdges(),
+          getExperimentalContext(),
         ])
-        const connected = attachAccess(zones, pois, accessEdges)
+        const enriched = attachExperimental(zones, pois, experimental)
+        const connected = attachAccess(enriched.zones, enriched.pois, accessEdges)
         const fingerprint = networkFingerprint({
           stations: network.stations,
           transitEdges: network.transitEdges,
           zones: connected.zones,
           pois: connected.pois,
         })
-        const cached = readCriticalCache(fingerprint)
+        const cached = await readCriticalCache(fingerprint)
         set({
           stations: network.stations,
           transitEdges: network.transitEdges,
@@ -318,7 +325,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
               poiCriticalProgress: total ? cursor / total : 1,
               ...(snapshot ? { poiCriticalById: snapshot } : {}),
             })
-            if (done && snapshot) writeCriticalCache(fingerprint, snapshot)
+            if (done && snapshot) void writeCriticalCache(fingerprint, snapshot)
             if (!done) window.requestAnimationFrame(step)
           }
           window.requestAnimationFrame(step)

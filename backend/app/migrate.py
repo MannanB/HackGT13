@@ -16,6 +16,7 @@ MIGRATIONS = (
     ("001_schema", SQL_DIR / "001_schema.sql"),
     ("002_zone_income", SQL_DIR / "002_zone_income.sql"),
     ("003_poi_source", SQL_DIR / "003_poi_source.sql"),
+    ("004_poi_critical_cache", SQL_DIR / "004_poi_critical_cache.sql"),
 )
 
 

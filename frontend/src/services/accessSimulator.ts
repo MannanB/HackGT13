@@ -1,5 +1,5 @@
 import { categoryWeight } from '@/utils/categoryWeights'
-import { MIN_ADDITION_GAIN_MINUTES } from '@/utils/constants'
+import { MIN_ADDITION_GAIN_MINUTES, TRANSFER_PENALTY_MINUTES } from '@/utils/constants'
 import { haversineKm, walkMinutes } from '@/utils/geo'
 import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
@@ -20,6 +20,7 @@ interface RailGraph {
   index: Map<string, number>
   dist: number[][]
   next: number[][]
+  edgeByPair: Map<string, TransitEdge>
 }
 
 interface Trip {
@@ -32,22 +33,47 @@ function poiPoint(poi: PointOfInterest): LatLng {
   return { latitude: poi.latitude, longitude: poi.longitude }
 }
 
-function nearestStation(
+function zoneDemand(zone: ResidentialZone, category?: PoiCategory): number {
+  if (category === 'employment' && zone.commuteJobs != null) return zone.commuteJobs
+  const noVehicleResidents =
+    zone.households && zone.noVehicleHouseholds != null
+      ? (zone.noVehicleHouseholds / zone.households) * zone.population
+      : 0
+  if (zone.transitCommuters != null || zone.noVehicleHouseholds != null) {
+    return Math.max(0, Math.round(Math.max(zone.transitCommuters ?? 0, noVehicleResidents)))
+  }
+  return zone.population
+}
+
+function poiCapacity(poi: PointOfInterest): number | null {
+  const capacity = poi.capacity ?? poi.enrollment ?? poi.jobsCount
+  return capacity != null && capacity > 0 ? capacity : null
+}
+
+interface AccessChoice {
+  station: Station
+  walkingMinutes: number
+}
+
+function stationChoices(
+  key: ResidentialZone | PointOfInterest,
   point: LatLng,
   stations: Station[],
   unboardable: Set<string>,
-): Station | null {
-  let best: Station | null = null
-  let bestWalk = Number.POSITIVE_INFINITY
+): AccessChoice[] {
+  const byId = new Map(stations.map((station) => [station.id, station]))
+  const linked = (key.stationAccess ?? [])
+    .filter((access) => !unboardable.has(access.stationId) && byId.has(access.stationId))
+    .map((access) => ({ station: byId.get(access.stationId)!, walkingMinutes: access.walkingMinutes }))
+    .sort((a, b) => a.walkingMinutes - b.walkingMinutes)
+  if (linked.length > 0) return linked
+
+  const choices: AccessChoice[] = []
   for (const station of stations) {
     if (unboardable.has(station.id)) continue
-    const walk = walkMinutes(point, station)
-    if (walk < bestWalk) {
-      best = station
-      bestWalk = walk
-    }
+    choices.push({ station, walkingMinutes: walkMinutes(point, station) })
   }
-  return best
+  return choices.sort((a, b) => a.walkingMinutes - b.walkingMinutes).slice(0, 3)
 }
 
 function buildGraph(stations: Station[], edges: TransitEdge[], blocked: Set<string>): RailGraph {
@@ -56,22 +82,24 @@ function buildGraph(stations: Station[], edges: TransitEdge[], blocked: Set<stri
   const size = ids.length
   const dist = Array.from({ length: size }, () => Array<number>(size).fill(Number.POSITIVE_INFINITY))
   const next = Array.from({ length: size }, () => Array<number>(size).fill(-1))
+  const edgeByPair = new Map<string, TransitEdge>()
   for (let i = 0; i < size; i += 1) {
     dist[i][i] = 0
     next[i][i] = i
   }
 
-  const link = (from: string, to: string, minutes: number) => {
+  const link = (from: string, to: string, edge: TransitEdge) => {
     const start = index.get(from)
     const end = index.get(to)
-    if (start == null || end == null || minutes >= dist[start][end]) return
-    dist[start][end] = minutes
+    if (start == null || end == null || edge.travelMinutes >= dist[start][end]) return
+    dist[start][end] = edge.travelMinutes
     next[start][end] = end
+    edgeByPair.set(`${from}:${to}`, edge)
   }
 
   for (const edge of edges) {
-    link(edge.fromStation, edge.toStation, edge.travelMinutes)
-    link(edge.toStation, edge.fromStation, edge.travelMinutes)
+    link(edge.fromStation, edge.toStation, edge)
+    link(edge.toStation, edge.fromStation, edge)
   }
 
   for (let mid = 0; mid < size; mid += 1) {
@@ -88,7 +116,24 @@ function buildGraph(stations: Station[], edges: TransitEdge[], blocked: Set<stri
     }
   }
 
-  return { ids, index, dist, next }
+  return { ids, index, dist, next, edgeByPair }
+}
+
+function railMinutes(graph: RailGraph, stationIds: string[]): number {
+  if (stationIds.length < 2) return Number.POSITIVE_INFINITY
+  let minutes = 0
+  let previousLine: TransitEdge['line'] | null = null
+  for (let index = 1; index < stationIds.length; index += 1) {
+    const edge = graph.edgeByPair.get(`${stationIds[index - 1]}:${stationIds[index]}`)
+    if (!edge) return Number.POSITIVE_INFINITY
+    minutes += edge.travelMinutes
+    if (previousLine == null) minutes += edge.frequencyMinutes / 2
+    else if (edge.line !== previousLine) {
+      minutes += TRANSFER_PENALTY_MINUTES + edge.frequencyMinutes / 2
+    }
+    previousLine = edge.line
+  }
+  return minutes
 }
 
 function railStationIds(graph: RailGraph, fromId: string, toId: string): string[] {
@@ -106,13 +151,16 @@ function railStationIds(graph: RailGraph, fromId: string, toId: string): string[
   return path
 }
 
-type NearestFinder = (key: object, point: LatLng) => Station | null
+type NearestFinder = (
+  key: ResidentialZone | PointOfInterest,
+  point: LatLng,
+) => AccessChoice[]
 
 function nearestFinder(stations: Station[], unboardable: Set<string>): NearestFinder {
-  const cache = new Map<object, Station | null>()
+  const cache = new Map<object, AccessChoice[]>()
   return (key, point) => {
-    if (!cache.has(key)) cache.set(key, nearestStation(point, stations, unboardable))
-    return cache.get(key) ?? null
+    if (!cache.has(key)) cache.set(key, stationChoices(key, point, stations, unboardable))
+    return cache.get(key) ?? []
   }
 }
 
@@ -124,20 +172,18 @@ function optimalTrip(
   blocked: Set<string>,
 ): Trip {
   const direct = walkMinutes(zone.centroid, poiPoint(poi))
-  const board = nearest(zone, zone.centroid)
-  const alight = nearest(poi, poiPoint(poi))
-  if (!board || !alight) return { minutes: direct, poi, stationIds: [] }
-
-  const stationIds = railStationIds(graph, board.id, alight.id)
-  if (stationIds.length === 0 || stationIds.some((id) => blocked.has(id))) {
-    return { minutes: direct, poi, stationIds: [] }
+  const boards = nearest(zone, zone.centroid)
+  const alights = nearest(poi, poiPoint(poi))
+  let best: Trip = { minutes: direct, poi, stationIds: [] }
+  for (const board of boards) {
+    for (const alight of alights) {
+      const stationIds = railStationIds(graph, board.station.id, alight.station.id)
+      if (stationIds.length < 2 || stationIds.some((id) => blocked.has(id))) continue
+      const transit = board.walkingMinutes + railMinutes(graph, stationIds) + alight.walkingMinutes
+      if (transit < best.minutes) best = { minutes: transit, poi, stationIds }
+    }
   }
-
-  const ride = graph.dist[graph.index.get(board.id)!][graph.index.get(alight.id)!]
-  const transit =
-    walkMinutes(zone.centroid, board) + ride + walkMinutes(alight, poiPoint(poi))
-  if (transit < direct) return { minutes: transit, poi, stationIds }
-  return { minutes: direct, poi, stationIds: [] }
+  return best
 }
 
 function bestByCategory(
@@ -210,11 +256,16 @@ let baselineCache: Baseline | null = null
 
 function baselineKey(request: SimulateScenarioRequest): string {
   const categories = [...request.serviceCategories].sort().join(',')
-  const zones = request.zones.map((zone) => zone.id).join(',')
-  const pois = request.pois
-    .map((poi) => `${poi.id}:${poi.category}:${poi.latitude.toFixed(5)}:${poi.longitude.toFixed(5)}`)
+  const zones = request.zones
+    .map((zone) => `${zone.id}:${zone.transitCommuters ?? ''}:${zone.noVehicleHouseholds ?? ''}:${zone.stationAccess?.map((item) => `${item.stationId}-${item.walkingMinutes}`).join('.') ?? ''}`)
     .join(',')
-  return `${categories}|${zones}|${pois}|${request.stations.length}|${request.transitEdges.length}`
+  const pois = request.pois
+    .map((poi) => `${poi.id}:${poi.category}:${poi.latitude.toFixed(5)}:${poi.longitude.toFixed(5)}:${poi.stationAccess?.map((item) => `${item.stationId}-${item.walkingMinutes}`).join('.') ?? ''}`)
+    .join(',')
+  const edges = request.transitEdges
+    .map((edge) => `${edge.id}:${edge.travelMinutes}:${edge.frequencyMinutes}`)
+    .join(',')
+  return `${categories}|${zones}|${pois}|${request.stations.length}|${edges}`
 }
 
 function groupByCategory(pois: PointOfInterest[], categories: PoiCategory[]) {
@@ -273,6 +324,7 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
   const impacts: ZoneImpact[] = []
   const traces: Record<string, TraceImpact> = {}
   const gained = new Map<string, number>()
+  const gainedDemand = new Map<string, number>()
 
   for (const zone of zones) {
     const before = beforeByZone.get(zone.id)
@@ -298,6 +350,10 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
     const savedMinutes = Math.round(focus.before.minutes - focus.after.minutes)
     if (savedMinutes < MIN_ADDITION_GAIN_MINUTES) continue
     gained.set(focus.after.poi.id, (gained.get(focus.after.poi.id) ?? 0) + 1)
+    gainedDemand.set(
+      focus.after.poi.id,
+      (gainedDemand.get(focus.after.poi.id) ?? 0) + zoneDemand(zone, focus.after.poi.category),
+    )
 
     const normalTravelMinutes = Math.round(focus.before.minutes)
     const disruptedTravelMinutes = Math.round(focus.after.minutes)
@@ -311,6 +367,7 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
       disruptedTravelMinutes,
       delayMinutes: savedMinutes,
       population: zone.population,
+      estimatedTrips: zoneDemand(zone, focus.after.poi.category),
     })
     traces[zone.id] = {
       zoneId: zone.id,
@@ -336,15 +393,24 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
     zoneImpacts: impacts,
     poiPressure: addedPois
       .filter((poi) => gained.has(poi.id))
-      .map((poi) => ({
-        poiId: poi.id,
-        poiName: poi.name,
-        category: poi.category,
-        baselineRegions: 0,
-        disruptedRegions: gained.get(poi.id)!,
-        addedRegions: gained.get(poi.id)!,
-      }))
-      .sort((a, b) => b.addedRegions - a.addedRegions),
+      .map((poi) => {
+        const demand = gainedDemand.get(poi.id) ?? 0
+        const capacity = poiCapacity(poi)
+        return {
+          poiId: poi.id,
+          poiName: poi.name,
+          category: poi.category,
+          baselineRegions: 0,
+          disruptedRegions: gained.get(poi.id)!,
+          addedRegions: gained.get(poi.id)!,
+          baselineDemand: 0,
+          disruptedDemand: demand,
+          addedDemand: demand,
+          capacity,
+          loadRatio: capacity ? demand / capacity : null,
+        }
+      })
+      .sort((a, b) => b.addedDemand - a.addedDemand),
     traces,
   }
 }
@@ -414,7 +480,7 @@ export function findOptimalAdditionSite(request: {
       const saved = beforeMinutes - trip.minutes
       if (saved < MIN_ADDITION_GAIN_MINUTES) continue
       regions += 1
-      value += saved * zone.population
+      value += saved * zoneDemand(zone, request.category)
     }
     ranked.push({ point, regions, value })
   }
@@ -446,6 +512,8 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   const poiById = new Map(candidates.map((poi) => [poi.id, poi]))
   const beforeCount = new Map<string, number>()
   const afterCount = new Map<string, number>()
+  const beforeDemand = new Map<string, number>()
+  const afterDemand = new Map<string, number>()
   const impacts: ZoneImpact[] = []
   const traces: Record<string, TraceImpact> = {}
 
@@ -475,6 +543,9 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       weightedDelay += delay * weight
       beforeCount.set(baseline.poi.id, (beforeCount.get(baseline.poi.id) ?? 0) + 1)
       afterCount.set(disrupted.poi.id, (afterCount.get(disrupted.poi.id) ?? 0) + 1)
+      const demand = zoneDemand(zone, category)
+      beforeDemand.set(baseline.poi.id, (beforeDemand.get(baseline.poi.id) ?? 0) + demand)
+      afterDemand.set(disrupted.poi.id, (afterDemand.get(disrupted.poi.id) ?? 0) + demand)
       const score = delay * weight
       if (score > focusScore || (score === focusScore && weight > focusWeight)) {
         focusScore = score
@@ -500,6 +571,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       disruptedTravelMinutes,
       delayMinutes,
       population: zone.population,
+      estimatedTrips: zoneDemand(zone, afterBest.poi.category),
     })
     traces[zone.id] = {
       zoneId: zone.id,
@@ -526,6 +598,10 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     const addedRegions = disruptedRegions - baselineRegions
     const poi = poiById.get(poiId)
     if (!poi || addedRegions <= 0) continue
+    const baselineDemand = beforeDemand.get(poiId) ?? 0
+    const disruptedDemand = afterDemand.get(poiId) ?? 0
+    const addedDemand = Math.max(0, disruptedDemand - baselineDemand)
+    const capacity = poiCapacity(poi)
     poiPressure.push({
       poiId,
       poiName: poi.name,
@@ -533,12 +609,17 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       baselineRegions,
       disruptedRegions,
       addedRegions,
+      baselineDemand,
+      disruptedDemand,
+      addedDemand,
+      capacity,
+      loadRatio: capacity ? disruptedDemand / capacity : null,
     })
   }
   poiPressure.sort((a, b) => {
-    const scoreA = a.addedRegions * categoryWeight(a.category)
-    const scoreB = b.addedRegions * categoryWeight(b.category)
-    return scoreB - scoreA || b.addedRegions - a.addedRegions
+    const scoreA = a.addedDemand * categoryWeight(a.category)
+    const scoreB = b.addedDemand * categoryWeight(b.category)
+    return scoreB - scoreA || b.addedDemand - a.addedDemand
   })
 
   return {

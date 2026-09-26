@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -74,6 +75,24 @@ def _source_id(index: object) -> str:
     return str(index)
 
 
+def _positive_int(value: object) -> int | None:
+    """Read a conservative integer from common OSM capacity-style tags."""
+    text = _as_text(value).replace(",", "")
+    match = re.search(r"\d+", text)
+    if not match:
+        return None
+    number = int(match.group())
+    return number if number > 0 else None
+
+
+def _first_positive(row: pd.Series, fields: tuple[str, ...]) -> int | None:
+    for field in fields:
+        value = _positive_int(row.get(field))
+        if value is not None:
+            return value
+    return None
+
+
 def _marta_stations(stations: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     if stations.empty:
         return stations
@@ -134,6 +153,15 @@ def fetch_pois() -> gpd.GeoDataFrame:
                 "name": name,
                 "category": category,
                 "source_id": _source_id(index),
+                "opening_hours": _as_text(feature.get("opening_hours")).strip() or None,
+                "capacity": _first_positive(
+                    feature,
+                    ("capacity", "capacity:persons", "beds", "capacity:beds"),
+                ),
+                "enrollment": _first_positive(
+                    feature,
+                    ("capacity:students", "students", "school:capacity"),
+                ),
                 "kind_rank": {"way": 0, "relation": 1, "node": 2}.get(kind, 3),
                 "geometry": point,
             }

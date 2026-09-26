@@ -43,6 +43,7 @@ export function delayHex(minutes: number): string {
 }
 
 export const MIN_ADDITION_GAIN_MINUTES = 15
+export const TRANSFER_PENALTY_MINUTES = 4
 
 export const GAIN_BREAKS: typeof IMPACT_BREAKS = [
   { min: 15, max: 25, label: '15 – 25', color: [60, 205, 110] },
