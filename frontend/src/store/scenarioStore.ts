@@ -1,11 +1,15 @@
 import { create } from 'zustand'
-import { buildAccessSimulation, buildAdditionSimulation } from '@/services/accessSimulator'
+import {
+  buildAccessSimulation,
+  buildAdditionSimulation,
+  createPoiCriticalIndex,
+  findOptimalAdditionSite,
+} from '@/services/accessSimulator'
 import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
-import type { RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
-import { DEFAULT_CATEGORY_WEIGHTS, categoryWeight } from '@/utils/categoryWeights'
+import type { PoiCriticalStation, RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
 export type AppMode = 'disrupt' | 'add'
@@ -30,7 +34,6 @@ interface ScenarioState {
   selectedStationId: string | null
   hoveredStationId: string | null
   selectedServiceCategories: PoiCategory[]
-  categoryWeights: Record<PoiCategory, number>
 
   result: SimulationResult | null
   computing: boolean
@@ -42,10 +45,12 @@ interface ScenarioState {
   routeView: RouteView
   extruded: boolean
   focusRequest: FocusRequest | null
+  poiCriticalById: Record<string, PoiCriticalStation>
 
   setAppMode: (mode: AppMode) => void
   setMapCenter: (longitude: number, latitude: number) => void
   addPoi: (category: PoiCategory, label: string) => void
+  placeOptimalPoi: (category: PoiCategory, label: string) => void
   movePoi: (id: string, longitude: number, latitude: number) => void
   removePoi: (id: string) => void
   loadNetwork: () => Promise<void>
@@ -54,7 +59,6 @@ interface ScenarioState {
   setStationState: (id: string, status: StationOperatingState) => void
   resetStationStates: () => void
   toggleServiceCategory: (category: PoiCategory) => void
-  setCategoryWeight: (category: PoiCategory, weight: number) => void
   selectZone: (zoneId: string | null) => void
   hoverZone: (zoneId: string | null) => void
   setDelayRange: (range: [number, number] | null) => void
@@ -80,6 +84,7 @@ function disruptionLists(stationStates: Record<string, StationOperatingState>) {
 }
 
 let impactGeneration = 0
+let criticalGeneration = 0
 
 export const useScenarioStore = create<ScenarioState>((set, get) => {
   const clearImpacts = () => {
@@ -114,7 +119,6 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           maintenanceStations,
           shutdownStations,
           serviceCategories: state.selectedServiceCategories,
-          categoryWeights: state.categoryWeights,
           zones: state.zones,
           pois: state.pois,
           stations: state.stations,
@@ -152,7 +156,6 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         const result = buildAdditionSimulation({
           addedPois: state.addedPois,
           serviceCategories: state.selectedServiceCategories,
-          categoryWeights: state.categoryWeights,
           zones: state.zones,
           pois: state.pois,
           stations: state.stations,
@@ -188,7 +191,6 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     selectedStationId: null,
     hoveredStationId: null,
     selectedServiceCategories: DEFAULT_CATEGORIES,
-    categoryWeights: { ...DEFAULT_CATEGORY_WEIGHTS },
 
     result: null,
     computing: false,
@@ -200,9 +202,11 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     routeView: 'both',
     extruded: false,
     focusRequest: null,
+    poiCriticalById: {},
 
     loadNetwork: async () => {
-      set({ loadStatus: 'loading', loadError: null })
+      criticalGeneration += 1
+      set({ loadStatus: 'loading', loadError: null, poiCriticalById: {} })
       try {
         const [network, zones, pois, accessEdges] = await Promise.all([
           getNetwork(),
@@ -221,7 +225,30 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
             network.stations.find((station) => /five points/i.test(station.name))?.id ??
             null,
           loadStatus: 'ready',
+          poiCriticalById: {},
         })
+        const generation = ++criticalGeneration
+        window.setTimeout(() => {
+          if (generation !== criticalGeneration) return
+          const index = createPoiCriticalIndex({
+            zones: connected.zones,
+            pois: connected.pois,
+            stations: network.stations,
+            transitEdges: network.transitEdges,
+          })
+          let cursor = 0
+          const step = () => {
+            if (generation !== criticalGeneration) return
+            const batchEnd = Math.min(cursor + 2, index.stations.length)
+            while (cursor < batchEnd) {
+              index.absorb(index.stations[cursor])
+              cursor += 1
+            }
+            set({ poiCriticalById: index.snapshot() })
+            if (cursor < index.stations.length) window.setTimeout(step, 0)
+          }
+          step()
+        }, 16)
         recompute()
       } catch (error) {
         set({
@@ -252,6 +279,34 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       }
       set({ addedPois: [...addedPois, poi] })
       recompute()
+    },
+
+    placeOptimalPoi: (category, label) => {
+      const generation = ++impactGeneration
+      set({ computing: true })
+      window.setTimeout(() => {
+        if (generation !== impactGeneration) return
+        const state = get()
+        const site = findOptimalAdditionSite({
+          category,
+          zones: state.zones,
+          pois: state.pois,
+          stations: state.stations,
+          transitEdges: state.transitEdges,
+          serviceCategories: state.selectedServiceCategories,
+        })
+        poiSequence += 1
+        const fallback = state.mapCenter
+        const poi: PointOfInterest = {
+          id: `new-${poiSequence}`,
+          name: `New ${label} ${poiSequence}`,
+          category,
+          longitude: site?.longitude ?? fallback.longitude,
+          latitude: site?.latitude ?? fallback.latitude,
+        }
+        set({ addedPois: [...state.addedPois, poi] })
+        recompute()
+      }, 16)
     },
 
     movePoi: (id, longitude, latitude) => {
@@ -292,13 +347,6 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         : [...current, category]
       if (next.length === 0) return
       set({ selectedServiceCategories: next })
-      recompute()
-    },
-
-    setCategoryWeight: (category, weight) => {
-      const next = categoryWeight({ [category]: weight }, category)
-      if (get().categoryWeights[category] === next) return
-      set({ categoryWeights: { ...get().categoryWeights, [category]: next } })
       recompute()
     },
 

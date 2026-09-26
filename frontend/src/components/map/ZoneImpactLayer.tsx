@@ -2,7 +2,7 @@ import { GeoJsonLayer } from '@deck.gl/layers'
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import type { ResidentialZone } from '@/types/geography'
 import type { ZoneImpact } from '@/types/simulation'
-import { delayRgb, gainRgb, type RGBA } from '@/utils/constants'
+import { delayRgb, gainRgb, MIN_ADDITION_GAIN_MINUTES, type RGBA } from '@/utils/constants'
 
 export interface ZoneProps {
   zone: ResidentialZone
@@ -33,6 +33,7 @@ export function createZoneImpactLayer({
   delayRange,
   extruded,
   gain,
+  live,
 }: {
   data: FeatureCollection<Polygon | MultiPolygon, ZoneProps>
   selectedZoneId: string | null
@@ -40,8 +41,13 @@ export function createZoneImpactLayer({
   delayRange: [number, number] | null
   extruded: boolean
   gain: boolean
+  live?: boolean
 }) {
-  const delayOf = (feature: ZoneFeature) => feature.properties.impact?.delayMinutes ?? 0
+  const delayOf = (feature: ZoneFeature) => {
+    const delay = feature.properties.impact?.delayMinutes ?? 0
+    if (gain && delay < MIN_ADDITION_GAIN_MINUTES) return 0
+    return delay
+  }
   const inRange = (delay: number) =>
     !delayRange || (delay >= delayRange[0] && delay < delayRange[1])
 
@@ -80,12 +86,15 @@ export function createZoneImpactLayer({
     },
     lineWidthUnits: 'pixels',
     pickable: true,
-    transitions: {
-      getFillColor: 450,
-      getElevation: { duration: 700, easing: (t: number) => 1 - (1 - t) ** 3 },
-    },
+    transitions: live
+      ? undefined
+      : {
+          getFillColor: 450,
+          getElevation: { duration: 700, easing: (t: number) => 1 - (1 - t) ** 3 },
+        },
     updateTriggers: {
-      getFillColor: [selectedZoneId, hoveredZoneId, delayRange, extruded, gain],
+      getFillColor: [selectedZoneId, hoveredZoneId, delayRange, extruded, gain, data],
+      getElevation: [data, extruded, gain],
       getLineColor: [selectedZoneId, hoveredZoneId],
       getLineWidth: [selectedZoneId, hoveredZoneId],
     },

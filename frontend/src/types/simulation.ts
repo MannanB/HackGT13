@@ -24,6 +24,11 @@ export interface PoiPressure {
   addedRegions: number
 }
 
+export interface PoiCriticalStation {
+  stationId: string
+  stationName: string
+}
+
 export interface ImpactSummary {
   populationAffected: number
   averageAddedTravelMinutes: number
@@ -67,7 +72,6 @@ export interface SimulateScenarioRequest {
   maintenanceStations: string[]
   shutdownStations: string[]
   serviceCategories: PoiCategory[]
-  categoryWeights?: Partial<Record<PoiCategory, number>>
   zones: ResidentialZone[]
   pois: PointOfInterest[]
   stations: Station[]

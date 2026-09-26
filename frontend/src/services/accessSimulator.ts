@@ -1,9 +1,11 @@
 import { categoryWeight } from '@/utils/categoryWeights'
+import { MIN_ADDITION_GAIN_MINUTES } from '@/utils/constants'
 import { walkMinutes } from '@/utils/geo'
 import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
 import type {
   PathNode,
+  PoiCriticalStation,
   PoiPressure,
   RoutePath,
   SimulateScenarioRequest,
@@ -269,22 +271,19 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
       if (!current || trip.minutes < current.minutes) bestNew.set(poi.category, trip)
     }
 
-    let weightSum = 0
-    let weightedSaved = 0
     let focus: { before: Trip; after: Trip; score: number } | null = null
     for (const [category, trip] of before) {
-      const weight = categoryWeight(request.categoryWeights, category)
-      weightSum += weight
       const candidate = bestNew.get(category)
       if (!candidate || candidate.minutes >= trip.minutes) continue
       const saved = trip.minutes - candidate.minutes
-      weightedSaved += saved * weight
-      gained.set(candidate.poi.id, (gained.get(candidate.poi.id) ?? 0) + 1)
-      if (!focus || saved * weight > focus.score) focus = { before: trip, after: candidate, score: saved * weight }
+      if (saved < MIN_ADDITION_GAIN_MINUTES) continue
+      const score = saved * categoryWeight(category)
+      if (!focus || score > focus.score) focus = { before: trip, after: candidate, score }
     }
-    if (!focus || weightSum === 0) continue
-    const savedMinutes = Math.round(weightedSaved / weightSum)
-    if (savedMinutes <= 0) continue
+    if (!focus) continue
+    const savedMinutes = Math.round(focus.before.minutes - focus.after.minutes)
+    if (savedMinutes < MIN_ADDITION_GAIN_MINUTES) continue
+    gained.set(focus.after.poi.id, (gained.get(focus.after.poi.id) ?? 0) + 1)
 
     const normalTravelMinutes = Math.round(focus.before.minutes)
     const disruptedTravelMinutes = Math.round(focus.after.minutes)
@@ -336,6 +335,77 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
   }
 }
 
+export function findOptimalAdditionSite(request: {
+  category: PoiCategory
+  zones: ResidentialZone[]
+  pois: PointOfInterest[]
+  stations: Station[]
+  transitEdges: TransitEdge[]
+  serviceCategories: PoiCategory[]
+}): { longitude: number; latitude: number } | null {
+  const categories = [...new Set([...request.serviceCategories, request.category])]
+  const scoped: SimulateScenarioRequest = {
+    ...request,
+    serviceCategories: categories,
+    maintenanceStations: [],
+    shutdownStations: [],
+  }
+  const grouped = groupByCategory(request.pois, categories)
+  if (!grouped.has(request.category)) {
+    grouped.set(
+      request.category,
+      request.pois.filter((poi) => poi.category === request.category),
+    )
+  }
+  const { beforeByZone, graph, nearest } = baseline(scoped, grouped)
+
+  const underserved = request.zones
+    .map((zone) => {
+      const trip = beforeByZone.get(zone.id)?.get(request.category)
+      return trip ? { zone, minutes: trip.minutes } : null
+    })
+    .filter((item): item is { zone: ResidentialZone; minutes: number } => item != null)
+    .sort((a, b) => b.minutes - a.minutes)
+    .slice(0, 48)
+
+  const candidates: LatLng[] = [
+    ...request.stations.map((station) => ({
+      latitude: station.latitude + 0.0012,
+      longitude: station.longitude + 0.0012,
+    })),
+    ...underserved.map((item) => item.zone.centroid),
+  ]
+  if (candidates.length === 0) return null
+
+  let best: { longitude: number; latitude: number; regions: number; value: number } | null = null
+  let probe = 0
+  for (const point of candidates) {
+    probe += 1
+    const poi: PointOfInterest = {
+      id: `opt-${probe}`,
+      name: 'opt',
+      category: request.category,
+      latitude: point.latitude,
+      longitude: point.longitude,
+    }
+    let regions = 0
+    let value = 0
+    for (const zone of request.zones) {
+      const beforeMinutes = beforeByZone.get(zone.id)?.get(request.category)?.minutes ?? Number.POSITIVE_INFINITY
+      const trip = optimalTrip(zone, poi, nearest, graph, new Set())
+      const saved = beforeMinutes - trip.minutes
+      if (saved < MIN_ADDITION_GAIN_MINUTES) continue
+      regions += 1
+      value += saved * zone.population
+    }
+    if (!best || regions > best.regions || (regions === best.regions && value > best.value)) {
+      best = { longitude: point.longitude, latitude: point.latitude, regions, value }
+    }
+  }
+  if (!best) return null
+  return { longitude: best.longitude, latitude: best.latitude }
+}
+
 export function buildAccessSimulation(request: SimulateScenarioRequest): SimulationResult {
   const { zones, stations, transitEdges: edges, maintenanceStations, shutdownStations } = request
   const categories = request.serviceCategories
@@ -379,7 +449,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     for (const [category, baseline] of before) {
       const disrupted = after.get(category)
       if (!disrupted) continue
-      const weight = categoryWeight(request.categoryWeights, category)
+      const weight = categoryWeight(category)
       const delay = Math.max(0, disrupted.minutes - baseline.minutes)
       weightSum += weight
       weightedDelay += delay * weight
@@ -446,8 +516,8 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     })
   }
   poiPressure.sort((a, b) => {
-    const scoreA = a.addedRegions * categoryWeight(request.categoryWeights, a.category)
-    const scoreB = b.addedRegions * categoryWeight(request.categoryWeights, b.category)
+    const scoreA = a.addedRegions * categoryWeight(a.category)
+    const scoreB = b.addedRegions * categoryWeight(b.category)
     return scoreB - scoreA || b.addedRegions - a.addedRegions
   })
 
@@ -460,5 +530,92 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     zoneImpacts: impacts,
     poiPressure,
     traces,
+  }
+}
+
+interface CriticalScore {
+  stationId: string
+  stationName: string
+  surge: number
+  access: number
+}
+
+export function createPoiCriticalIndex(request: {
+  zones: ResidentialZone[]
+  pois: PointOfInterest[]
+  stations: Station[]
+  transitEdges: TransitEdge[]
+}) {
+  const { zones, pois, stations, transitEdges: edges } = request
+  const grouped = new Map<PoiCategory, PointOfInterest[]>()
+  for (const poi of pois) {
+    const list = grouped.get(poi.category) ?? []
+    list.push(poi)
+    grouped.set(poi.category, list)
+  }
+
+  const openGraph = buildGraph(stations, edges, new Set())
+  const openNearest = nearestFinder(stations, new Set())
+  const beforeByZone = new Map<string, Map<PoiCategory, Trip>>()
+  for (const zone of zones) {
+    beforeByZone.set(zone.id, bestByCategory(zone, grouped, openNearest, openGraph, new Set()))
+  }
+
+  const best = new Map<string, CriticalScore>()
+
+  return {
+    stations,
+    absorb(station: Station) {
+      const blocked = new Set([station.id])
+      const graph = buildGraph(stations, edges, blocked)
+      const nearest = nearestFinder(stations, blocked)
+      const surge = new Map<string, number>()
+      const access = new Map<string, number>()
+
+      for (const zone of zones) {
+        const before = beforeByZone.get(zone.id)
+        if (!before) continue
+        const after = bestByCategory(zone, grouped, nearest, graph, blocked)
+        for (const [category, baseline] of before) {
+          const disrupted = after.get(category)
+          if (!disrupted) continue
+          const delay = Math.max(0, disrupted.minutes - baseline.minutes)
+          if (disrupted.poi.id !== baseline.poi.id) {
+            surge.set(disrupted.poi.id, (surge.get(disrupted.poi.id) ?? 0) + zone.population)
+          }
+          access.set(
+            baseline.poi.id,
+            (access.get(baseline.poi.id) ?? 0) + delay * zone.population,
+          )
+        }
+      }
+
+      for (const poi of pois) {
+        const surgeScore = surge.get(poi.id) ?? 0
+        const accessScore = access.get(poi.id) ?? 0
+        if (surgeScore === 0 && accessScore === 0) continue
+        const current = best.get(poi.id)
+        const next = {
+          stationId: station.id,
+          stationName: station.name,
+          surge: surgeScore,
+          access: accessScore,
+        }
+        if (
+          !current ||
+          next.surge > current.surge ||
+          (next.surge === current.surge && next.access > current.access)
+        ) {
+          best.set(poi.id, next)
+        }
+      }
+    },
+    snapshot(): Record<string, PoiCriticalStation> {
+      const result: Record<string, PoiCriticalStation> = {}
+      for (const [poiId, score] of best) {
+        result[poiId] = { stationId: score.stationId, stationName: score.stationName }
+      }
+      return result
+    },
   }
 }

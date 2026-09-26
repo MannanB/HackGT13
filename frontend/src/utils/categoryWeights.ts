@@ -13,11 +13,6 @@ export const DEFAULT_CATEGORY_WEIGHTS: Record<PoiCategory, number> = {
   other: 1,
 }
 
-export function categoryWeight(
-  weights: Partial<Record<PoiCategory, number>> | undefined,
-  category: PoiCategory,
-): number {
-  const value = weights?.[category]
-  if (value == null || !Number.isFinite(value)) return DEFAULT_CATEGORY_WEIGHTS[category] ?? 1
-  return Math.min(10, Math.max(1, Math.round(value)))
+export function categoryWeight(category: PoiCategory): number {
+  return DEFAULT_CATEGORY_WEIGHTS[category] ?? 1
 }

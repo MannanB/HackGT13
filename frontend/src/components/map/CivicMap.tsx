@@ -14,6 +14,7 @@ import { Segmented } from '@/components/ui/Segmented'
 import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
 import type { PointOfInterest } from '@/types/geography'
 import type { Station } from '@/types/network'
+import type { PoiCriticalStation } from '@/types/simulation'
 import { categoryMeta, categoryRgb } from '@/utils/categories'
 import {
   ATLANTA_VIEW,
@@ -74,6 +75,7 @@ export function CivicMap() {
   const selectZone = useScenarioStore((state) => state.selectZone)
   const hoverZone = useScenarioStore((state) => state.hoverZone)
   const setExtruded = useScenarioStore((state) => state.setExtruded)
+  const poiCriticalById = useScenarioStore((state) => state.poiCriticalById)
   const appMode = useScenarioStore((state) => state.appMode)
   const setAppMode = useScenarioStore((state) => state.setAppMode)
   const addedPois = useScenarioStore((state) => state.addedPois)
@@ -104,7 +106,15 @@ export function CivicMap() {
 
   const layers = useMemo<LayersList>(
     () => [
-      createZoneImpactLayer({ data: zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, gain }),
+      createZoneImpactLayer({
+        data: zoneData,
+        selectedZoneId,
+        hoveredZoneId,
+        delayRange,
+        extruded,
+        gain,
+        live: gain,
+      }),
       ...createMartaNetworkLayers(transitEdges, stations, shutdownIds),
       ...createPoiLayers({
         pois,
@@ -191,7 +201,7 @@ export function CivicMap() {
     hoverStation(null)
     if (id === 'pois' && info.object) {
       hoverZone(null)
-      setHover(place({ kind: 'poi', poi: info.object as PointOfInterest }, info, 240, 60))
+      setHover(place({ kind: 'poi', poi: info.object as PointOfInterest }, info, 260, 96))
       return
     }
     if (id === 'zone-impacts' && info.object) {
@@ -277,7 +287,12 @@ export function CivicMap() {
           className="glass pointer-events-none absolute z-30 max-w-[260px] rounded-xl px-3 py-2"
           style={{ left: hover.left, top: hover.top }}
         >
-          <TooltipBody hover={hover.item} stationStates={stationStates} gain={gain} />
+          <TooltipBody
+            hover={hover.item}
+            stationStates={stationStates}
+            gain={gain}
+            criticalStation={hover.item.kind === 'poi' ? poiCriticalById[hover.item.poi.id] : undefined}
+          />
         </div>
       )}
 
@@ -321,10 +336,12 @@ function TooltipBody({
   hover,
   stationStates,
   gain,
+  criticalStation,
 }: {
   hover: Hover
   stationStates: Record<string, string>
   gain: boolean
+  criticalStation?: PoiCriticalStation
 }) {
   if (hover.kind === 'station') {
     const { station } = hover
@@ -353,6 +370,12 @@ function TooltipBody({
         <div className="text-[11px]" style={{ color: hex(categoryRgb(hover.poi.category)) }}>
           {meta?.label ?? hover.poi.category}
         </div>
+        {criticalStation && (
+          <div className="mt-1.5 text-[11px] leading-snug text-fog-400">
+            {criticalStation.stationName} failing would cause the most increased stress to this
+            facility
+          </div>
+        )}
       </>
     )
   }

@@ -37,7 +37,7 @@ export function ScenarioSidebar() {
         )}
 
         <section className="space-y-2">
-          <h2 className="eyebrow">Destination weights</h2>
+          <h2 className="eyebrow">Destinations</h2>
           <ServiceLayerToggle />
         </section>
       </div>
