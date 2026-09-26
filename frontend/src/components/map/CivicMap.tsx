@@ -14,7 +14,7 @@ import { StationStatePicker } from '@/components/scenario/StationStatePicker'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Segmented } from '@/components/ui/Segmented'
 import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
-import type { PointOfInterest } from '@/types/geography'
+import type { PointOfInterest, PoiCategory } from '@/types/geography'
 import type { Station } from '@/types/network'
 import type { PoiStationPressure } from '@/types/simulation'
 import { categoryMeta, categoryRgb } from '@/utils/categories'
@@ -29,13 +29,14 @@ import {
   gainHex,
   hex,
 } from '@/utils/constants'
+import { softenBasemapRoads } from '@/utils/softenBasemap'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 const PANEL_PADDING = { top: 40, bottom: 40, left: 380, right: 400 }
 
 type Hover =
   | { kind: 'station'; station: Station }
-  | { kind: 'zone'; feature: ZoneFeature }
+  | { kind: 'zone'; feature: ZoneFeature; gain: boolean }
   | { kind: 'poi'; poi: PointOfInterest }
 
 interface Placed<T> {
@@ -84,6 +85,7 @@ export function CivicMap() {
   const intelEvent = useScenarioStore((state) => state.intelEvent)
   const movePoi = useScenarioStore((state) => state.movePoi)
   const setMapCenter = useScenarioStore((state) => state.setMapCenter)
+  const disruptionResult = useScenarioStore((state) => state.disruptionResult)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const gain = appMode === 'add'
 
@@ -91,7 +93,15 @@ export function CivicMap() {
     () => new Set(Object.keys(stationStates).filter((id) => stationStates[id] === 'shutdown')),
     [stationStates],
   )
-  const zoneData = useMemo(() => zoneCollection(zones, result?.zoneImpacts ?? []), [zones, result])
+  const zoneData = useMemo(
+    () =>
+      zoneCollection(
+        zones,
+        disruptionResult?.zoneImpacts ?? [],
+        gain ? (result?.zoneImpacts ?? []) : [],
+      ),
+    [zones, disruptionResult, gain, result],
+  )
 
   useEffect(() => {
     if (!focusRequest) return
@@ -115,7 +125,6 @@ export function CivicMap() {
         hoveredZoneId,
         delayRange,
         extruded,
-        gain,
       }),
       ...createEventRadiusLayer(intelEvent),
       ...createMartaNetworkLayers(transitEdges, stations, shutdownIds),
@@ -210,7 +219,7 @@ export function CivicMap() {
     if (id === 'zone-impacts' && info.object) {
       const feature = info.object as ZoneFeature
       hoverZone(feature.properties.impact?.delayMinutes ? feature.properties.zone.id : null)
-      setHover(place({ kind: 'zone', feature }, info, 240, 90))
+      setHover(place({ kind: 'zone', feature, gain: feature.properties.shade === 'gain' }, info, 240, 90))
       return
     }
     hoverZone(null)
@@ -235,7 +244,9 @@ export function CivicMap() {
     setPoiPopover(null)
     if (id === 'zone-impacts' && info.object) {
       const feature = info.object as ZoneFeature
-      if (result?.traces[feature.properties.zone.id]) {
+      const traces =
+        feature.properties.shade === 'gain' ? result?.traces : disruptionResult?.traces ?? result?.traces
+      if (traces?.[feature.properties.zone.id]) {
         const zoneId = feature.properties.zone.id
         selectZone(zoneId === selectedZoneId ? null : zoneId)
       }
@@ -264,6 +275,11 @@ export function CivicMap() {
         initialViewState={ATLANTA_VIEW}
         attributionControl={{ compact: true }}
         maxPitch={70}
+        onLoad={(event) => {
+          const map = event.target
+          softenBasemapRoads(map)
+          map.on('style.load', () => softenBasemapRoads(map))
+        }}
         onMoveEnd={(event) => setMapCenter(event.viewState.longitude, event.viewState.latitude)}
         reuseMaps
         style={{ width: '100%', height: '100%' }}
@@ -301,7 +317,6 @@ export function CivicMap() {
           <TooltipBody
             hover={hover.item}
             stationStates={stationStates}
-            gain={gain}
           />
         </div>
       )}
@@ -322,19 +337,34 @@ export function CivicMap() {
         />
       )}
 
-      {result && (
+      {(disruptionResult || (gain && result)) && (
         <div className="pointer-events-auto absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-end gap-2">
-          <div className="glass rounded-xl px-3 py-2">
-            <div className="eyebrow mb-1.5">{gain ? 'Travel time saved (min)' : 'Added travel time (min)'}</div>
-            <div className="flex gap-1">
-              {(gain ? GAIN_BREAKS : IMPACT_BREAKS).map((bucket) => (
-                <div key={bucket.label} className="flex flex-col items-center gap-1">
-                  <span className="h-1.5 w-12 rounded-sm" style={{ background: hex(bucket.color) }} />
-                  <span className="font-mono text-[9.5px] text-fog-400">{bucket.label}</span>
-                </div>
-              ))}
+          {disruptionResult && (
+            <div className="glass rounded-xl px-3 py-2">
+              <div className="eyebrow mb-1.5">Added travel time (min)</div>
+              <div className="flex gap-1">
+                {IMPACT_BREAKS.map((bucket) => (
+                  <div key={bucket.label} className="flex flex-col items-center gap-1">
+                    <span className="h-1.5 w-12 rounded-sm" style={{ background: hex(bucket.color) }} />
+                    <span className="font-mono text-[9.5px] text-fog-400">{bucket.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+          {gain && result && (
+            <div className="glass rounded-xl px-3 py-2">
+              <div className="eyebrow mb-1.5">Travel time saved (min)</div>
+              <div className="flex gap-1">
+                {GAIN_BREAKS.map((bucket) => (
+                  <div key={bucket.label} className="flex flex-col items-center gap-1">
+                    <span className="h-1.5 w-12 rounded-sm" style={{ background: hex(bucket.color) }} />
+                    <span className="font-mono text-[9.5px] text-fog-400">{bucket.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <Segmented
             className="glass rounded-xl"
             value={extruded ? '3d' : '2d'}
@@ -346,18 +376,38 @@ export function CivicMap() {
           />
         </div>
       )}
+
+      {gain && intelEvent && intelEvent.recommendedFacilities.length > 0 && (
+        <div className="glass pointer-events-none absolute right-4 bottom-16 z-20 max-w-[240px] rounded-xl px-3 py-2">
+          <p className="text-[12px] leading-relaxed text-fog-200">
+            <span className="text-fog-400">Try adding: </span>
+            {intelAddLabels(intelEvent.recommendedFacilities)}
+          </p>
+        </div>
+      )}
     </div>
   )
+}
+
+function intelAddLabels(facilities: { category: string }[]): string {
+  const seen = new Set<string>()
+  const labels: string[] = []
+  for (const item of facilities) {
+    const key = item.category.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    labels.push(categoryMeta(key as PoiCategory)?.label ?? item.category)
+    if (labels.length === 4) break
+  }
+  return labels.join(', ')
 }
 
 function TooltipBody({
   hover,
   stationStates,
-  gain,
 }: {
   hover: Hover
   stationStates: Record<string, string>
-  gain: boolean
 }) {
   if (hover.kind === 'station') {
     const { station } = hover
@@ -390,6 +440,7 @@ function TooltipBody({
     )
   }
   const { zone, impact } = hover.feature.properties
+  const zoneGain = hover.gain
   return (
     <>
       <div className="text-[13px] font-medium">{zone.name}</div>
@@ -401,9 +452,9 @@ function TooltipBody({
           <span className="text-fog-100">{impact.disruptedTravelMinutes} min</span>
           <span
             className="ml-auto"
-            style={{ color: gain ? gainHex(impact.delayMinutes) : delayHex(impact.delayMinutes) }}
+            style={{ color: zoneGain ? gainHex(impact.delayMinutes) : delayHex(impact.delayMinutes) }}
           >
-            {gain ? '−' : '+'}
+            {zoneGain ? '−' : '+'}
             {impact.delayMinutes}
           </span>
         </div>

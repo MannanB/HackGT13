@@ -43,6 +43,7 @@ interface ScenarioState {
   selectedServiceCategories: PoiCategory[]
 
   result: SimulationResult | null
+  disruptionResult: SimulationResult | null
   computing: boolean
   simulationError: string | null
 
@@ -92,8 +93,12 @@ function allDestinations(state: Pick<ScenarioState, 'pois' | 'addedPois' | 'sele
 }
 
 export function selectTrace(state: ScenarioState): TraceImpact | null {
-  if (!state.selectedZoneId || !state.result) return null
-  return state.result.traces[state.selectedZoneId] ?? null
+  if (!state.selectedZoneId) return null
+  return (
+    state.result?.traces[state.selectedZoneId] ??
+    state.disruptionResult?.traces[state.selectedZoneId] ??
+    null
+  )
 }
 
 function disruptionLists(stationStates: Record<string, StationOperatingState>) {
@@ -115,6 +120,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     set({
       computing: false,
       result: null,
+      disruptionResult: null,
       simulationError: null,
       selectedZoneId: null,
       delayRange: null,
@@ -144,17 +150,21 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           transitEdges: state.transitEdges,
         })
         const keepZone = state.selectedZoneId && result.traces[state.selectedZoneId]
+        const adding = state.appMode === 'add'
         set({
-          computing: false,
-          result,
+          computing: adding && state.addedPois.length > 0,
+          disruptionResult: result,
+          result: adding ? (state.addedPois.length > 0 ? state.result : null) : result,
           simulationError: null,
-          selectedZoneId: keepZone ? state.selectedZoneId : null,
+          selectedZoneId: adding ? state.selectedZoneId : keepZone ? state.selectedZoneId : null,
         })
+        if (adding && state.addedPois.length > 0) recomputeAddition()
       } catch (error) {
         set({
           computing: false,
-          result: null,
-          selectedZoneId: null,
+          result: get().appMode === 'add' ? get().result : null,
+          disruptionResult: null,
+          selectedZoneId: get().appMode === 'add' ? get().selectedZoneId : null,
           simulationError: error instanceof Error ? error.message : 'Simulation failed',
         })
       }
@@ -163,6 +173,11 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
 
   const recompute = () => {
     if (get().appMode === 'add') {
+      const { maintenanceStations, shutdownStations } = disruptionLists(get().stationStates)
+      if (maintenanceStations.length + shutdownStations.length > 0) {
+        runDisruption()
+        return
+      }
       recomputeAddition()
       return
     }
@@ -170,26 +185,35 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
   }
 
   const recomputeAddition = () => {
-    if (get().addedPois.length === 0) {
-      clearImpacts()
+    const state = get()
+    if (state.addedPois.length === 0) {
+      set({
+        computing: false,
+        result: null,
+        selectedZoneId: null,
+        simulationError: null,
+      })
       return
     }
     const generation = ++impactGeneration
     set({ computing: true })
     window.requestAnimationFrame(() => {
       if (generation !== impactGeneration) return
-      const state = get()
+      const latest = get()
+      const { maintenanceStations, shutdownStations } = disruptionLists(latest.stationStates)
       try {
         const result = buildAdditionSimulation({
-          addedPois: state.addedPois,
-          serviceCategories: state.selectedServiceCategories,
-          zones: state.zones,
-          pois: state.pois,
-          stations: state.stations,
-          transitEdges: state.transitEdges,
+          addedPois: latest.addedPois,
+          serviceCategories: latest.selectedServiceCategories,
+          zones: latest.zones,
+          pois: latest.pois,
+          stations: latest.stations,
+          transitEdges: latest.transitEdges,
+          maintenanceStations,
+          shutdownStations,
         })
-        const keepZone = state.selectedZoneId && result.traces[state.selectedZoneId]
-        set({ computing: false, result, simulationError: null, selectedZoneId: keepZone ? state.selectedZoneId : null })
+        const keepZone = latest.selectedZoneId && result.traces[latest.selectedZoneId]
+        set({ computing: false, result, simulationError: null, selectedZoneId: keepZone ? latest.selectedZoneId : null })
       } catch (error) {
         set({
           computing: false,
@@ -220,6 +244,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     selectedServiceCategories: DEFAULT_CATEGORIES,
 
     result: null,
+    disruptionResult: null,
     computing: false,
     simulationError: null,
 
@@ -313,7 +338,16 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         set({ appMode })
         return
       }
-      set({ appMode, result: null, selectedZoneId: null })
+      if (appMode === 'add') {
+        set({
+          appMode,
+          selectedZoneId: null,
+          result: get().addedPois.length > 0 ? get().result : null,
+        })
+        recompute()
+        return
+      }
+      set({ appMode, selectedZoneId: null })
       recompute()
     },
 

@@ -26,6 +26,7 @@ export function ImpactPanel() {
 
   const gain = useScenarioStore((state) => state.appMode === 'add')
   const addedCount = useScenarioStore((state) => state.addedPois.length)
+  const disruptionResult = useScenarioStore((state) => state.disruptionResult)
   const anyShutdown = disrupted.some((item) => item.operating === 'shutdown')
 
   return (
@@ -35,7 +36,9 @@ export function ImpactPanel() {
           <div className="rounded-2xl border border-dashed border-ink-600 bg-ink-850/60 px-4 py-8 text-center">
             <p className="text-sm leading-relaxed text-fog-300">
               {gain
-                ? 'Add a hospital, grocery or other service and drag it around. Areas that save 15+ minutes turn green.'
+                ? disruptionResult
+                  ? 'Yellow is the current disruption. Add a hospital, grocery or other service and drag it — 15+ minute savings turn green over those delays.'
+                  : 'Add a hospital, grocery or other service and drag it around. Areas that save 15+ minutes turn green.'
                 : 'Set a station to maintenance or shut down. Affected communities update immediately.'}
             </p>
             {!gain && (

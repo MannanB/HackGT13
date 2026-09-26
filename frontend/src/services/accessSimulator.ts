@@ -244,8 +244,7 @@ function baseline(
   return baselineCache
 }
 
-export interface AdditionRequest
-  extends Omit<SimulateScenarioRequest, 'maintenanceStations' | 'shutdownStations'> {
+export interface AdditionRequest extends SimulateScenarioRequest {
   addedPois: PointOfInterest[]
 }
 
@@ -254,9 +253,21 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
   const { zones, addedPois } = request
   if (request.stations.length === 0) throw new Error('Station network is not loaded')
   const categories = [...new Set([...request.serviceCategories, ...addedPois.map((poi) => poi.category)])]
-  const scoped = { ...request, serviceCategories: categories, maintenanceStations: [], shutdownStations: [] }
+  const scoped = { ...request, serviceCategories: categories }
   const grouped = groupByCategory(request.pois, categories)
-  const { beforeByZone, graph, nearest } = baseline(scoped, grouped)
+  const blocked = new Set(request.shutdownStations)
+  const unboardable = new Set([...request.maintenanceStations, ...request.shutdownStations])
+  const disrupted = unboardable.size > 0
+  const cached = disrupted ? null : baseline(scoped, grouped)
+  const graph = disrupted
+    ? buildGraph(request.stations, request.transitEdges, blocked)
+    : cached!.graph
+  const nearest = disrupted
+    ? nearestFinder(request.stations, unboardable)
+    : cached!.nearest
+  const beforeByZone = disrupted
+    ? new Map(request.zones.map((zone) => [zone.id, bestByCategory(zone, grouped, nearest, graph, blocked)]))
+    : cached!.beforeByZone
   const stationById = new Map(request.stations.map((station) => [station.id, station]))
 
   const impacts: ZoneImpact[] = []
@@ -269,7 +280,7 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
     const bestNew = new Map<PoiCategory, Trip>()
     for (const poi of addedPois) {
       if (!before.has(poi.category)) continue
-      const trip = optimalTrip(zone, poi, nearest, graph, new Set())
+      const trip = optimalTrip(zone, poi, nearest, graph, blocked)
       const current = bestNew.get(poi.category)
       if (!current || trip.minutes < current.minutes) bestNew.set(poi.category, trip)
     }
@@ -307,8 +318,8 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
       normalTravelMinutes,
       disruptedTravelMinutes,
       delayMinutes: normalTravelMinutes - disruptedTravelMinutes,
-      normalPath: buildPath(zone, focus.before, stationById, new Set()),
-      disruptedPath: buildPath(zone, focus.after, stationById, new Set()),
+      normalPath: buildPath(zone, focus.before, stationById, blocked),
+      disruptedPath: buildPath(zone, focus.after, stationById, blocked),
     }
   }
 
