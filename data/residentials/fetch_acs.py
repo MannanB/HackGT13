@@ -30,10 +30,7 @@ logger = logging.getLogger(__name__)
 
 def census_api_key() -> str:
     load_dotenv(BACKEND_ENV)
-    key = os.environ.get("CENSUS_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError("CENSUS_API_KEY is missing from backend/.env")
-    return key
+    return os.environ.get("CENSUS_API_KEY", "").strip()
 
 
 def parse_population(value: object) -> int:
@@ -60,15 +57,17 @@ def _geoid(row: dict[str, str]) -> str:
 
 
 def fetch_county(county: str, api_key: str) -> list[dict[str, object]]:
+    params: list[tuple[str, str]] = [
+        ("get", "NAME,B01003_001E,B19013_001E"),
+        ("for", "block group:*"),
+        ("in", "state:13"),
+        ("in", f"county:{county}"),
+    ]
+    if api_key:
+        params.append(("key", api_key))
     response = requests.get(
         ACS_URL,
-        params=[
-            ("get", "NAME,B01003_001E,B19013_001E"),
-            ("for", "block group:*"),
-            ("in", "state:13"),
-            ("in", f"county:{county}"),
-            ("key", api_key),
-        ],
+        params=params,
         timeout=120,
     )
     if response.status_code != 200:
@@ -91,7 +90,9 @@ def fetch_county(county: str, api_key: str) -> list[dict[str, object]]:
 
 
 def fetch_acs(api_key: str | None = None) -> dict[str, dict[str, object]]:
-    key = api_key or census_api_key()
+    key = census_api_key() if api_key is None else api_key
+    if not key:
+        logger.warning("CENSUS_API_KEY is missing; requesting ACS without a key")
     estimates: dict[str, dict[str, object]] = {}
     for county in COUNTIES:
         for record in fetch_county(county, key):
