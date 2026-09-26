@@ -7,8 +7,8 @@ import { cn } from '@/utils/cn'
 export function StationSelector() {
   const stations = useScenarioStore((state) => state.stations)
   const selectedStationId = useScenarioStore((state) => state.selectedStationId)
+  const stationStates = useScenarioStore((state) => state.stationStates)
   const setSelectedStation = useScenarioStore((state) => state.setSelectedStation)
-  const simulationStatus = useScenarioStore((state) => state.simulationStatus)
   const [open, setOpen] = useState(false)
 
   const selectable = useMemo(
@@ -16,7 +16,7 @@ export function StationSelector() {
     [stations],
   )
   const selected = stations.find((station) => station.id === selectedStationId)
-  const offline = simulationStatus === 'success'
+  const selectedState = stationStates[selectedStationId] ?? 'normal'
 
   return (
     <div className="relative">
@@ -29,13 +29,22 @@ export function StationSelector() {
           <span
             className={cn(
               'h-2 w-2 rounded-full',
-              offline ? 'bg-line-red' : 'bg-signal',
+              selectedState === 'shutdown' && 'bg-line-red',
+              selectedState === 'maintenance' && 'bg-line-gold',
+              selectedState === 'normal' && 'bg-signal',
             )}
           />
           <span className="text-sm text-fog-100">{selected?.name ?? 'Select a station'}</span>
-          {offline && (
-            <span className="rounded-full bg-line-red/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-line-red">
-              Offline
+          {selectedState !== 'normal' && (
+            <span
+              className={cn(
+                'rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+                selectedState === 'shutdown'
+                  ? 'bg-line-red/15 text-line-red'
+                  : 'bg-line-gold/15 text-line-gold',
+              )}
+            >
+              {selectedState === 'shutdown' ? 'Shut down' : 'Maintenance'}
             </span>
           )}
         </span>
@@ -58,7 +67,19 @@ export function StationSelector() {
                   : 'text-fog-300 hover:bg-ink-700/70 hover:text-fog-100',
               )}
             >
-              <span>{station.name}</span>
+              <span className="flex items-center gap-2">
+                <span>{station.name}</span>
+                {stationStates[station.id] === 'shutdown' && (
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-line-red">
+                    Shut down
+                  </span>
+                )}
+                {stationStates[station.id] === 'maintenance' && (
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-line-gold">
+                    Maintenance
+                  </span>
+                )}
+              </span>
               <span className="flex items-center gap-1">
                 {station.lines.map((line) => (
                   <span

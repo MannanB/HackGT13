@@ -1,89 +1,123 @@
-import { AnimatePresence, motion } from 'framer-motion'
-import { TriangleAlert } from 'lucide-react'
+import { TriangleAlert, Wrench } from 'lucide-react'
 import { AffectedCommunities } from '@/components/impact/AffectedCommunities'
 import { ImpactSummary } from '@/components/impact/ImpactSummary'
 import { PoiPressureList } from '@/components/impact/PoiPressureList'
 import { TraceImpactPanel } from '@/components/trace/TraceImpactPanel'
 import { useScenarioStore } from '@/store/scenarioStore'
+import type { StationOperatingState } from '@/types/network'
+import { cn } from '@/utils/cn'
 
 export function ImpactPanel() {
   const status = useScenarioStore((state) => state.simulationStatus)
   const result = useScenarioStore((state) => state.simulationResult)
   const stations = useScenarioStore((state) => state.stations)
-  const selectedStationId = useScenarioStore((state) => state.selectedStationId)
+  const stationStates = useScenarioStore((state) => state.stationStates)
+  const impactPending = useScenarioStore((state) => state.impactPending)
+  const setSelectedStation = useScenarioStore((state) => state.setSelectedStation)
   const selectedZoneId = useScenarioStore((state) => state.selectedZoneId)
   const error = useScenarioStore((state) => state.simulationError)
-  const station = stations.find((item) => item.id === selectedStationId)
+
+  const disrupted = stations
+    .flatMap((station) => {
+      const operating = stationStates[station.id]
+      if (!operating || operating === 'normal') return []
+      return [{ station, operating }]
+    })
+    .sort((a, b) => a.station.name.localeCompare(b.station.name))
+
+  const anyShutdown = disrupted.some((item) => item.operating === 'shutdown')
 
   return (
     <aside className="civic-scroll z-10 flex w-[340px] shrink-0 flex-col overflow-auto border-l border-ink-700 bg-ink-900">
       <div className="space-y-5 p-4">
-        <AnimatePresence mode="wait">
-          {status === 'idle' && (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="rounded-2xl border border-dashed border-ink-600 bg-ink-850/60 px-4 py-8 text-center"
-            >
-              <p className="text-sm leading-relaxed text-fog-300">
-                Select a station and run a disruption scenario to see downstream effects.
-              </p>
-              <p className="mt-3 text-[12px] text-fog-400">
-                Accessibility is how easy a trip is today. Resilience is how that trip
-                changes when a station fails.
-              </p>
-            </motion.div>
-          )}
+        {status === 'idle' && !impactPending && (
+          <div className="rounded-2xl border border-dashed border-ink-600 bg-ink-850/60 px-4 py-8 text-center">
+            <p className="text-sm leading-relaxed text-fog-300">
+              Set a station to maintenance or shut down. Affected communities update immediately.
+            </p>
+            <p className="mt-3 text-[12px] text-fog-400">
+              Maintenance keeps trains moving through. Shut down blocks the line.
+            </p>
+          </div>
+        )}
 
-          {status === 'loading' && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="rounded-2xl border border-ink-700 bg-ink-850 px-4 py-8 text-center text-sm text-fog-400"
-            >
-              Recomputing access paths through the MARTA graph…
-            </motion.div>
-          )}
+        {impactPending && !result && (
+          <div className="rounded-2xl border border-ink-700 bg-ink-850 px-4 py-8 text-center text-sm text-fog-400">
+            Updating who is affected…
+          </div>
+        )}
 
-          {status === 'error' && (
-            <div className="rounded-2xl border border-line-red/30 bg-line-red/10 px-4 py-4 text-sm text-fog-100">
-              {error ?? 'Simulation failed'}
-            </div>
-          )}
+        {status === 'error' && !result && (
+          <div className="rounded-2xl border border-line-red/30 bg-line-red/10 px-4 py-4 text-sm text-fog-100">
+            {error ?? 'Could not update impact'}
+          </div>
+        )}
 
-          {status === 'success' && result && (
-            <motion.div
-              key={result.scenario.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-5"
+        {result && (
+          <div className="space-y-5">
+            <div
+              className={cn(
+                'rounded-2xl border bg-gradient-to-br px-4 py-3',
+                anyShutdown
+                  ? 'border-line-red/35 from-line-red/20 to-ink-850'
+                  : 'border-line-gold/35 from-line-gold/15 to-ink-850',
+              )}
             >
-              <div className="rounded-2xl border border-line-red/35 bg-gradient-to-br from-line-red/20 to-ink-850 px-4 py-3">
-                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-line-red">
+              <div
+                className={cn(
+                  'flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em]',
+                  anyShutdown ? 'text-line-red' : 'text-line-gold',
+                )}
+              >
+                {anyShutdown ? (
                   <TriangleAlert className="h-3.5 w-3.5" />
-                  Station offline
-                </div>
-                <div className="mt-1 text-lg font-semibold text-fog-100">
-                  {station?.name ?? selectedStationId}
-                </div>
-                <p className="mt-1 text-[12px] leading-relaxed text-fog-300">
-                  {result.scenario.description}. Downstream travel times are compared
-                  against typical service.
-                </p>
+                ) : (
+                  <Wrench className="h-3.5 w-3.5" />
+                )}
+                {impactPending ? 'Updating impact' : 'Live impact'}
               </div>
+              <ul className="mt-2 space-y-1">
+                {disrupted.map(({ station, operating }) => (
+                  <li key={station.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStation(station.id)}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1 text-left hover:bg-ink-800/80"
+                    >
+                      <span className="truncate text-sm font-medium text-fog-100">
+                        {station.name}
+                      </span>
+                      <StatePill operating={operating} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[12px] leading-relaxed text-fog-300">
+                {result.scenario.description}
+              </p>
+            </div>
 
-              <ImpactSummary summary={result.summary} active />
-              <PoiPressureList pressure={result.poiPressure} />
-              <AffectedCommunities impacts={result.zoneImpacts} />
-              {selectedZoneId && <TraceImpactPanel />}
-            </motion.div>
-          )}
-        </AnimatePresence>
+            <ImpactSummary summary={result.summary} active />
+            <PoiPressureList pressure={result.poiPressure} />
+            <AffectedCommunities impacts={result.zoneImpacts} />
+            {selectedZoneId && <TraceImpactPanel />}
+          </div>
+        )}
       </div>
     </aside>
+  )
+}
+
+function StatePill({ operating }: { operating: StationOperatingState }) {
+  const shutdown = operating === 'shutdown'
+  return (
+    <span
+      className={cn(
+        'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+        shutdown ? 'bg-line-red/15 text-line-red' : 'bg-line-gold/15 text-line-gold',
+      )}
+    >
+      {shutdown ? 'Shut down' : 'Maintenance'}
+    </span>
   )
 }

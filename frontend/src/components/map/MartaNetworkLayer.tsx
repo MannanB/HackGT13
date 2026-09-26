@@ -12,18 +12,15 @@ interface NetworkDatum {
 export function createMartaNetworkLayer(
   edges: TransitEdge[],
   stations: Station[],
-  failedStationIds: string[],
+  shutdownStationIds: string[],
 ) {
   const lookup = new Map(stations.map((station) => [station.id, station]))
-  const simulated = failedStationIds.length > 0
+  const shutdown = new Set(shutdownStationIds)
   const data: NetworkDatum[] = edges.flatMap((edge) => {
     const from = lookup.get(edge.fromStation)
     const to = lookup.get(edge.toStation)
     if (!from || !to) return []
-    const broken =
-      failedStationIds.includes(edge.fromStation) ||
-      failedStationIds.includes(edge.toStation)
-    if (broken) return []
+    const broken = shutdown.has(edge.fromStation) || shutdown.has(edge.toStation)
     const color = MARTA_LINE_COLORS[edge.line]
     const shift = edge.line === 'gold' ? 0.00018 : edge.line === 'green' ? 0.00016 : 0
     const dx = edge.line === 'gold' ? shift : 0
@@ -35,10 +32,8 @@ export function createMartaNetworkLayer(
           [from.longitude + dx, from.latitude + dy],
           [to.longitude + dx, to.latitude + dy],
         ] as [number, number][],
-        color: simulated
-          ? ([color[0], color[1], color[2], 200] as [number, number, number, number])
-          : color,
-        width: 3.5,
+        color: broken ? ([227, 24, 55, 120] as [number, number, number, number]) : color,
+        width: broken ? 2 : 3.5,
       },
     ]
   })

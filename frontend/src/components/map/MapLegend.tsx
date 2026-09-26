@@ -25,6 +25,25 @@ export function MapLegend({ simulated }: { simulated: boolean }) {
             </li>
           ))}
         </ul>
+        <div className="mt-3 border-t border-ink-700 pt-2">
+          <div className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-fog-400">
+            Station state
+          </div>
+          <ul className="space-y-1.5 text-xs text-fog-100">
+            <li className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-fog-100" />
+              Normal
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-line-gold" />
+              Maintenance
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-line-red" />
+              Shut down
+            </li>
+          </ul>
+        </div>
       </div>
 
       {simulated && (

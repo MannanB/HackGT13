@@ -9,6 +9,7 @@ export interface Scenario {
   id: string
   createdAt: string
   closedStations: string[]
+  maintenanceStations: string[]
   description: string
 }
 
@@ -73,12 +74,14 @@ export interface SimulationResult {
   zoneImpacts: ZoneImpact[]
   poiPressure: PoiPressure[]
   failedStations: string[]
+  maintenanceStations: string[]
   reroutedPaths: RoutePath[]
   traces: Record<string, TraceImpact>
 }
 
 export interface SimulateScenarioRequest {
-  closedStations: string[]
+  maintenanceStations: string[]
+  shutdownStations: string[]
   serviceCategories: PoiCategory[]
   zones?: ResidentialZone[]
   pois?: PointOfInterest[]

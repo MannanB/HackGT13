@@ -41,7 +41,7 @@ export function TraceImpactPanel() {
             <Info className="h-3.5 w-3.5 text-fog-400" />
           </h3>
           <p className="mt-1 text-[12px] leading-relaxed text-fog-400">
-            Why {zoneName ?? 'this community'} lost time when the station went offline.
+            Why {zoneName ?? 'this community'} takes longer under the current station states.
           </p>
         </div>
       </div>

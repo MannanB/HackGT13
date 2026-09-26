@@ -1,19 +1,21 @@
 import { ChevronDown, Train } from 'lucide-react'
 import { ServiceLayerToggle } from '@/components/scenario/ServiceLayerToggle'
-import { SimulationButton } from '@/components/scenario/SimulationButton'
 import { StationSelector } from '@/components/scenario/StationSelector'
+import { StationStateControl } from '@/components/scenario/StationStateControl'
 import { useScenarioStore } from '@/store/scenarioStore'
 
 export function ScenarioSidebar() {
-  const resetSimulation = useScenarioStore((state) => state.resetSimulation)
-  const status = useScenarioStore((state) => state.simulationStatus)
+  const selectedStationId = useScenarioStore((state) => state.selectedStationId)
+  const stationStates = useScenarioStore((state) => state.stationStates)
+  const resetStationStates = useScenarioStore((state) => state.resetStationStates)
+  const disrupted = Object.values(stationStates).some((status) => status !== 'normal')
 
   return (
     <aside className="civic-scroll z-10 flex w-[320px] shrink-0 flex-col overflow-auto border-r border-ink-700 bg-ink-900">
       <div className="space-y-6 p-4">
         <section>
-          <Step n={1} title="Select infrastructure">
-            Choose a MARTA station to simulate a disruption and see downstream impacts.
+          <Step n={1} title="Select a station">
+            Click a station on the map, or choose one here.
           </Step>
           <div className="mt-3 space-y-3">
             <div className="flex items-center justify-between rounded-xl border border-ink-600 bg-ink-850 px-3 py-2.5">
@@ -31,29 +33,29 @@ export function ScenarioSidebar() {
         </section>
 
         <section>
-          <Step n={2} title="Include essential services">
-            Show how the disruption affects access to key community resources.
+          <Step n={2} title="Set its state">
+            Maintenance keeps trains moving through the station. Shut down stops trains from passing.
           </Step>
-          <div className="mt-3">
-            <ServiceLayerToggle />
+          <div className="mt-3 space-y-2">
+            <StationStateControl stationId={selectedStationId} />
+            {disrupted && (
+              <button
+                type="button"
+                onClick={resetStationStates}
+                className="w-full text-center text-xs text-fog-400 hover:text-fog-100"
+              >
+                Restore all stations
+              </button>
+            )}
           </div>
         </section>
 
         <section>
-          <Step n={3} title="Run simulation">
-            Model network impacts, travel time changes, and access to essential services.
+          <Step n={3} title="Essential services">
+            Affected communities update as soon as a station state or service changes.
           </Step>
-          <div className="mt-3 space-y-2">
-            <SimulationButton />
-            {status !== 'idle' && (
-              <button
-                type="button"
-                onClick={resetSimulation}
-                className="w-full text-center text-xs text-fog-400 hover:text-fog-100"
-              >
-                Reset scenario
-              </button>
-            )}
+          <div className="mt-3">
+            <ServiceLayerToggle />
           </div>
         </section>
       </div>
