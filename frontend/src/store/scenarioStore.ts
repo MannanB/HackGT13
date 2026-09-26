@@ -437,6 +437,8 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           pois: connected.pois,
         })
         const cached = await readCriticalCache(fingerprint)
+        const previous = get().poiCriticalById
+        const seed = cached ?? (Object.keys(previous).length > 0 ? previous : null)
         set({
           stations: network.stations,
           transitEdges: network.transitEdges,
@@ -448,10 +450,13 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
             network.stations.find((station) => /five points/i.test(station.name))?.id ??
             null,
           loadStatus: 'ready',
-          poiCriticalById: cached ?? {},
-          poiCriticalProgress: cached ? 1 : 0,
+          poiCriticalById: seed ?? {},
+          poiCriticalProgress: seed ? 1 : 0,
           criticalFromCache: Boolean(cached),
         })
+        // Persist the last snapshot under the new fingerprint so a reload does not
+        // start the overlay from scratch after a Build add/remove.
+        if (!cached && seed) await writeCriticalCache(fingerprint, seed)
         if (!cached) {
           const generation = ++criticalGeneration
           const index = createPoiCriticalIndex({

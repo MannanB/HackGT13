@@ -12,14 +12,18 @@ interface Pending {
 }
 
 /** Planned links and the in-progress marker. Selection uses the shared blue station/POI focus ring. */
+export const BUILD_PENDING_LAYER = 'build-pending'
+
 export function createBuildLayers({
   pending,
   neighborStations,
   lineColor,
+  dragging = false,
 }: {
   pending: Pending | null
   neighborStations: Station[]
   lineColor: RGB
+  dragging?: boolean
 }) {
   const previewPaths =
     pending && pending.isStation
@@ -44,28 +48,14 @@ export function createBuildLayers({
       ...dashed([6, 5]),
     }),
     new ScatterplotLayer<Pending>({
-      id: 'build-pending-halo',
+      id: BUILD_PENDING_LAYER,
       data: pendingData,
       getPosition: (d) => [d.point.longitude, d.point.latitude],
-      getRadius: 22,
+      getRadius: dragging ? 8 : 6,
       radiusUnits: 'pixels',
-      getFillColor: (d) => [...d.color, 45],
-      getLineColor: [74, 222, 128, 200],
-      stroked: true,
-      lineWidthMinPixels: 1.5,
-      updateTriggers: { getFillColor: pending?.color },
-    }),
-    new ScatterplotLayer<Pending>({
-      id: 'build-pending',
-      data: pendingData,
-      getPosition: (d) => [d.point.longitude, d.point.latitude],
-      getRadius: 12,
-      radiusUnits: 'pixels',
-      getFillColor: (d) => [...d.color, 255],
-      getLineColor: [255, 255, 255, 255],
-      stroked: true,
-      lineWidthMinPixels: 2.5,
-      updateTriggers: { getFillColor: pending?.color },
+      getFillColor: [255, 255, 255, 255],
+      pickable: true,
+      updateTriggers: { getRadius: dragging },
     }),
     new TextLayer<Pending>({
       id: 'build-pending-label',
@@ -73,8 +63,8 @@ export function createBuildLayers({
       getPosition: (d) => [d.point.longitude, d.point.latitude],
       getText: (d) => d.label,
       getSize: 12,
-      getColor: [220, 255, 225, 255],
-      getPixelOffset: [0, 20],
+      getColor: [238, 242, 247, 255],
+      getPixelOffset: [0, 18],
       fontFamily: 'Geist, sans-serif',
       fontWeight: 600,
       fontSettings: { sdf: true },

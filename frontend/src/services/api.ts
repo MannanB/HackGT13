@@ -12,7 +12,6 @@ export const endpoints = {
   hospitalChoiceModel: '/api/v1/hospital-choice/model',
   activityModel: '/api/v1/activity/model',
   buildStations: '/api/v1/build/stations',
-  buildPois: '/api/v1/build/pois',
 } as const
 
 interface Page<T> {

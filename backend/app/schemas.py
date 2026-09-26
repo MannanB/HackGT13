@@ -276,24 +276,6 @@ class StationRemoveResult(BaseModel):
     total_access_edges: int
 
 
-class PoiRemoveResult(BaseModel):
-    poi: PointOfInterest
-    removed_access_edges: int
-
-
-class PoiBuild(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    category: str = Field(min_length=1, max_length=64)
-    location: LonLat
-    enrollment: int | None = Field(default=None, ge=0)
-    jobs_count: int | None = Field(default=None, ge=0)
-
-
-class PoiBuildResult(BaseModel):
-    poi: PointOfInterest
-    access_edges: list[AccessEdge]
-
-
 class PoiCriticalCache(BaseModel):
     fingerprint: str
     snapshot: dict[str, Any]

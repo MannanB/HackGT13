@@ -8,7 +8,6 @@ export function BuildPanel() {
   const stations = useScenarioStore((state) => state.stations)
   const edges = useScenarioStore((state) => state.transitEdges)
   const pois = useScenarioStore((state) => state.pois)
-  const kind = useBuildStore((state) => state.kind)
   const pending = useBuildStore((state) => state.pending)
   const target = useBuildStore((state) => state.target)
   const saved = useBuildStore((state) => state.saved)
@@ -22,14 +21,12 @@ export function BuildPanel() {
           <div className="rounded-2xl border border-dashed border-ink-600 bg-ink-850/60 px-4 py-8 text-center">
             <p className="text-sm leading-relaxed text-fog-300">
               {target
-                ? pending && kind === 'station' && target.type === 'station'
+                ? pending
                   ? 'Remove the selected station from the sidebar, or connect it to the stop you are placing.'
-                  : 'Remove the selected node from the sidebar, or click empty map to go back to adding.'
+                  : 'Remove the selected station from the sidebar, or click empty map to go back to adding.'
                 : pending
-                  ? kind === 'station'
-                    ? 'Name the stop and connect it to one or two stations, then save.'
-                    : 'Name the destination and pick its type, then save.'
-                  : 'Click the map to place a new train stop or destination. Click an existing one to select it.'}
+                  ? 'Drag the stop into place, name it, and connect it to one or two stations, then save.'
+                  : 'Click the map to drop a new train stop, then drag it. Click an existing station to select it.'}
             </p>
             <p className="mt-3 flex items-center justify-center gap-1.5 text-[12px] text-fog-400">
               <Database className="h-3.5 w-3.5" />
