@@ -446,16 +446,16 @@ export function CivicMap() {
               activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-red-500/15 hover:text-red-200 hover:ring-1 hover:ring-red-400/40',
             },
             {
-              value: 'add',
-              label: 'Plan',
-              idleClass: 'text-fog-400 hover:bg-emerald-500/15 hover:text-emerald-300 hover:ring-1 hover:ring-emerald-400/40',
-              activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-emerald-500/15 hover:text-emerald-300 hover:ring-1 hover:ring-emerald-400/40',
-            },
-            {
               value: 'intel',
               label: 'Intelligence',
               idleClass: 'text-fog-400 hover:bg-blue-500/15 hover:text-blue-200 hover:ring-1 hover:ring-blue-400/40',
               activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-blue-500/15 hover:text-blue-200 hover:ring-1 hover:ring-blue-400/40',
+            },
+            {
+              value: 'add',
+              label: 'Plan',
+              idleClass: 'text-fog-400 hover:bg-emerald-500/15 hover:text-emerald-300 hover:ring-1 hover:ring-emerald-400/40',
+              activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-emerald-500/15 hover:text-emerald-300 hover:ring-1 hover:ring-emerald-400/40',
             },
             {
               value: 'build',
