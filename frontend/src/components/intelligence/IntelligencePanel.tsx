@@ -1,7 +1,6 @@
 import { Loader2, Sparkles } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { interpretEvent, type IntelProvider } from '@/services/intelligenceService'
-import { Segmented } from '@/components/ui/Segmented'
+import { interpretEvent } from '@/services/intelligenceService'
 import { useScenarioStore } from '@/store/scenarioStore'
 
 export function IntelligencePanel() {
@@ -11,7 +10,6 @@ export function IntelligencePanel() {
   const applyIntelEvent = useScenarioStore((state) => state.applyIntelEvent)
   const computing = useScenarioStore((state) => state.computing)
   const [prompt, setPrompt] = useState('')
-  const [provider, setProvider] = useState<IntelProvider>('gemini')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastPrompt, setLastPrompt] = useState<string | null>(null)
@@ -24,7 +22,7 @@ export function IntelligencePanel() {
     setError(null)
     setLastPrompt(next)
     try {
-      const result = await interpretEvent(next, stations, provider)
+      const result = await interpretEvent(next, stations)
       applyIntelEvent(result.event, result.narrative)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not interpret the event')
@@ -38,19 +36,9 @@ export function IntelligencePanel() {
       <div className="border-b border-white/5 px-4 py-3">
         <h2 className="eyebrow">Intelligence</h2>
         <p className="mt-1 text-[12px] leading-relaxed text-fog-400">
-          Describe an event. Gemini or OpenAI maps it onto MARTA stations, radius, and cascade effects,
-          then the simulator runs.
+          Describe an event. AI maps it onto MARTA stations, radius, and cascade effects, then the
+          simulator runs.
         </p>
-        <Segmented
-          className="mt-3"
-          size="sm"
-          value={provider}
-          onChange={setProvider}
-          options={[
-            { value: 'gemini', label: 'Gemini Flash', activeClass: 'bg-signal/15 text-signal-soft' },
-            { value: 'openai', label: 'OpenAI', activeClass: 'bg-signal/15 text-signal-soft' },
-          ]}
-        />
       </div>
 
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[12.5px] leading-relaxed">

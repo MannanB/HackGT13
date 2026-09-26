@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.config import get_settings
-from app.gemini import SIMULATE_EVENT_TOOL, SYSTEM_PROMPT, _normalize_event
+from app.gemini import SIMULATE_EVENT_TOOL, SSL_CONTEXT, SYSTEM_PROMPT, _normalize_event
 
 OPENAI_TOOLS = [
     {
@@ -44,7 +44,7 @@ def _openai_post(payload: dict[str, Any]) -> dict[str, Any]:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(request, timeout=60, context=SSL_CONTEXT) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             last_error = exc.read().decode("utf-8", errors="replace")[:800]

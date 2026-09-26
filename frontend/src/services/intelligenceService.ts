@@ -2,19 +2,15 @@ import { API_BASE, ApiError } from '@/services/api'
 import type { Station } from '@/types/network'
 import type { IntelInterpretation } from '@/types/intelligence'
 
-export type IntelProvider = 'gemini' | 'openai'
-
 export async function interpretEvent(
   event: string,
   stations: Station[],
-  provider: IntelProvider = 'gemini',
 ): Promise<IntelInterpretation> {
   const response = await fetch(`${API_BASE}/api/v1/intelligence/events`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       event,
-      provider,
       stations: stations.map((station) => ({
         id: station.id,
         name: station.name,

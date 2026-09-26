@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import json
 import math
+import ssl
 import time
 import urllib.error
 import urllib.request
 from typing import Any
 
+import certifi
 from fastapi import HTTPException
 
 from app.config import get_settings
+
+SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 SIMULATE_EVENT_TOOL = {
     "name": "simulate_urban_event",
@@ -129,7 +133,7 @@ def _gemini_post(payload: dict[str, Any]) -> dict[str, Any]:
     settings = get_settings()
     if not settings.gemini_api_key:
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured")
-    models = [settings.gemini_model, "gemini-3.5-flash"]
+    models = [settings.gemini_model, "gemini-3.5-flash", "gemini-2.5-flash"]
     last_error = "Gemini request failed"
     seen: set[str] = set()
     for model in models:
@@ -147,11 +151,11 @@ def _gemini_post(payload: dict[str, Any]) -> dict[str, Any]:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(request, timeout=60, context=SSL_CONTEXT) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             last_error = exc.read().decode("utf-8", errors="replace")[:800]
-            if exc.code not in {404, 400}:
+            if exc.code not in {400, 404, 429, 500, 503}:
                 raise HTTPException(status_code=502, detail=f"Gemini request failed: {last_error}") from exc
         except urllib.error.URLError as exc:
             raise HTTPException(status_code=502, detail="Could not reach Gemini") from exc
