@@ -208,7 +208,7 @@ export function IntelligencePanel() {
         ) : (
           !busy && (
             <p className="text-fog-500">
-              Try “earthquake near Midtown” or “festival on Peachtree and 10th”.
+              Try “NBA game at Mercedes-Benz Stadium” or “flash floods around east point”.
             </p>
           )
         )}
