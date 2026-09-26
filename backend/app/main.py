@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.router import api_router
 from app.config import get_settings
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
         debug=settings.debug,
     )
     register_exception_handlers(app)
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

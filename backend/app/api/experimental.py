@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/api/v1/experimental", tags=["experimental"])
 CONTEXT_PATH = Path(__file__).resolve().parents[2] / "data" / "experimental" / "context.json"
@@ -31,8 +32,12 @@ def experimental_context() -> dict:
     return payload
 
 
-@router.get("/street-routes")
-def experimental_street_routes() -> dict:
+@router.get("/street-routes", response_model=None)
+def experimental_street_routes() -> dict | FileResponse:
     if not STREET_ROUTES_PATH.exists():
         return {"available": False, "routes": {}, "metadata": {"experimental": True}}
-    return json.loads(STREET_ROUTES_PATH.read_text(encoding="utf-8"))
+    return FileResponse(
+        STREET_ROUTES_PATH,
+        media_type="application/json",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )

@@ -121,6 +121,7 @@ function disruptionLists(stationStates: Record<string, StationOperatingState>) {
 
 let impactGeneration = 0
 let criticalGeneration = 0
+let networkLoading = false
 
 export const useScenarioStore = create<ScenarioState>((set, get) => {
   const clearImpacts = () => {
@@ -270,19 +271,20 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     criticalFromCache: false,
 
     loadNetwork: async () => {
+      if (networkLoading) return
+      networkLoading = true
       criticalGeneration += 1
       const alreadyShowingMap = get().stations.length > 0
       if (!alreadyShowingMap) {
         set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0, criticalFromCache: false })
       }
       try {
-        const [network, zones, pois, accessEdges, experimental, streetRoutes] = await Promise.all([
+        const [network, zones, pois, accessEdges, experimental] = await Promise.all([
           getNetwork(),
           getZones(),
           getPointsOfInterest(),
           getAccessEdges(),
           getExperimentalContext(),
-          getStreetRoutes(),
         ])
         const enriched = attachExperimental(zones, pois, experimental)
         const connected = attachAccess(enriched.zones, enriched.pois, accessEdges)
@@ -298,7 +300,6 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           transitEdges: network.transitEdges,
           zones: connected.zones,
           pois: connected.pois,
-          streetRoutes,
           selectedStationId:
             get().selectedStationId ??
             network.stations.find((station) => /five points/i.test(station.name))?.id ??
@@ -336,11 +337,21 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           window.requestAnimationFrame(step)
         }
         recompute()
+        const loadStreetRoutes = () => {
+          void getStreetRoutes().then((streetRoutes) => set({ streetRoutes }))
+        }
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(loadStreetRoutes, { timeout: 1_500 })
+        } else {
+          setTimeout(loadStreetRoutes, 150)
+        }
       } catch (error) {
         set({
           loadStatus: 'error',
           loadError: error instanceof Error ? error.message : 'Failed to load network',
         })
+      } finally {
+        networkLoading = false
       }
     },
 

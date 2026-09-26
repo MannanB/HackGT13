@@ -110,14 +110,16 @@ export function CivicMap() {
     [zones, disruptionResult, gain, result],
   )
   const baselineJourneys = useMemo(
-    () => buildBaselineJourneys({
-      serviceCategories: categories,
-      zones,
-      pois,
-      stations,
-      transitEdges,
-    }),
-    [categories, zones, pois, stations, transitEdges],
+    () => Object.keys(streetRoutes).length === 0
+      ? []
+      : buildBaselineJourneys({
+          serviceCategories: categories,
+          zones,
+          pois,
+          stations,
+          transitEdges,
+        }),
+    [categories, zones, pois, stations, transitEdges, streetRoutes],
   )
   const trains = useMemo(
     () => (motionActive ? simulatedTrains(stations, transitEdges, shutdownIds, motionTime) : []),
