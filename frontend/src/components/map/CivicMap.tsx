@@ -130,12 +130,13 @@ export function CivicMap() {
         .map((id) => stations.find((station) => station.id === id))
         .filter((station): station is Station => Boolean(station)),
       lineColor: MARTA_LINE_RGB[buildLine],
-      target: buildTarget,
     })
   }, [
     building, buildKind, buildPending, buildStationName, buildPoiName, buildLine, buildCategory,
-    buildNeighborIds, buildTarget, stations,
+    buildNeighborIds, stations,
   ])
+  const buildSelectedStationId = building && buildTarget?.type === 'station' ? buildTarget.station.id : null
+  const buildSelectedPoiId = building && buildTarget?.type === 'poi' ? buildTarget.poi.id : null
 
   const closedPoiIds = useScenarioStore((state) => state.closedPoiIds)
   const destroyedPoiIds = useScenarioStore((state) => state.destroyedPoiIds)
@@ -241,6 +242,7 @@ export function CivicMap() {
         tracePoiId: trace?.poiId ?? null,
         zoom: mapZoom,
         gain,
+        selectedId: buildSelectedPoiId,
       }),
       ...createRouteLayers(
         trace && routeView !== 'disrupted' ? trace.normalPath : null,
@@ -249,7 +251,7 @@ export function CivicMap() {
       ...createStationLayers({
         stations,
         stationStates,
-        selectedId: selectedStationId,
+        selectedId: building ? buildSelectedStationId : selectedStationId,
         hoveredId: hoveredStationId,
       }),
       ...createLiveTrainLayers(trains),
@@ -261,7 +263,7 @@ export function CivicMap() {
       shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
       hoveredStationId, gain, addedPois, draggingId, intelEvent, motionTime, trains,
       baselineJourneys, streetRoutes, mapZoom, disruptionResult, maxCapacityIds, closedPoiIdSet, destroyedPoiIdSet,
-      buildLayers,
+      buildLayers, building, buildSelectedStationId, buildSelectedPoiId,
     ],
   )
 

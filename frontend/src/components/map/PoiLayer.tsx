@@ -14,6 +14,7 @@ export function createPoiLayers({
   tracePoiId,
   zoom,
   gain,
+  selectedId = null,
 }: {
   pois: PointOfInterest[]
   categories: PoiCategory[]
@@ -24,6 +25,7 @@ export function createPoiLayers({
   tracePoiId: string | null
   zoom: number
   gain: boolean
+  selectedId?: string | null
 }) {
   const visible = pois.filter((poi) => categories.includes(poi.category))
   const added = new Map(pressure.map((item) => [item.poiId, item.addedDemand]))
@@ -36,17 +38,31 @@ export function createPoiLayers({
     ...maxed.map((poi) => poi.id),
     ...closed.map((poi) => poi.id),
     ...pressure.slice(0, zoom >= 12.5 ? 5 : 3).map((item) => item.poiId),
+    ...(selectedId ? [selectedId] : []),
   ])
+  const focused = selectedId ? visible.filter((poi) => poi.id === selectedId) : []
   const triggers = [
     pressure,
     tracePoiId,
     zoom,
+    selectedId,
     [...maxCapacityIds].join('|'),
     [...closedIds].join('|'),
     [...destroyedIds].join('|'),
   ]
 
   return [
+    new ScatterplotLayer<PointOfInterest>({
+      id: 'poi-focus',
+      data: focused,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getRadius: 15,
+      radiusUnits: 'pixels',
+      filled: false,
+      stroked: true,
+      getLineColor: [124, 196, 255, 255],
+      lineWidthMinPixels: 1.5,
+    }),
     new ScatterplotLayer<PointOfInterest>({
       id: 'poi-closed-ring',
       data: closed,
