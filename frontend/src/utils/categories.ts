@@ -31,6 +31,12 @@ export const SERVICE_CATEGORIES: CategoryMeta[] = [
 const FALLBACK: RGB = [160, 170, 185]
 const byCategory = new Map(SERVICE_CATEGORIES.map((meta) => [meta.category, meta]))
 
+export function categorySingular(category: PoiCategory) {
+  const label = byCategory.get(category)?.label ?? category
+  if (category === 'grocery') return 'Grocery'
+  return label.replace(/ies$/, 'y').replace(/s$/, '')
+}
+
 export function categoryMeta(category: PoiCategory): CategoryMeta | undefined {
   return byCategory.get(category)
 }

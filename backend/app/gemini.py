@@ -14,6 +14,16 @@ from fastapi import HTTPException
 from app.config import get_settings
 
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+_gemini_quota_exhausted = False
+
+
+def gemini_is_exhausted() -> bool:
+    return _gemini_quota_exhausted
+
+
+def _mark_gemini_exhausted() -> None:
+    global _gemini_quota_exhausted
+    _gemini_quota_exhausted = True
 
 SIMULATE_EVENT_TOOL = {
     "name": "simulate_urban_event",
@@ -155,7 +165,11 @@ def _gemini_post(payload: dict[str, Any]) -> dict[str, Any]:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             last_error = exc.read().decode("utf-8", errors="replace")[:800]
-            if exc.code not in {400, 404, 429, 500, 503}:
+            quota = exc.code == 429 or "RESOURCE_EXHAUSTED" in last_error
+            if quota:
+                _mark_gemini_exhausted()
+                raise HTTPException(status_code=502, detail=f"Gemini request failed: {last_error}") from exc
+            if exc.code not in {400, 404, 500, 503}:
                 raise HTTPException(status_code=502, detail=f"Gemini request failed: {last_error}") from exc
         except urllib.error.URLError as exc:
             raise HTTPException(status_code=502, detail="Could not reach Gemini") from exc

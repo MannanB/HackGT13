@@ -11,6 +11,7 @@ interface StagePath {
   totalLength: number
   stage: FlowStage
   share: number
+  congested: boolean
 }
 
 interface FlowRoute {
@@ -19,6 +20,7 @@ interface FlowRoute {
   totalLength: number
   estimatedTrips: number
   phase: number
+  congested: boolean
 }
 
 interface FlowLeg {
@@ -51,11 +53,72 @@ const STAGE_COLORS: Record<FlowStage, RGB> = {
 }
 const PASSENGER_COLOR: RGB = [224, 241, 255]
 const VISUAL_SPEED_KM_PER_SECOND = 0.42
-// The original hospital-only view rendered roughly 3,600 dots. Treat that as
-// 1.0 normalized visitor/hour: 0.66 visitors/hour => 66% of this budget.
-const DEFAULT_DOT_BUDGET = 3_600
-const MAX_DOT_BUDGET = 20_000
+const BASE_HEADWAY_SECONDS = 3.2
+/** Extra trips on a street before it can even be considered congested. */
+const MIN_SURGE_EXTRA_TRIPS = 140
+/** Disrupted traffic must be at least this multiple of the baseline load. */
+const MIN_SURGE_RATIO = 3
+/** Only the peak congestion band is drawn red (share of the busiest extra load). */
+const MAX_THICKNESS_SHARE = 0.8
 const ROUTE_CACHE = new WeakMap<object, { streetRoutes: StreetRouteMap; routes: FlowRoute[] }>()
+const CONGESTION_CACHE = new WeakMap<object, { baseline: PassengerJourney[]; streetRoutes: StreetRouteMap }>()
+
+function quantizeCoord(value: number) {
+  return value.toFixed(3)
+}
+
+function streetSegmentKey(a: [number, number], b: [number, number]) {
+  const start = `${quantizeCoord(a[0])},${quantizeCoord(a[1])}`
+  const end = `${quantizeCoord(b[0])},${quantizeCoord(b[1])}`
+  return start < end ? `${start}|${end}` : `${end}|${start}`
+}
+
+function forEachStreetSegment(path: [number, number][], visit: (key: string) => void) {
+  for (let index = 1; index < path.length; index += 1) {
+    visit(streetSegmentKey(path[index - 1], path[index]))
+  }
+}
+
+function streetTouchesSurge(path: [number, number][], surged: Set<string>) {
+  for (let index = 1; index < path.length; index += 1) {
+    if (surged.has(streetSegmentKey(path[index - 1], path[index]))) return true
+  }
+  return false
+}
+
+function occupancyByStreet(routes: FlowRoute[]) {
+  const load = new Map<string, number>()
+  for (const route of routes) {
+    const trips = Math.max(0, route.estimatedTrips)
+    if (trips <= 0) continue
+    for (const stage of route.stages) {
+      if (stage.stage === 'train') continue
+      forEachStreetSegment(stage.path, (key) => {
+        load.set(key, (load.get(key) ?? 0) + trips)
+      })
+    }
+  }
+  return load
+}
+
+function surgedStreets(baseline: FlowRoute[], disrupted: FlowRoute[]) {
+  const before = occupancyByStreet(baseline)
+  const after = occupancyByStreet(disrupted)
+  const candidates: { key: string; extra: number }[] = []
+  for (const [key, later] of after) {
+    const earlier = before.get(key) ?? 0
+    const extra = later - earlier
+    if (extra < MIN_SURGE_EXTRA_TRIPS) continue
+    if (earlier > 0 && later / earlier < MIN_SURGE_RATIO) continue
+    candidates.push({ key, extra })
+  }
+  if (candidates.length === 0) return new Set<string>()
+  const peakExtra = candidates.reduce((max, item) => Math.max(max, item.extra), 0)
+  const thicknessFloor = peakExtra * MAX_THICKNESS_SHARE
+  return new Set(
+    candidates.filter((item) => item.extra >= thicknessFloor).map((item) => item.key),
+  )
+}
 
 function hash(value: string) {
   let output = 0
@@ -77,7 +140,7 @@ function measured(path: [number, number][], stage: FlowStage): StagePath {
   for (let index = 1; index < path.length; index += 1) {
     cumulative.push(cumulative[index - 1] + segmentDistanceKm(path[index - 1], path[index]))
   }
-  return { path, cumulative, totalLength: cumulative[cumulative.length - 1], stage, share: 0 }
+  return { path, cumulative, totalLength: cumulative[cumulative.length - 1], stage, share: 0, congested: false }
 }
 
 function disruptedJourneys(result: SimulationResult): PassengerJourney[] {
@@ -131,6 +194,7 @@ function buildRoutes(key: object, journeys: PassengerJourney[], streetRoutes: St
       totalLength: routeLength,
       estimatedTrips: journey.estimatedTrips,
       phase: hash(journey.id),
+      congested: false,
     }]
   })
   ROUTE_CACHE.set(key, { streetRoutes, routes })
@@ -149,7 +213,28 @@ function positionAlong(path: StagePath, progress: number): [number, number] {
   return [aLng + (bLng - aLng) * mix, aLat + (bLat - aLat) * mix]
 }
 
-function passengerAt(route: FlowRoute, progress: number, highlighted: boolean): Passenger {
+function markCongestedRoutes(
+  result: SimulationResult,
+  baseline: PassengerJourney[],
+  streetRoutes: StreetRouteMap,
+  routes: FlowRoute[],
+) {
+  const cached = CONGESTION_CACHE.get(result)
+  if (cached?.baseline === baseline && cached.streetRoutes === streetRoutes) return
+  const baselineRoutes = buildRoutes(baseline, baseline, streetRoutes)
+  const surged = surgedStreets(baselineRoutes, routes)
+  for (const route of routes) {
+    let congested = false
+    for (const stage of route.stages) {
+      stage.congested = stage.stage !== 'train' && streetTouchesSurge(stage.path, surged)
+      congested ||= stage.congested
+    }
+    route.congested = congested
+  }
+  CONGESTION_CACHE.set(result, { baseline, streetRoutes })
+}
+
+function passengerAt(route: FlowRoute, progress: number): Passenger {
   let cursor = 0
   for (let index = 0; index < route.stages.length; index += 1) {
     const stage = route.stages[index]
@@ -159,9 +244,9 @@ function passengerAt(route: FlowRoute, progress: number, highlighted: boolean): 
       return {
         id: route.id,
         position: positionAlong(stage, local),
-        color: highlighted ? SURGE_RGB : PASSENGER_COLOR,
+        color: stage.congested ? SURGE_RGB : PASSENGER_COLOR,
         weight: route.estimatedTrips,
-        highlighted,
+        highlighted: stage.congested,
       }
     }
     cursor = end
@@ -170,13 +255,13 @@ function passengerAt(route: FlowRoute, progress: number, highlighted: boolean): 
   return {
     id: route.id,
     position: fallback.path[fallback.path.length - 1],
-    color: highlighted ? SURGE_RGB : PASSENGER_COLOR,
+    color: fallback.congested ? SURGE_RGB : PASSENGER_COLOR,
     weight: route.estimatedTrips,
-    highlighted,
+    highlighted: fallback.congested,
   }
 }
 
-function aggregatePulses(routes: FlowRoute[], highlightedIds: Set<string>) {
+function aggregatePulses(routes: FlowRoute[]) {
   const pulses = new Map<string, Pulse>()
   const absorb = (id: string, position: [number, number], weight: number, highlighted: boolean) => {
     const existing = pulses.get(id)
@@ -196,19 +281,22 @@ function aggregatePulses(routes: FlowRoute[], highlightedIds: Set<string>) {
     }
   }
   for (const route of routes) {
-    const highlighted = highlightedIds.has(route.id)
     const boarding = route.stages.find((stage) => stage.stage === 'boarding')
     const exit = route.stages.find((stage) => stage.stage === 'exit')
     const boardPosition = boarding?.path.at(-1)
     const exitPosition = exit?.path.at(-1)
     if (boarding && boardPosition) {
-      absorb(`board:${boardPosition.join(',')}`, boardPosition, route.estimatedTrips, highlighted)
+      absorb(`board:${boardPosition.join(',')}`, boardPosition, route.estimatedTrips, boarding.congested)
     }
     if (exit && exitPosition) {
-      absorb(`exit:${exitPosition.join(',')}`, exitPosition, route.estimatedTrips, highlighted)
+      absorb(`exit:${exitPosition.join(',')}`, exitPosition, route.estimatedTrips, exit.congested)
     }
   }
   return [...pulses.values()]
+}
+
+function flowDotScale(zoom: number) {
+  return Math.max(0.16, Math.min(1.15, 2 ** ((zoom - 13.1) * 0.7)))
 }
 
 export function createPassengerFlowLayers(
@@ -220,56 +308,24 @@ export function createPassengerFlowLayers(
 ) {
   const journeys = result ? disruptedJourneys(result) : baseline
   if (journeys.length === 0) return []
-  const allRoutes = buildRoutes(result ?? baseline, journeys, streetRoutes)
-  const baselineById = new Map(baseline.map((journey) => [journey.id, journey]))
-  const pressuredPois = new Set(result?.poiPressure.map((pressure) => pressure.poiId) ?? [])
-  const highlightedIds = new Set(
-    result
-      ? journeys.flatMap((journey) => {
-          const previous = baselineById.get(journey.id)
-          const previousPoi = previous?.path.nodes.at(-1)?.id
-          const currentPoi = journey.path.nodes.at(-1)?.id
-          return previousPoi && currentPoi && previousPoi !== currentPoi && pressuredPois.has(currentPoi)
-            ? [journey.id]
-            : []
-        })
-      : [],
-  )
-  const routes = allRoutes.filter((route) => route.estimatedTrips > 0)
-  // `poi:` journeys are ambient destination traces that duplicate the zone-level
-  // demand. Keep them drawable, but do not count them twice when setting density.
-  const normalizedHourlyDemand = routes
-    .filter((route) => !route.id.startsWith('poi:'))
-    .reduce((sum, route) => sum + route.estimatedTrips, 0)
-  const dotBudget = normalizedHourlyDemand > 0
-    ? Math.max(1, Math.min(MAX_DOT_BUDGET, Math.round(DEFAULT_DOT_BUDGET * normalizedHourlyDemand)))
-    : 0
-  const totalRouteWeight = routes.reduce((sum, route) => sum + route.estimatedTrips, 0)
-  const particlesByRoute = new Map<string, number>()
-  if (dotBudget > 0 && totalRouteWeight > 0) {
-    let routeIndex = 0
-    let cumulativeWeight = routes[0]?.estimatedTrips ?? 0
-    for (let index = 0; index < dotBudget; index += 1) {
-      const target = ((index + 0.5) / dotBudget) * totalRouteWeight
-      while (routeIndex < routes.length - 1 && cumulativeWeight < target) {
-        routeIndex += 1
-        cumulativeWeight += routes[routeIndex].estimatedTrips
-      }
-      const route = routes[routeIndex]
-      particlesByRoute.set(route.id, (particlesByRoute.get(route.id) ?? 0) + 1)
-    }
-  }
+  const routes = buildRoutes(result ?? baseline, journeys, streetRoutes)
+  if (result) markCongestedRoutes(result, baseline, streetRoutes, routes)
+  const dotScale = flowDotScale(zoom)
+  const baseDensityScale = 2 ** (Math.max(0, zoom - 11) * 0.72)
+  const surgeDensityScale = 2 ** (Math.max(0, zoom - 12.5) * 0.22)
   const passengers = routes.flatMap((route) => {
-    const highlighted = highlightedIds.has(route.id)
-    const particleCount = particlesByRoute.get(route.id) ?? 0
+    const highlighted = route.congested
+    const demandCadence = Math.max(0.8, Math.min(2.4, Math.log10(1 + route.estimatedTrips) / 1.5))
+    const densityScale = highlighted ? surgeDensityScale : baseDensityScale
+    const headwaySeconds = (BASE_HEADWAY_SECONDS * densityScale) / (demandCadence * (highlighted ? 1.8 : 1))
+    const particleCount = Math.max(
+      highlighted ? 4 : zoom >= 13 ? 2 : 4,
+      Math.ceil(route.totalLength / (VISUAL_SPEED_KM_PER_SECOND * headwaySeconds)),
+    )
     return Array.from({ length: particleCount }, (_, index) => {
       const distanceTravelled = (now / 1000) * VISUAL_SPEED_KM_PER_SECOND
       return {
-        ...passengerAt(
-          route,
-          (distanceTravelled / route.totalLength + route.phase + index / particleCount) % 1,
-          highlighted,
-        ),
+        ...passengerAt(route, (distanceTravelled / route.totalLength + route.phase + index / particleCount) % 1),
         id: `${route.id}-${index}`,
       }
     })
@@ -278,15 +334,13 @@ export function createPassengerFlowLayers(
     route.stages.map((stage) => ({
       path: stage.path,
       stage: stage.stage,
-      highlighted: highlightedIds.has(route.id),
+      highlighted: stage.congested,
     })),
   )
   const baseLegs = legs.filter((leg) => !leg.highlighted)
   const surgeLegs = legs.filter((leg) => leg.highlighted)
-  const glowPassengers = zoom >= 12.5
-    ? passengers.filter((passenger) => passenger.highlighted)
-    : passengers
-  const pulses = aggregatePulses(routes, highlightedIds).filter(
+  const glowPassengers = zoom >= 12.8 ? passengers.filter((passenger) => passenger.highlighted) : []
+  const pulses = aggregatePulses(routes).filter(
     (pulse) => pulse.highlighted || zoom < 12.5,
   )
   const pathAlpha = Math.max(
@@ -324,29 +378,29 @@ export function createPassengerFlowLayers(
       data: glowPassengers,
       getPosition: (passenger) => passenger.position,
       getRadius: (passenger) =>
-        passenger.highlighted ? 5.2 : Math.min(3.6, 1.8 + Math.sqrt(passenger.weight) / 64),
+        (passenger.highlighted ? 5.2 : Math.min(3.6, 1.8 + Math.sqrt(passenger.weight) / 64)) * dotScale,
       radiusUnits: 'pixels',
       getFillColor: (passenger): RGBA => [...passenger.color, passenger.highlighted ? 42 : 10],
       pickable: false,
-      updateTriggers: { getPosition: now, getFillColor: now },
+      updateTriggers: { getPosition: now, getFillColor: now, getRadius: zoom },
     }),
     new ScatterplotLayer<Passenger>({
       id: 'passenger-flow-particles',
       data: passengers,
       getPosition: (passenger) => passenger.position,
       getRadius: (passenger) =>
-        passenger.highlighted ? 2.25 : Math.min(1.65, 0.75 + Math.sqrt(passenger.weight) / 95),
+        (passenger.highlighted ? 2.25 : Math.min(1.65, 0.75 + Math.sqrt(passenger.weight) / 95)) * dotScale,
       radiusUnits: 'pixels',
       getFillColor: (passenger): RGBA => [...passenger.color, passenger.highlighted ? 235 : 135],
       pickable: false,
-      updateTriggers: { getPosition: now, getFillColor: now },
+      updateTriggers: { getPosition: now, getFillColor: now, getRadius: zoom },
     }),
     new ScatterplotLayer<Pulse>({
       id: 'passenger-flow-transfer-pulses',
       data: pulses,
       getPosition: (pulse) => pulse.position,
       getRadius: (pulse) =>
-        3 + Math.min(5, Math.log10(1 + pulse.weight)) + ((now / 2_200 + pulse.phase) % 1) * 5,
+        (3 + Math.min(5, Math.log10(1 + pulse.weight)) + ((now / 2_200 + pulse.phase) % 1) * 5) * dotScale,
       radiusUnits: 'pixels',
       filled: false,
       stroked: true,
@@ -354,7 +408,7 @@ export function createPassengerFlowLayers(
         ...pulse.color,
         Math.round((pulse.highlighted ? 145 : 34) * (1 - ((now / 2_200 + pulse.phase) % 1))),
       ],
-      lineWidthMinPixels: 0.7,
+      lineWidthMinPixels: Math.max(0.35, 0.7 * dotScale),
       pickable: false,
       updateTriggers: { getRadius: now, getLineColor: now },
     }),

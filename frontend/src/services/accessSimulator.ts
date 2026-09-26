@@ -42,6 +42,25 @@ interface Trip {
   stationIds: string[]
 }
 
+const ANCHORED_CATEGORIES = new Set<PoiCategory>(['school', 'university', 'government'])
+
+function isAnchoredCategory(category: PoiCategory) {
+  return ANCHORED_CATEGORIES.has(category)
+}
+
+function geographicallyClosest(zone: ResidentialZone, pois: PointOfInterest[]): PointOfInterest | null {
+  let best: PointOfInterest | null = null
+  let bestKm = Number.POSITIVE_INFINITY
+  for (const poi of pois) {
+    const km = haversineKm(zone.centroid, poiPoint(poi))
+    if (!best || km < bestKm || (km === bestKm && poi.id < best.id)) {
+      best = poi
+      bestKm = km
+    }
+  }
+  return best
+}
+
 function poiPoint(poi: PointOfInterest): LatLng {
   return { latitude: poi.latitude, longitude: poi.longitude }
 }
@@ -226,6 +245,11 @@ function bestByCategory(
   const chosen = new Map<PoiCategory, Trip>()
   for (const [category, pois] of grouped) {
     if (skip?.has(category)) continue
+    if (isAnchoredCategory(category)) {
+      const assigned = geographicallyClosest(zone, pois)
+      if (assigned) chosen.set(category, optimalTrip(zone, assigned, nearest, graph, blocked))
+      continue
+    }
     let best: Trip | null = null
     for (const poi of pois) {
       const trip = optimalTrip(zone, poi, nearest, graph, blocked)
@@ -439,7 +463,7 @@ function baselineKey(request: SimulateScenarioRequest): string {
   const edges = request.transitEdges
     .map((edge) => `${edge.id}:${edge.travelMinutes}:${edge.frequencyMinutes}`)
     .join(',')
-  return `${categories}|${zones}|${pois}|${request.stations.length}|${edges}`
+  return `${categories}|${zones}|${pois}|${request.stations.length}|${edges}|anchored-geo`
 }
 
 function groupByCategory(pois: PointOfInterest[], categories: PoiCategory[]) {
@@ -467,6 +491,44 @@ function baseline(
   }
   baselineCache = { key, beforeByZone, graph, nearest }
   return baselineCache
+}
+
+function solveAccess(
+  request: SimulateScenarioRequest,
+  grouped: Map<PoiCategory, PointOfInterest[]>,
+): Baseline & { blocked: Set<string> } {
+  const blocked = new Set(request.shutdownStations)
+  const unboardable = new Set([...request.maintenanceStations, ...request.shutdownStations])
+  if (unboardable.size === 0) {
+    return { ...baseline(request, grouped), blocked }
+  }
+  const graph = buildGraph(request.stations, request.transitEdges, blocked)
+  const nearest = nearestFinder(request.stations, unboardable)
+  const beforeByZone = new Map<string, Map<PoiCategory, Trip>>()
+  for (const zone of request.zones) {
+    beforeByZone.set(zone.id, bestByCategory(zone, grouped, nearest, graph, blocked))
+  }
+  return { key: '', beforeByZone, graph, nearest, blocked }
+}
+
+export interface CategoryAccess {
+  minutes: number
+  poiId: string
+  poiName: string
+}
+
+export function categoryAccessByZone(request: SimulateScenarioRequest) {
+  const grouped = groupByCategory(request.pois, request.serviceCategories)
+  const { beforeByZone } = solveAccess(request, grouped)
+  const slim = new Map<string, Map<PoiCategory, CategoryAccess>>()
+  for (const [zoneId, trips] of beforeByZone) {
+    const row = new Map<PoiCategory, CategoryAccess>()
+    for (const [category, trip] of trips) {
+      row.set(category, { minutes: trip.minutes, poiId: trip.poi.id, poiName: trip.poi.name })
+    }
+    slim.set(zoneId, row)
+  }
+  return slim
 }
 
 /** A small, representative set of normal journeys for the ambient map animation. */
@@ -561,6 +623,15 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
     const bestNew = new Map<PoiCategory, Trip>()
     for (const poi of addedPois) {
       if (!before.has(poi.category)) continue
+      if (isAnchoredCategory(poi.category)) {
+        const assigned = before.get(poi.category)?.poi
+        if (
+          assigned &&
+          haversineKm(zone.centroid, poiPoint(poi)) >= haversineKm(zone.centroid, poiPoint(assigned))
+        ) {
+          continue
+        }
+      }
       const trip = optimalTrip(zone, poi, nearest, graph, blocked)
       const current = bestNew.get(poi.category)
       if (!current || trip.minutes < current.minutes) bestNew.set(poi.category, trip)
@@ -652,6 +723,13 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
   }
 }
 
+export interface OptimalSiteResult {
+  longitude: number
+  latitude: number
+  regions: number
+  personMinutes: number
+}
+
 export function findOptimalAdditionSite(request: {
   category: PoiCategory
   zones: ResidentialZone[]
@@ -660,13 +738,17 @@ export function findOptimalAdditionSite(request: {
   transitEdges: TransitEdge[]
   serviceCategories: PoiCategory[]
   occupied?: LatLng[]
-}): { longitude: number; latitude: number } | null {
+  maintenanceStations?: string[]
+  shutdownStations?: string[]
+  underservedLimit?: number
+  stationLimit?: number
+}): OptimalSiteResult | null {
   const categories = [...new Set([...request.serviceCategories, request.category])]
   const scoped: SimulateScenarioRequest = {
     ...request,
     serviceCategories: categories,
-    maintenanceStations: [],
-    shutdownStations: [],
+    maintenanceStations: request.maintenanceStations ?? [],
+    shutdownStations: request.shutdownStations ?? [],
   }
   const grouped = groupByCategory(request.pois, categories)
   if (!grouped.has(request.category)) {
@@ -675,7 +757,7 @@ export function findOptimalAdditionSite(request: {
       request.pois.filter((poi) => poi.category === request.category),
     )
   }
-  const { beforeByZone, graph, nearest } = baseline(scoped, grouped)
+  const { beforeByZone, graph, nearest, blocked } = solveAccess(scoped, grouped)
 
   const underserved = request.zones
     .map((zone) => {
@@ -684,13 +766,28 @@ export function findOptimalAdditionSite(request: {
     })
     .filter((item): item is { zone: ResidentialZone; minutes: number } => item != null)
     .sort((a, b) => b.minutes - a.minutes)
-    .slice(0, 48)
+    .slice(0, request.underservedLimit ?? 48)
+
+  const stationPoints = request.stations
+    .map((station) => ({
+      station,
+      km: underserved.length
+        ? Math.min(
+            ...underserved.map((item) =>
+              haversineKm(item.zone.centroid, { latitude: station.latitude, longitude: station.longitude }),
+            ),
+          )
+        : 0,
+    }))
+    .sort((a, b) => a.km - b.km)
+    .slice(0, request.stationLimit ?? request.stations.length)
+    .map((item) => ({
+      latitude: item.station.latitude + 0.0012,
+      longitude: item.station.longitude + 0.0012,
+    }))
 
   const candidates: LatLng[] = [
-    ...request.stations.map((station) => ({
-      latitude: station.latitude + 0.0012,
-      longitude: station.longitude + 0.0012,
-    })),
+    ...stationPoints,
     ...underserved.map((item) => item.zone.centroid),
   ]
   if (candidates.length === 0) return null
@@ -698,7 +795,7 @@ export function findOptimalAdditionSite(request: {
   const occupied = request.occupied ?? []
   const taken = (point: LatLng) => occupied.some((site) => haversineKm(point, site) < 0.45)
 
-  const ranked: { point: LatLng; regions: number; value: number }[] = []
+  const ranked: { point: LatLng; regions: number; personMinutes: number }[] = []
   let probe = 0
   for (const point of candidates) {
     probe += 1
@@ -710,23 +807,32 @@ export function findOptimalAdditionSite(request: {
       longitude: point.longitude,
     }
     let regions = 0
-    let value = 0
+    let personMinutes = 0
     for (const zone of request.zones) {
-      const beforeMinutes = beforeByZone.get(zone.id)?.get(request.category)?.minutes ?? Number.POSITIVE_INFINITY
-      const trip = optimalTrip(zone, poi, nearest, graph, new Set())
+      const beforeTrip = beforeByZone.get(zone.id)?.get(request.category)
+      const beforeMinutes = beforeTrip?.minutes ?? Number.POSITIVE_INFINITY
+      if (isAnchoredCategory(request.category) && beforeTrip) {
+        if (haversineKm(zone.centroid, poiPoint(poi)) >= haversineKm(zone.centroid, poiPoint(beforeTrip.poi))) continue
+      }
+      const trip = optimalTrip(zone, poi, nearest, graph, blocked)
       const saved = beforeMinutes - trip.minutes
       if (saved < MIN_ADDITION_GAIN_MINUTES) continue
       regions += 1
-      value += saved * zoneDemand(zone, request.category)
+      personMinutes += saved * zoneDemand(zone, request.category)
     }
-    ranked.push({ point, regions, value })
+    ranked.push({ point, regions, personMinutes })
   }
 
-  ranked.sort((a, b) => b.regions - a.regions || b.value - a.value)
+  ranked.sort((a, b) => b.personMinutes - a.personMinutes || b.regions - a.regions)
   const next = ranked.find((item) => item.regions > 0 && !taken(item.point))
     ?? ranked.find((item) => !taken(item.point))
   if (!next) return null
-  return { longitude: next.point.longitude, latitude: next.point.latitude }
+  return {
+    longitude: next.point.longitude,
+    latitude: next.point.latitude,
+    regions: next.regions,
+    personMinutes: next.personMinutes,
+  }
 }
 
 export function buildAccessSimulation(request: SimulateScenarioRequest): SimulationResult {
