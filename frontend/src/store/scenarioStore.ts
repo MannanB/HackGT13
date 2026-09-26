@@ -6,20 +6,20 @@ import {
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
 import {
-  attachAccess,
-  attachExperimental,
-  getAccessEdges,
-  getExperimentalContext,
-  getPointsOfInterest,
-  getZones,
-} from '@/services/geoService'
+  hasCriticalCache,
+  networkFingerprint,
+  readCriticalCache,
+  writeCriticalCache,
+} from '@/services/criticalCache'
+import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation, RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
+import type { IntelEvent } from '@/types/intelligence'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
-export type AppMode = 'disrupt' | 'add'
+export type AppMode = 'disrupt' | 'add' | 'intel'
 
 interface FocusRequest {
   bounds: [[number, number], [number, number]]
@@ -53,6 +53,11 @@ interface ScenarioState {
   extruded: boolean
   focusRequest: FocusRequest | null
   poiCriticalById: Record<string, PoiCriticalStation>
+  /** Fraction of stations already tested for the per-facility critical index. */
+  poiCriticalProgress: number
+  intelEvent: IntelEvent | null
+  intelNarrative: string | null
+  criticalFromCache: boolean
 
   setAppMode: (mode: AppMode) => void
   setMapCenter: (longitude: number, latitude: number) => void
@@ -71,9 +76,12 @@ interface ScenarioState {
   setDelayRange: (range: [number, number] | null) => void
   setRouteView: (view: RouteView) => void
   setExtruded: (extruded: boolean) => void
+  applyIntelEvent: (event: IntelEvent, narrative: string) => void
+  clearIntelEvent: () => void
 }
 
 const DEFAULT_CATEGORIES: PoiCategory[] = ['government', 'hospital', 'grocery']
+const CRITICAL_PUBLISH_EVERY = 4
 
 function allDestinations(state: Pick<ScenarioState, 'pois' | 'addedPois' | 'selectedServiceCategories'>) {
   const pois = [...state.pois, ...state.addedPois]
@@ -113,11 +121,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     })
   }
 
-  const recompute = () => {
-    if (get().appMode === 'add') {
-      recomputeAddition()
-      return
-    }
+  const runDisruption = () => {
     const { maintenanceStations, shutdownStations } = disruptionLists(get().stationStates)
     if (maintenanceStations.length + shutdownStations.length === 0) {
       clearImpacts()
@@ -125,7 +129,6 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     }
     const generation = ++impactGeneration
     set({ computing: true })
-    // Yield a frame so the UI can paint the pending state before the synchronous solve.
     window.setTimeout(() => {
       if (generation !== impactGeneration) return
       const state = get()
@@ -156,6 +159,14 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         })
       }
     }, 16)
+  }
+
+  const recompute = () => {
+    if (get().appMode === 'add') {
+      recomputeAddition()
+      return
+    }
+    runDisruption()
   }
 
   const recomputeAddition = () => {
@@ -196,7 +207,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     appMode: 'disrupt',
     addedPois: [],
     mapCenter: { longitude: -84.39, latitude: 33.755 },
-    loadStatus: 'loading',
+    loadStatus: hasCriticalCache() ? 'ready' : 'loading',
     loadError: null,
     stations: [],
     transitEdges: [],
@@ -219,10 +230,18 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     extruded: false,
     focusRequest: null,
     poiCriticalById: {},
+    poiCriticalProgress: hasCriticalCache() ? 1 : 0,
+    intelEvent: null,
+    intelNarrative: null,
+    criticalFromCache: hasCriticalCache(),
 
     loadNetwork: async () => {
       criticalGeneration += 1
-      set({ loadStatus: 'loading', loadError: null, poiCriticalById: {} })
+      const alreadyShowingMap = get().stations.length > 0
+      const diskCache = hasCriticalCache()
+      if (!alreadyShowingMap && !diskCache) {
+        set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0, criticalFromCache: false })
+      }
       try {
         const [network, zones, pois, accessEdges, experimental] = await Promise.all([
           getNetwork(),
@@ -231,8 +250,14 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           getAccessEdges(),
           getExperimentalContext(),
         ])
-        const enriched = attachExperimental(zones, pois, experimental)
-        const connected = attachAccess(enriched.zones, enriched.pois, accessEdges)
+        const connected = attachAccess(zones, pois, accessEdges)
+        const fingerprint = networkFingerprint({
+          stations: network.stations,
+          transitEdges: network.transitEdges,
+          zones: connected.zones,
+          pois: connected.pois,
+        })
+        const cached = readCriticalCache(fingerprint)
         set({
           stations: network.stations,
           transitEdges: network.transitEdges,
@@ -243,30 +268,37 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
             network.stations.find((station) => /five points/i.test(station.name))?.id ??
             null,
           loadStatus: 'ready',
-          poiCriticalById: {},
+          poiCriticalById: cached ?? {},
+          poiCriticalProgress: cached ? 1 : 0,
+          criticalFromCache: Boolean(cached),
         })
-        const generation = ++criticalGeneration
-        window.setTimeout(() => {
-          if (generation !== criticalGeneration) return
+        if (!cached) {
+          const generation = ++criticalGeneration
           const index = createPoiCriticalIndex({
             zones: connected.zones,
             pois: connected.pois,
             stations: network.stations,
             transitEdges: network.transitEdges,
           })
+          const total = index.stations.length
           let cursor = 0
           const step = () => {
             if (generation !== criticalGeneration) return
-            const batchEnd = Math.min(cursor + 2, index.stations.length)
-            while (cursor < batchEnd) {
+            if (cursor < total) {
               index.absorb(index.stations[cursor])
               cursor += 1
             }
-            set({ poiCriticalById: index.snapshot() })
-            if (cursor < index.stations.length) window.setTimeout(step, 0)
+            const done = cursor >= total
+            const snapshot = done || cursor % CRITICAL_PUBLISH_EVERY === 0 ? index.snapshot() : null
+            set({
+              poiCriticalProgress: total ? cursor / total : 1,
+              ...(snapshot ? { poiCriticalById: snapshot } : {}),
+            })
+            if (done && snapshot) writeCriticalCache(fingerprint, snapshot)
+            if (!done) window.requestAnimationFrame(step)
           }
-          step()
-        }, 16)
+          window.requestAnimationFrame(step)
+        }
         recompute()
       } catch (error) {
         set({
@@ -278,6 +310,10 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
 
     setAppMode: (appMode) => {
       if (get().appMode === appMode) return
+      if (appMode === 'intel') {
+        set({ appMode })
+        return
+      }
       set({ appMode, result: null, selectedZoneId: null })
       recompute()
     },
@@ -413,5 +449,36 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     setRouteView: (routeView) => set({ routeView }),
 
     setExtruded: (extruded) => set({ extruded }),
+
+    applyIntelEvent: (event, narrative) => {
+      const stationStates: Record<string, StationOperatingState> = {}
+      for (const impact of event.stationImpacts) {
+        stationStates[impact.stationId] = impact.effect
+      }
+      const lat = event.centerLatitude
+      const lng = event.centerLongitude
+      const dLat = event.radiusKm / 111
+      const dLng = event.radiusKm / (111 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)))
+      set({
+        stationStates,
+        selectedStationId: event.stationImpacts[0]?.stationId ?? get().selectedStationId,
+        intelEvent: event,
+        intelNarrative: narrative,
+        selectedZoneId: null,
+        focusRequest: {
+          bounds: [
+            [lng - dLng, lat - dLat],
+            [lng + dLng, lat + dLat],
+          ],
+          key: Date.now(),
+        },
+      })
+      runDisruption()
+    },
+
+    clearIntelEvent: () => {
+      set({ intelEvent: null, intelNarrative: null, stationStates: {} })
+      clearImpacts()
+    },
   }
 })
