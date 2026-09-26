@@ -12,9 +12,9 @@ import osmnx as ox
 import pandas as pd
 from shapely.geometry import Point
 
-# West, south, east, north. Covers the rail system past Atlanta city limits.
-BBOX = (-84.470401, 33.634744, -84.229593, 33.946)
-BUFFER_MILES = 2
+# West, south, east, north. Four rail termini plus ~10 miles; zones stay unchanged.
+BBOX = (-84.65, 33.49, -84.05, 34.09)
+BUFFER_MILES = 10
 BUFFER_METERS = BUFFER_MILES * 1609.344
 METRIC_CRS = "EPSG:32616"
 SOURCE = "openstreetmap"
