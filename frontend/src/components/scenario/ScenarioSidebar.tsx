@@ -1,3 +1,4 @@
+import { AddInfrastructure } from '@/components/scenario/AddInfrastructure'
 import { ServiceLayerToggle } from '@/components/scenario/ServiceLayerToggle'
 import { StationSelector } from '@/components/scenario/StationSelector'
 import { StationStateControl } from '@/components/scenario/StationStateControl'
@@ -7,11 +8,18 @@ export function ScenarioSidebar() {
   const selectedStationId = useScenarioStore((state) => state.selectedStationId)
   const stationStates = useScenarioStore((state) => state.stationStates)
   const resetStationStates = useScenarioStore((state) => state.resetStationStates)
+  const appMode = useScenarioStore((state) => state.appMode)
   const disrupted = Object.values(stationStates).some((status) => status !== 'normal')
 
   return (
     <aside className="glass scroll-thin pointer-events-auto flex max-h-full w-[320px] flex-col overflow-y-auto rounded-2xl">
       <div className="space-y-6 p-4">
+        {appMode === 'add' ? (
+          <section className="space-y-2">
+            <h2 className="eyebrow">Add infrastructure</h2>
+            <AddInfrastructure />
+          </section>
+        ) : (
         <section className="space-y-2">
           <h2 className="eyebrow">Station</h2>
           <StationSelector />
@@ -26,6 +34,7 @@ export function ScenarioSidebar() {
             </button>
           )}
         </section>
+        )}
 
         <section className="space-y-2">
           <h2 className="eyebrow">Destination weights</h2>

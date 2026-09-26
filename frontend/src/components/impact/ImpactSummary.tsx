@@ -3,7 +3,7 @@ import { useCountUp } from '@/utils/useCountUp'
 import { formatPopulation } from '@/utils/constants'
 import type { ImpactSummary as ImpactSummaryData } from '@/types/simulation'
 
-export function ImpactSummary({ summary }: { summary: ImpactSummaryData }) {
+export function ImpactSummary({ summary, gain }: { summary: ImpactSummaryData; gain: boolean }) {
   const population = useCountUp(summary.populationAffected)
   const delay = useCountUp(summary.averageAddedTravelMinutes)
   const lost = useCountUp(summary.zonesAffected)
@@ -11,22 +11,22 @@ export function ImpactSummary({ summary }: { summary: ImpactSummaryData }) {
   const metrics = [
     {
       icon: Users,
-      label: 'Population affected',
+      label: gain ? 'Population benefiting' : 'Population affected',
       value: formatPopulation(population),
       note: 'vs. typical service',
     },
     {
       icon: Clock3,
-      label: 'Avg. added travel time',
-      value: `+${Math.round(delay)}`,
+      label: gain ? 'Avg. time saved' : 'Avg. added travel time',
+      value: `${gain ? '−' : '+'}${Math.round(delay)}`,
       suffix: ' min',
       note: 'vs. normal',
     },
     {
       icon: House,
-      label: 'Regions slowed',
+      label: gain ? 'Regions improved' : 'Regions slowed',
       value: Math.round(lost).toString(),
-      note: 'longer trip than before',
+      note: gain ? 'shorter trip than before' : 'longer trip than before',
     },
   ]
 
@@ -57,7 +57,7 @@ export function ImpactSummary({ summary }: { summary: ImpactSummaryData }) {
                 </div>
               </div>
             </div>
-            <div className="text-right text-[11px] text-line-red">{metric.note}</div>
+            <div className={`text-right text-[11px] ${gain ? 'text-emerald-400' : 'text-line-red'}`}>{metric.note}</div>
           </div>
         )
       })}

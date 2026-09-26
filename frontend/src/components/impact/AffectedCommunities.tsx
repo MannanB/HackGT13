@@ -1,17 +1,18 @@
 import { useScenarioStore } from '@/store/scenarioStore'
 import { cn } from '@/utils/cn'
-import { delayHex } from '@/utils/constants'
+import { delayHex, gainHex } from '@/utils/constants'
 import type { ZoneImpact } from '@/types/simulation'
 
 export function AffectedCommunities({ impacts }: { impacts: ZoneImpact[] }) {
   const selectedZoneId = useScenarioStore((state) => state.selectedZoneId)
   const selectZone = useScenarioStore((state) => state.selectZone)
+  const gain = useScenarioStore((state) => state.appMode === 'add')
   const ranked = impacts.filter((item) => item.delayMinutes > 0).slice(0, 10)
 
   return (
     <div>
       <h3 className="mb-2 px-1 text-sm font-semibold text-fog-100">
-        Most affected communities
+        {gain ? 'Most improved communities' : 'Most affected communities'}
       </h3>
       <div className="space-y-1">
         {ranked.map((impact) => {
@@ -31,9 +32,10 @@ export function AffectedCommunities({ impacts }: { impacts: ZoneImpact[] }) {
               <span className="truncate pr-2 text-sm">{impact.zoneName}</span>
               <span
                 className="font-mono text-sm tabular-nums"
-                style={{ color: delayHex(impact.delayMinutes) }}
+                style={{ color: gain ? gainHex(impact.delayMinutes) : delayHex(impact.delayMinutes) }}
               >
-                +{impact.delayMinutes} min
+                {gain ? '−' : '+'}
+                {impact.delayMinutes} min
               </span>
             </button>
           )

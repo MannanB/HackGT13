@@ -199,6 +199,8 @@ function buildPath(
 interface Baseline {
   key: string
   beforeByZone: Map<string, Map<PoiCategory, Trip>>
+  graph: RailGraph
+  nearest: NearestFinder
 }
 
 let baselineCache: Baseline | null = null
@@ -208,6 +210,130 @@ function baselineKey(request: SimulateScenarioRequest): string {
   const zones = request.zones.map((zone) => zone.id).join(',')
   const pois = request.pois.map((poi) => `${poi.id}:${poi.category}`).join(',')
   return `${categories}|${zones}|${pois}|${request.stations.length}|${request.transitEdges.length}`
+}
+
+function groupByCategory(pois: PointOfInterest[], categories: PoiCategory[]) {
+  const grouped = new Map<PoiCategory, PointOfInterest[]>()
+  for (const poi of pois) {
+    if (!categories.includes(poi.category)) continue
+    const list = grouped.get(poi.category) ?? []
+    list.push(poi)
+    grouped.set(poi.category, list)
+  }
+  return grouped
+}
+
+function baseline(
+  request: SimulateScenarioRequest,
+  grouped: Map<PoiCategory, PointOfInterest[]>,
+): Baseline {
+  const key = baselineKey(request)
+  if (baselineCache?.key === key) return baselineCache
+  const graph = buildGraph(request.stations, request.transitEdges, new Set())
+  const nearest = nearestFinder(request.stations, new Set())
+  const beforeByZone = new Map<string, Map<PoiCategory, Trip>>()
+  for (const zone of request.zones) {
+    beforeByZone.set(zone.id, bestByCategory(zone, grouped, nearest, graph, new Set()))
+  }
+  baselineCache = { key, beforeByZone, graph, nearest }
+  return baselineCache
+}
+
+export interface AdditionRequest
+  extends Omit<SimulateScenarioRequest, 'maintenanceStations' | 'shutdownStations'> {
+  addedPois: PointOfInterest[]
+}
+
+/** Mirror of the disruption solve: minutes each area saves when new destinations exist. */
+export function buildAdditionSimulation(request: AdditionRequest): SimulationResult {
+  const { zones, addedPois } = request
+  if (request.stations.length === 0) throw new Error('Station network is not loaded')
+  const categories = [...new Set([...request.serviceCategories, ...addedPois.map((poi) => poi.category)])]
+  const scoped = { ...request, serviceCategories: categories, maintenanceStations: [], shutdownStations: [] }
+  const grouped = groupByCategory(request.pois, categories)
+  const { beforeByZone, graph, nearest } = baseline(scoped, grouped)
+  const stationById = new Map(request.stations.map((station) => [station.id, station]))
+
+  const impacts: ZoneImpact[] = []
+  const traces: Record<string, TraceImpact> = {}
+  const gained = new Map<string, number>()
+
+  for (const zone of zones) {
+    const before = beforeByZone.get(zone.id)
+    if (!before || before.size === 0) continue
+    const bestNew = new Map<PoiCategory, Trip>()
+    for (const poi of addedPois) {
+      if (!before.has(poi.category)) continue
+      const trip = optimalTrip(zone, poi, nearest, graph, new Set())
+      const current = bestNew.get(poi.category)
+      if (!current || trip.minutes < current.minutes) bestNew.set(poi.category, trip)
+    }
+
+    let weightSum = 0
+    let weightedSaved = 0
+    let focus: { before: Trip; after: Trip; score: number } | null = null
+    for (const [category, trip] of before) {
+      const weight = categoryWeight(request.categoryWeights, category)
+      weightSum += weight
+      const candidate = bestNew.get(category)
+      if (!candidate || candidate.minutes >= trip.minutes) continue
+      const saved = trip.minutes - candidate.minutes
+      weightedSaved += saved * weight
+      gained.set(candidate.poi.id, (gained.get(candidate.poi.id) ?? 0) + 1)
+      if (!focus || saved * weight > focus.score) focus = { before: trip, after: candidate, score: saved * weight }
+    }
+    if (!focus || weightSum === 0) continue
+    const savedMinutes = Math.round(weightedSaved / weightSum)
+    if (savedMinutes <= 0) continue
+
+    const normalTravelMinutes = Math.round(focus.before.minutes)
+    const disruptedTravelMinutes = Math.round(focus.after.minutes)
+    impacts.push({
+      zoneId: zone.id,
+      zoneName: zone.name,
+      poiId: focus.after.poi.id,
+      poiName: focus.after.poi.name,
+      poiCategory: focus.after.poi.category,
+      normalTravelMinutes,
+      disruptedTravelMinutes,
+      delayMinutes: savedMinutes,
+      population: zone.population,
+    })
+    traces[zone.id] = {
+      zoneId: zone.id,
+      poiId: focus.after.poi.id,
+      normalTravelMinutes,
+      disruptedTravelMinutes,
+      delayMinutes: normalTravelMinutes - disruptedTravelMinutes,
+      normalPath: buildPath(zone, focus.before, stationById, new Set()),
+      disruptedPath: buildPath(zone, focus.after, stationById, new Set()),
+    }
+  }
+
+  impacts.sort((a, b) => b.delayMinutes - a.delayMinutes || b.population - a.population)
+  const populationAffected = impacts.reduce((sum, impact) => sum + impact.population, 0)
+  const weighted = impacts.reduce((sum, impact) => sum + impact.delayMinutes * impact.population, 0)
+
+  return {
+    summary: {
+      populationAffected,
+      averageAddedTravelMinutes: populationAffected ? weighted / populationAffected : 0,
+      zonesAffected: impacts.length,
+    },
+    zoneImpacts: impacts,
+    poiPressure: addedPois
+      .filter((poi) => gained.has(poi.id))
+      .map((poi) => ({
+        poiId: poi.id,
+        poiName: poi.name,
+        category: poi.category,
+        baselineRegions: 0,
+        disruptedRegions: gained.get(poi.id)!,
+        addedRegions: gained.get(poi.id)!,
+      }))
+      .sort((a, b) => b.addedRegions - a.addedRegions),
+    traces,
+  }
 }
 
 export function buildAccessSimulation(request: SimulateScenarioRequest): SimulationResult {
@@ -225,12 +351,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
 
   const blocked = new Set(shutdownStations)
   const unboardable = new Set([...maintenanceStations, ...shutdownStations])
-  const grouped = new Map<PoiCategory, PointOfInterest[]>()
-  for (const poi of candidates) {
-    const list = grouped.get(poi.category) ?? []
-    list.push(poi)
-    grouped.set(poi.category, list)
-  }
+  const grouped = groupByCategory(candidates, categories)
   const stationById = new Map(stations.map((station) => [station.id, station]))
   const poiById = new Map(candidates.map((poi) => [poi.id, poi]))
   const beforeCount = new Map<string, number>()
@@ -238,20 +359,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   const impacts: ZoneImpact[] = []
   const traces: Record<string, TraceImpact> = {}
 
-  const key = baselineKey(request)
-  let beforeByZone = baselineCache?.key === key ? baselineCache.beforeByZone : null
-  if (!beforeByZone) {
-    const openGraph = buildGraph(stations, edges, new Set())
-    const openNearest = nearestFinder(stations, new Set())
-    beforeByZone = new Map()
-    for (const zone of zones) {
-      beforeByZone.set(
-        zone.id,
-        bestByCategory(zone, grouped, openNearest, openGraph, new Set()),
-      )
-    }
-    baselineCache = { key, beforeByZone }
-  }
+  const { beforeByZone } = baseline(request, grouped)
 
   const disruptedGraph = buildGraph(stations, edges, blocked)
   const disruptedNearest = nearestFinder(stations, unboardable)

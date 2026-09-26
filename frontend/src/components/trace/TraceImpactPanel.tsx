@@ -11,6 +11,7 @@ export function TraceImpactPanel() {
   const beforeAfterMode = useScenarioStore((state) => state.routeView)
   const setBeforeAfterMode = useScenarioStore((state) => state.setRouteView)
   const zones = useScenarioStore((state) => state.zones)
+  const gain = useScenarioStore((state) => state.appMode === 'add')
   const selectedZoneId = useScenarioStore((state) => state.selectedZoneId)
   const zoneName = zones.find((zone) => zone.id === selectedZoneId)?.name
 
@@ -31,12 +32,14 @@ export function TraceImpactPanel() {
             <Info className="h-3.5 w-3.5 text-fog-400" />
           </h3>
           <p className="mt-1 text-[12px] leading-relaxed text-fog-400">
-            Why {zoneName ?? 'this community'} takes longer under the current station states.
+            {gain
+              ? `How ${zoneName ?? 'this community'} gets there faster with the new infrastructure.`
+              : `Why ${zoneName ?? 'this community'} takes longer under the current station states.`}
           </p>
         </div>
       </div>
 
-      <BeforeAfterComparison trace={trace} />
+      <BeforeAfterComparison trace={trace} gain={gain} />
 
       <div className="flex rounded-full border border-ink-600 bg-ink-850 p-1">
         {modes.map((mode) => (
