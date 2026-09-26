@@ -1,12 +1,3 @@
-import { delay } from '@/utils/constants'
-
-const DEFAULT_LATENCY = 120
-
-export async function mockRequest<T>(value: T, latency = DEFAULT_LATENCY): Promise<T> {
-  await delay(latency)
-  return value
-}
-
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export const endpoints = {

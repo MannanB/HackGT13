@@ -1,0 +1,312 @@
+import { haversineKm } from '@/utils/geo'
+import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
+import type { Station, TransitEdge } from '@/types/network'
+import type {
+  PathNode,
+  PoiPressure,
+  RoutePath,
+  SimulateScenarioRequest,
+  SimulationResult,
+  TraceImpact,
+  ZoneImpact,
+} from '@/types/simulation'
+
+const WALK_METERS_PER_MINUTE = 80
+
+interface RailGraph {
+  ids: string[]
+  index: Map<string, number>
+  dist: number[][]
+  next: number[][]
+}
+
+interface Trip {
+  minutes: number
+  poi: PointOfInterest
+  stationIds: string[]
+}
+
+function walkMinutes(from: LatLng, to: LatLng): number {
+  return (haversineKm(from, to) * 1000) / WALK_METERS_PER_MINUTE
+}
+
+function poiPoint(poi: PointOfInterest): LatLng {
+  return { latitude: poi.latitude, longitude: poi.longitude }
+}
+
+function nearestStation(
+  point: LatLng,
+  stations: Station[],
+  closed: Set<string>,
+): Station | null {
+  let best: Station | null = null
+  let bestWalk = Number.POSITIVE_INFINITY
+  for (const station of stations) {
+    if (closed.has(station.id)) continue
+    const walk = walkMinutes(point, station)
+    if (walk < bestWalk) {
+      best = station
+      bestWalk = walk
+    }
+  }
+  return best
+}
+
+function buildGraph(stations: Station[], edges: TransitEdge[], closed: Set<string>): RailGraph {
+  const ids = stations.filter((station) => !closed.has(station.id)).map((station) => station.id)
+  const index = new Map(ids.map((id, position) => [id, position]))
+  const size = ids.length
+  const dist = Array.from({ length: size }, () => Array<number>(size).fill(Number.POSITIVE_INFINITY))
+  const next = Array.from({ length: size }, () => Array<number>(size).fill(-1))
+  for (let i = 0; i < size; i += 1) {
+    dist[i][i] = 0
+    next[i][i] = i
+  }
+
+  const link = (from: string, to: string, minutes: number) => {
+    const start = index.get(from)
+    const end = index.get(to)
+    if (start == null || end == null || minutes >= dist[start][end]) return
+    dist[start][end] = minutes
+    next[start][end] = end
+  }
+
+  for (const edge of edges) {
+    link(edge.fromStation, edge.toStation, edge.travelMinutes)
+    link(edge.toStation, edge.fromStation, edge.travelMinutes)
+  }
+
+  for (let mid = 0; mid < size; mid += 1) {
+    for (let start = 0; start < size; start += 1) {
+      const startToMid = dist[start][mid]
+      if (!Number.isFinite(startToMid)) continue
+      for (let end = 0; end < size; end += 1) {
+        const through = startToMid + dist[mid][end]
+        if (through < dist[start][end]) {
+          dist[start][end] = through
+          next[start][end] = next[start][mid]
+        }
+      }
+    }
+  }
+
+  return { ids, index, dist, next }
+}
+
+function railStationIds(graph: RailGraph, fromId: string, toId: string): string[] {
+  const start = graph.index.get(fromId)
+  const end = graph.index.get(toId)
+  if (start == null || end == null || !Number.isFinite(graph.dist[start][end])) return []
+  if (fromId === toId) return [fromId]
+  const path = [graph.ids[start]]
+  let cursor = start
+  while (cursor !== end) {
+    cursor = graph.next[cursor][end]
+    if (cursor < 0) return []
+    path.push(graph.ids[cursor])
+  }
+  return path
+}
+
+function optimalTrip(
+  zone: ResidentialZone,
+  poi: PointOfInterest,
+  stations: Station[],
+  graph: RailGraph,
+  closed: Set<string>,
+): Trip {
+  const direct = walkMinutes(zone.centroid, poiPoint(poi))
+  const board = nearestStation(zone.centroid, stations, closed)
+  const alight = nearestStation(poiPoint(poi), stations, closed)
+  if (!board || !alight) return { minutes: direct, poi, stationIds: [] }
+
+  const stationIds = railStationIds(graph, board.id, alight.id)
+  if (stationIds.length === 0 || stationIds.some((id) => closed.has(id))) {
+    return { minutes: direct, poi, stationIds: [] }
+  }
+
+  const ride = graph.dist[graph.index.get(board.id)!][graph.index.get(alight.id)!]
+  const transit =
+    walkMinutes(zone.centroid, board) + ride + walkMinutes(alight, poiPoint(poi))
+  if (transit < direct) return { minutes: transit, poi, stationIds }
+  return { minutes: direct, poi, stationIds: [] }
+}
+
+function bestByCategory(
+  zone: ResidentialZone,
+  grouped: Map<PoiCategory, PointOfInterest[]>,
+  stations: Station[],
+  graph: RailGraph,
+  closed: Set<string>,
+): Map<PoiCategory, Trip> {
+  const chosen = new Map<PoiCategory, Trip>()
+  for (const [category, pois] of grouped) {
+    let best: Trip | null = null
+    for (const poi of pois) {
+      const trip = optimalTrip(zone, poi, stations, graph, closed)
+      if (!best || trip.minutes < best.minutes) best = trip
+    }
+    if (best) chosen.set(category, best)
+  }
+  return chosen
+}
+
+function stationNode(id: string, stations: Map<string, Station>, closed: Set<string>): PathNode {
+  const station = stations.get(id)
+  return {
+    type: 'station',
+    id,
+    name: station?.name ?? id,
+    latitude: station?.latitude ?? 0,
+    longitude: station?.longitude ?? 0,
+    failed: closed.has(id),
+  }
+}
+
+function buildPath(
+  zone: ResidentialZone,
+  trip: Trip,
+  stations: Map<string, Station>,
+  closed: Set<string>,
+): RoutePath {
+  const nodes: PathNode[] = [
+    {
+      type: 'zone',
+      id: zone.id,
+      name: zone.name,
+      latitude: zone.centroid.latitude,
+      longitude: zone.centroid.longitude,
+    },
+  ]
+  for (const stationId of trip.stationIds) {
+    nodes.push(stationNode(stationId, stations, closed))
+  }
+  nodes.push({
+    type: 'poi',
+    id: trip.poi.id,
+    name: trip.poi.name,
+    latitude: trip.poi.latitude,
+    longitude: trip.poi.longitude,
+  })
+  return { nodes, travelMinutes: trip.minutes }
+}
+
+export function buildAccessSimulation(request: SimulateScenarioRequest): SimulationResult {
+  const zones = request.zones ?? []
+  const stations = request.stations ?? []
+  const edges = request.transitEdges ?? []
+  const categories = request.serviceCategories
+  const closedId = request.closedStations[0]
+  if (!closedId) throw new Error('Select a station to close')
+  if (stations.length === 0) throw new Error('Station network is not loaded')
+
+  const candidates = (request.pois ?? []).filter((poi) => categories.includes(poi.category))
+  if (candidates.length === 0) {
+    throw new Error('None of the selected services have destinations on the map')
+  }
+
+  const closed = new Set(request.closedStations)
+  const openGraph = buildGraph(stations, edges, new Set())
+  const closedGraph = buildGraph(stations, edges, closed)
+  const grouped = new Map<PoiCategory, PointOfInterest[]>()
+  for (const poi of candidates) {
+    const list = grouped.get(poi.category) ?? []
+    list.push(poi)
+    grouped.set(poi.category, list)
+  }
+  const stationById = new Map(stations.map((station) => [station.id, station]))
+  const poiById = new Map(candidates.map((poi) => [poi.id, poi]))
+  const beforeCount = new Map<string, number>()
+  const afterCount = new Map<string, number>()
+  const impacts: ZoneImpact[] = []
+  const traces: Record<string, TraceImpact> = {}
+
+  for (const zone of zones) {
+    const before = bestByCategory(zone, grouped, stations, openGraph, new Set())
+    const after = bestByCategory(zone, grouped, stations, closedGraph, closed)
+    if (before.size === 0 || after.size === 0) continue
+
+    let beforeBest: Trip | null = null
+    let afterBest: Trip | null = null
+    for (const [category, baseline] of before) {
+      const disrupted = after.get(category)
+      if (!disrupted) continue
+      beforeCount.set(baseline.poi.id, (beforeCount.get(baseline.poi.id) ?? 0) + 1)
+      afterCount.set(disrupted.poi.id, (afterCount.get(disrupted.poi.id) ?? 0) + 1)
+      if (!beforeBest || baseline.minutes < beforeBest.minutes) beforeBest = baseline
+      if (!afterBest || disrupted.minutes < afterBest.minutes) afterBest = disrupted
+    }
+    if (!beforeBest || !afterBest) continue
+
+    const normalTravelMinutes = Math.round(beforeBest.minutes)
+    const disruptedTravelMinutes = Math.round(afterBest.minutes)
+    const delayMinutes = Math.max(0, disruptedTravelMinutes - normalTravelMinutes)
+    impacts.push({
+      zoneId: zone.id,
+      zoneName: zone.name,
+      poiId: afterBest.poi.id,
+      poiName: afterBest.poi.name,
+      normalTravelMinutes,
+      disruptedTravelMinutes,
+      delayMinutes,
+      population: zone.population,
+      severity: Math.min(1, delayMinutes / 45),
+      lostAccess: false,
+    })
+    traces[zone.id] = {
+      zoneId: zone.id,
+      poiId: afterBest.poi.id,
+      normalTravelMinutes,
+      disruptedTravelMinutes,
+      delayMinutes,
+      normalPath: buildPath(zone, beforeBest, stationById, closed),
+      disruptedPath: buildPath(zone, afterBest, stationById, closed),
+    }
+  }
+
+  impacts.sort((a, b) => b.delayMinutes - a.delayMinutes || b.population - a.population)
+  const slowed = impacts.filter((impact) => impact.delayMinutes > 0)
+  const populationAffected = slowed.reduce((sum, impact) => sum + impact.population, 0)
+  const weightedDelay = slowed.reduce(
+    (sum, impact) => sum + impact.delayMinutes * impact.population,
+    0,
+  )
+
+  const poiPressure: PoiPressure[] = []
+  for (const [poiId, disruptedRegions] of afterCount) {
+    const baselineRegions = beforeCount.get(poiId) ?? 0
+    const addedRegions = disruptedRegions - baselineRegions
+    const poi = poiById.get(poiId)
+    if (!poi || addedRegions <= 0) continue
+    poiPressure.push({
+      poiId,
+      poiName: poi.name,
+      category: poi.category,
+      baselinePopulation: baselineRegions,
+      disruptedPopulation: disruptedRegions,
+      addedPopulation: addedRegions,
+    })
+  }
+  poiPressure.sort((a, b) => b.addedPopulation - a.addedPopulation)
+
+  const closedStation = stationById.get(closedId)
+  return {
+    scenario: {
+      id: `closure-${closedId}`,
+      createdAt: new Date().toISOString(),
+      closedStations: request.closedStations,
+      description: `${closedStation?.name ?? 'Station'} is closed. Each region keeps the faster of a direct walk or a ride between the nearest open stations, and can switch to another destination.`,
+    },
+    summary: {
+      populationAffected,
+      averageAddedTravelMinutes: populationAffected ? weightedDelay / populationAffected : 0,
+      zonesAffected: slowed.length,
+      communitiesLosingAccess: slowed.length,
+    },
+    zoneImpacts: impacts,
+    poiPressure,
+    failedStations: request.closedStations,
+    reroutedPaths: [],
+    traces,
+  }
+}

@@ -23,6 +23,7 @@ export function createMartaNetworkLayer(
     const broken =
       failedStationIds.includes(edge.fromStation) ||
       failedStationIds.includes(edge.toStation)
+    if (broken) return []
     const color = MARTA_LINE_COLORS[edge.line]
     const shift = edge.line === 'gold' ? 0.00018 : edge.line === 'green' ? 0.00016 : 0
     const dx = edge.line === 'gold' ? shift : 0
@@ -34,12 +35,10 @@ export function createMartaNetworkLayer(
           [from.longitude + dx, from.latitude + dy],
           [to.longitude + dx, to.latitude + dy],
         ] as [number, number][],
-        color: broken
-          ? ([color[0], color[1], color[2], 70] as [number, number, number, number])
-          : simulated
-            ? ([color[0], color[1], color[2], 200] as [number, number, number, number])
-            : color,
-        width: broken ? 2 : 3.5,
+        color: simulated
+          ? ([color[0], color[1], color[2], 200] as [number, number, number, number])
+          : color,
+        width: 3.5,
       },
     ]
   })

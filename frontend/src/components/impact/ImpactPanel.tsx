@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { TriangleAlert } from 'lucide-react'
 import { AffectedCommunities } from '@/components/impact/AffectedCommunities'
 import { ImpactSummary } from '@/components/impact/ImpactSummary'
+import { PoiPressureList } from '@/components/impact/PoiPressureList'
 import { TraceImpactPanel } from '@/components/trace/TraceImpactPanel'
 import { useScenarioStore } from '@/store/scenarioStore'
 
@@ -76,6 +77,7 @@ export function ImpactPanel() {
               </div>
 
               <ImpactSummary summary={result.summary} active />
+              <PoiPressureList pressure={result.poiPressure} />
               <AffectedCommunities impacts={result.zoneImpacts} />
               {selectedZoneId && <TraceImpactPanel />}
             </motion.div>

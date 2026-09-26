@@ -5,7 +5,7 @@ import type { ZoneImpact } from '@/types/simulation'
 export function AffectedCommunities({ impacts }: { impacts: ZoneImpact[] }) {
   const selectedZoneId = useScenarioStore((state) => state.selectedZoneId)
   const selectZone = useScenarioStore((state) => state.selectZone)
-  const ranked = impacts.filter((item) => item.delayMinutes >= 5).slice(0, 10)
+  const ranked = impacts.filter((item) => item.delayMinutes > 0).slice(0, 10)
 
   return (
     <div>

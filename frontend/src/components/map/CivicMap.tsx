@@ -94,6 +94,7 @@ export function CivicMap() {
         selectedServiceCategories,
         selectedPoiId,
         Boolean(traceImpact),
+        simulationResult?.poiPressure ?? [],
       ),
       ...createStationLayers(
         stations,

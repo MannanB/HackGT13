@@ -34,7 +34,10 @@ export function createZoneImpactLayer(
     getFillColor: (feature) => {
       const impact = feature.properties.impact
       const selected = feature.properties.zone.id === selectedZoneId
-      if (!simulated || !impact || impact.delayMinutes < 3) {
+      const sameTrip =
+        impact?.disruptedTravelMinutes != null &&
+        impact.disruptedTravelMinutes <= impact.normalTravelMinutes
+      if (!simulated || !impact || impact.delayMinutes <= 0 || sameTrip) {
         return selected ? [59, 130, 246, 70] : [48, 78, 108, 78]
       }
       const alpha = selected ? 210 : 140 + Math.round(impact.severity * 50)

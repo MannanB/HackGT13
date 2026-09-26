@@ -1,5 +1,3 @@
-import { mockPois } from '@/data/mockPois'
-import { mockZones } from '@/data/mockZones'
 import { endpoints, fetchAllPages } from '@/services/api'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { AccessEdge } from '@/types/network'
@@ -87,22 +85,22 @@ function mapPoi(row: ApiPoi): PointOfInterest {
 export async function getZones(): Promise<ResidentialZone[]> {
   try {
     const rows = await fetchAllPages<ApiZone>(endpoints.zones)
-    if (rows.length === 0) return mockZones
+    if (rows.length === 0) throw new Error('Residential zones are empty')
     return rows.map(mapZone)
   } catch (error) {
-    console.warn('Zones API unavailable, using mock zones', error)
-    return mockZones
+    if (error instanceof Error && error.message === 'Residential zones are empty') throw error
+    throw new Error('Could not load residential zones from the API')
   }
 }
 
 export async function getPointsOfInterest(): Promise<PointOfInterest[]> {
   try {
     const rows = await fetchAllPages<ApiPoi>(endpoints.pois)
-    if (rows.length === 0) return mockPois
+    if (rows.length === 0) throw new Error('Points of interest are empty')
     return rows.map(mapPoi)
   } catch (error) {
-    console.warn('POI API unavailable, using mock POIs', error)
-    return mockPois
+    if (error instanceof Error && error.message === 'Points of interest are empty') throw error
+    throw new Error('Could not load points of interest from the API')
   }
 }
 

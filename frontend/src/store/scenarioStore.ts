@@ -127,6 +127,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => ({
         zones: get().zones,
         pois: get().pois,
         stations: get().stations,
+        transitEdges: get().transitEdges,
       })
       set({ simulationStatus: 'success', simulationResult })
     } catch (error) {

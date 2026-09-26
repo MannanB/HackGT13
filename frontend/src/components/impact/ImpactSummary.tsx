@@ -30,9 +30,9 @@ export function ImpactSummary({
     },
     {
       icon: House,
-      label: 'Communities losing access',
+      label: 'Regions slowed',
       value: Math.round(lost).toString(),
-      note: 'convenient path gone',
+      note: 'longer trip than before',
     },
   ]
 

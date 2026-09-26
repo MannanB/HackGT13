@@ -1,5 +1,3 @@
-import { mockStations } from '@/data/mockStations'
-import { mockTransitEdges } from '@/data/mockTransitEdges'
 import { apiGet, endpoints } from '@/services/api'
 import { mapMartaLine, type Station, type TransitEdge } from '@/types/network'
 
@@ -62,12 +60,12 @@ export async function getNetwork(): Promise<{ stations: Station[]; transitEdges:
       .map(mapTransitEdge)
       .filter((edge): edge is TransitEdge => edge !== null)
     if (stations.length === 0) {
-      return { stations: mockStations, transitEdges: mockTransitEdges }
+      throw new Error('Station network is empty')
     }
     return { stations, transitEdges }
   } catch (error) {
-    console.warn('Network API unavailable, using mock MARTA graph', error)
-    return { stations: mockStations, transitEdges: mockTransitEdges }
+    if (error instanceof Error && error.message === 'Station network is empty') throw error
+    throw new Error('Could not load the MARTA network from the API')
   }
 }
 

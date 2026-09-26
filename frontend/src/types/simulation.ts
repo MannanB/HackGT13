@@ -1,5 +1,5 @@
 import type { PointOfInterest, PoiCategory, ResidentialZone } from './geography'
-import type { Station } from './network'
+import type { Station, TransitEdge } from './network'
 
 export type AppMode = 'simulate' | 'discover' | 'recover'
 
@@ -23,6 +23,15 @@ export interface ZoneImpact {
   population: number
   severity: number
   lostAccess: boolean
+}
+
+export interface PoiPressure {
+  poiId: string
+  poiName: string
+  category: PoiCategory
+  baselinePopulation: number
+  disruptedPopulation: number
+  addedPopulation: number
 }
 
 export interface ImpactSummary {
@@ -62,6 +71,7 @@ export interface SimulationResult {
   scenario: Scenario
   summary: ImpactSummary
   zoneImpacts: ZoneImpact[]
+  poiPressure: PoiPressure[]
   failedStations: string[]
   reroutedPaths: RoutePath[]
   traces: Record<string, TraceImpact>
@@ -73,6 +83,7 @@ export interface SimulateScenarioRequest {
   zones?: ResidentialZone[]
   pois?: PointOfInterest[]
   stations?: Station[]
+  transitEdges?: TransitEdge[]
 }
 
 export interface TraceImpactRequest {
