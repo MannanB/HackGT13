@@ -5,6 +5,11 @@ import {
   createPoiCriticalIndex,
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
+import {
+  networkFingerprint,
+  readCriticalCache,
+  writeCriticalCache,
+} from '@/services/criticalCache'
 import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
@@ -69,8 +74,6 @@ interface ScenarioState {
 }
 
 const DEFAULT_CATEGORIES: PoiCategory[] = ['government', 'hospital', 'grocery']
-const CRITICAL_START_DELAY_MS = 600
-const CRITICAL_STEP_DELAY_MS = 120
 const CRITICAL_PUBLISH_EVERY = 4
 
 function allDestinations(state: Pick<ScenarioState, 'pois' | 'addedPois' | 'selectedServiceCategories'>) {
@@ -230,6 +233,13 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           getAccessEdges(),
         ])
         const connected = attachAccess(zones, pois, accessEdges)
+        const fingerprint = networkFingerprint({
+          stations: network.stations,
+          transitEdges: network.transitEdges,
+          zones: connected.zones,
+          pois: connected.pois,
+        })
+        const cached = readCriticalCache(fingerprint)
         set({
           stations: network.stations,
           transitEdges: network.transitEdges,
@@ -240,11 +250,11 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
             network.stations.find((station) => /five points/i.test(station.name))?.id ??
             null,
           loadStatus: 'ready',
-          poiCriticalById: {},
+          poiCriticalById: cached ?? {},
+          poiCriticalProgress: cached ? 1 : 0,
         })
-        const generation = ++criticalGeneration
-        window.setTimeout(() => {
-          if (generation !== criticalGeneration) return
+        if (!cached) {
+          const generation = ++criticalGeneration
           const index = createPoiCriticalIndex({
             zones: connected.zones,
             pois: connected.pois,
@@ -260,16 +270,16 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
               cursor += 1
             }
             const done = cursor >= total
+            const snapshot = done || cursor % CRITICAL_PUBLISH_EVERY === 0 ? index.snapshot() : null
             set({
               poiCriticalProgress: total ? cursor / total : 1,
-              ...(done || cursor % CRITICAL_PUBLISH_EVERY === 0
-                ? { poiCriticalById: index.snapshot() }
-                : {}),
+              ...(snapshot ? { poiCriticalById: snapshot } : {}),
             })
-            if (!done) window.setTimeout(step, CRITICAL_STEP_DELAY_MS)
+            if (done && snapshot) writeCriticalCache(fingerprint, snapshot)
+            if (!done) window.requestAnimationFrame(step)
           }
-          step()
-        }, CRITICAL_START_DELAY_MS)
+          window.requestAnimationFrame(step)
+        }
         recompute()
       } catch (error) {
         set({
