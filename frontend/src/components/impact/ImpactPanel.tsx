@@ -6,6 +6,9 @@ import { PoiPressureList } from '@/components/impact/PoiPressureList'
 import { TraceImpactPanel } from '@/components/trace/TraceImpactPanel'
 import { useScenarioStore } from '@/store/scenarioStore'
 import type { StationOperatingState } from '@/types/network'
+import type { HospitalCapacity } from '@/types/simulation'
+import { formatVisitorRate } from '@/utils/constants'
+import { formatTime } from '@/utils/hourlyDemand'
 import { cn } from '@/utils/cn'
 
 export function ImpactPanel() {
@@ -28,6 +31,10 @@ export function ImpactPanel() {
   const gain = useScenarioStore((state) => state.appMode === 'add')
   const addedCount = useScenarioStore((state) => state.addedPois.length)
   const disruptionResult = useScenarioStore((state) => state.disruptionResult)
+  const hospitalCapacity =
+    result?.hospitalCapacity?.length
+      ? result.hospitalCapacity
+      : (disruptionResult?.hospitalCapacity ?? [])
   const anyShutdown = disrupted.some((item) => item.operating === 'shutdown')
 
   return (
@@ -124,6 +131,7 @@ export function ImpactPanel() {
 
             <ImpactSummary summary={result.summary} gain={gain} />
             <IncomeEquity impacts={result.zoneImpacts} gain={gain} />
+            <HospitalCapacityList hospitals={hospitalCapacity} />
             <PoiPressureList pressure={result.poiPressure} gain={gain} />
             <AffectedCommunities impacts={result.zoneImpacts} />
             {selectedZoneId && <TraceImpactPanel />}
@@ -131,6 +139,64 @@ export function ImpactPanel() {
         )}
       </div>
     </aside>
+  )
+}
+
+function HospitalCapacityList({ hospitals }: { hospitals: HospitalCapacity[] }) {
+  const active = hospitals
+    .filter(
+      (item): item is HospitalCapacity & { capacity: number; loadRatio: number; demand: number } =>
+        item.capacity != null && item.loadRatio != null && item.demand != null &&
+        (item.incomingAdmissionsPerHour > 0 || item.addedDemand > 0 || item.atMaxCapacity),
+    )
+    .slice(0, 6)
+  if (active.length === 0) return null
+
+  const projectedTime = (minute: number) => {
+    const day = Math.floor(minute / 1440)
+    const clock = formatTime(minute % 1440)
+    return day > 0 ? `${clock} +${day}d` : clock
+  }
+
+  return (
+    <div>
+      <h3 className="mb-2 px-1 text-sm font-semibold text-fog-100">Hospital load over time</h3>
+      <p className="mb-2 px-1 text-[12px] leading-relaxed text-fog-400">
+        Historical CMS occupancy is the starting state. Closure-induced admissions accumulate;
+        reported length of stay controls how quickly those added beds become available again.
+      </p>
+      <div className="space-y-1">
+        {active.map((item) => (
+          <div
+            key={item.poiId}
+            className={`rounded-xl border px-3 py-2 text-fog-100 ${item.atMaxCapacity ? 'border-line-red/30 bg-line-red/10' : 'border-ink-700 bg-ink-850'}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-sm">{item.poiName}</span>
+              <span className={`shrink-0 text-sm font-medium tabular-nums ${item.atMaxCapacity ? 'text-line-red' : 'text-fog-100'}`}>
+                {Math.round(item.loadRatio * 100)}%
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+              <div
+                className={`h-full rounded-full ${item.atMaxCapacity ? 'bg-line-red' : item.loadRatio >= 0.9 ? 'bg-line-gold' : 'bg-sky-400'}`}
+                style={{ width: `${Math.min(100, item.loadRatio * 100)}%` }}
+              />
+            </div>
+            <div className="mt-1 flex justify-between gap-2 text-[10px] text-fog-500">
+              <span>+{formatVisitorRate(item.addedDemand)} occupied since start</span>
+              <span>
+                {item.overflowPatients > 0
+                  ? `${formatVisitorRate(item.overflowPatients)} overflow`
+                  : item.projectedFullMinute != null
+                    ? `full ${projectedTime(item.projectedFullMinute)}`
+                    : `+${formatVisitorRate(item.incomingAdmissionsPerHour)}/hr`}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 

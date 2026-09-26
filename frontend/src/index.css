@@ -71,6 +71,33 @@ body {
   overflow: hidden;
 }
 
+.timeline-range {
+  height: 5px;
+  appearance: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #162033, #7cc4ff 50%, #162033);
+  cursor: pointer;
+}
+
+.timeline-range::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  appearance: none;
+  border: 3px solid #eef2f7;
+  border-radius: 999px;
+  background: #4c9dff;
+  box-shadow: 0 0 0 4px rgb(76 157 255 / 0.2);
+}
+
+.timeline-range::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 3px solid #eef2f7;
+  border-radius: 999px;
+  background: #4c9dff;
+  box-shadow: 0 0 0 4px rgb(76 157 255 / 0.2);
+}
+
 @utility glass {
   background: color-mix(in oklab, var(--color-ink-900) 78%, transparent);
   backdrop-filter: blur(18px) saturate(1.3);

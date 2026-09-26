@@ -13,7 +13,8 @@ export function ImpactSummary({ summary, gain }: { summary: ImpactSummaryData; g
       icon: Users,
       label: gain ? 'Population benefiting' : 'Population affected',
       value: formatPopulation(population),
-      note: 'vs. typical service',
+      suffix: ' residents',
+      note: 'highlighted areas',
     },
     {
       icon: Clock3,

@@ -51,7 +51,10 @@ const STAGE_COLORS: Record<FlowStage, RGB> = {
 }
 const PASSENGER_COLOR: RGB = [224, 241, 255]
 const VISUAL_SPEED_KM_PER_SECOND = 0.42
-const BASE_HEADWAY_SECONDS = 3.2
+// The original hospital-only view rendered roughly 3,600 dots. Treat that as
+// 1.0 normalized visitor/hour: 0.66 visitors/hour => 66% of this budget.
+const DEFAULT_DOT_BUDGET = 3_600
+const MAX_DOT_BUDGET = 20_000
 const ROUTE_CACHE = new WeakMap<object, { streetRoutes: StreetRouteMap; routes: FlowRoute[] }>()
 
 function hash(value: string) {
@@ -99,7 +102,11 @@ function routeStages(journey: PassengerJourney, streetRoutes: StreetRouteMap): S
   const end = nodes[nodes.length - 1]
   if (stations.length < 2) {
     const directStreet = streetRoutes[`direct:${start.id}:${end.id}`]
-    return directStreet ? [measured(directStreet, 'exit')] : []
+    const directPath: [number, number][] = directStreet ?? [
+      [start.longitude, start.latitude],
+      [end.longitude, end.latitude],
+    ]
+    return [measured(directPath, 'exit')].filter((stage) => stage.totalLength > 0)
   }
   const boardingStreet = streetRoutes[`zone:${start.id}:${stations[0].id}`]
   const exitStreet = streetRoutes[`poi:${end.id}:${stations[stations.length - 1].id}`]
@@ -213,7 +220,7 @@ export function createPassengerFlowLayers(
 ) {
   const journeys = result ? disruptedJourneys(result) : baseline
   if (journeys.length === 0) return []
-  const routes = buildRoutes(result ?? baseline, journeys, streetRoutes)
+  const allRoutes = buildRoutes(result ?? baseline, journeys, streetRoutes)
   const baselineById = new Map(baseline.map((journey) => [journey.id, journey]))
   const pressuredPois = new Set(result?.poiPressure.map((pressure) => pressure.poiId) ?? [])
   const highlightedIds = new Set(
@@ -228,17 +235,33 @@ export function createPassengerFlowLayers(
         })
       : [],
   )
-  const baseDensityScale = 2 ** (Math.max(0, zoom - 11) * 0.72)
-  const surgeDensityScale = 2 ** (Math.max(0, zoom - 12.5) * 0.22)
+  const routes = allRoutes.filter((route) => route.estimatedTrips > 0)
+  // `poi:` journeys are ambient destination traces that duplicate the zone-level
+  // demand. Keep them drawable, but do not count them twice when setting density.
+  const normalizedHourlyDemand = routes
+    .filter((route) => !route.id.startsWith('poi:'))
+    .reduce((sum, route) => sum + route.estimatedTrips, 0)
+  const dotBudget = normalizedHourlyDemand > 0
+    ? Math.max(1, Math.min(MAX_DOT_BUDGET, Math.round(DEFAULT_DOT_BUDGET * normalizedHourlyDemand)))
+    : 0
+  const totalRouteWeight = routes.reduce((sum, route) => sum + route.estimatedTrips, 0)
+  const particlesByRoute = new Map<string, number>()
+  if (dotBudget > 0 && totalRouteWeight > 0) {
+    let routeIndex = 0
+    let cumulativeWeight = routes[0]?.estimatedTrips ?? 0
+    for (let index = 0; index < dotBudget; index += 1) {
+      const target = ((index + 0.5) / dotBudget) * totalRouteWeight
+      while (routeIndex < routes.length - 1 && cumulativeWeight < target) {
+        routeIndex += 1
+        cumulativeWeight += routes[routeIndex].estimatedTrips
+      }
+      const route = routes[routeIndex]
+      particlesByRoute.set(route.id, (particlesByRoute.get(route.id) ?? 0) + 1)
+    }
+  }
   const passengers = routes.flatMap((route) => {
     const highlighted = highlightedIds.has(route.id)
-    const demandCadence = Math.max(0.8, Math.min(2.4, Math.log10(1 + route.estimatedTrips) / 1.5))
-    const densityScale = highlighted ? surgeDensityScale : baseDensityScale
-    const headwaySeconds = (BASE_HEADWAY_SECONDS * densityScale) / (demandCadence * (highlighted ? 1.8 : 1))
-    const particleCount = Math.max(
-      highlighted ? 4 : zoom >= 13 ? 2 : 4,
-      Math.ceil(route.totalLength / (VISUAL_SPEED_KM_PER_SECOND * headwaySeconds)),
-    )
+    const particleCount = particlesByRoute.get(route.id) ?? 0
     return Array.from({ length: particleCount }, (_, index) => {
       const distanceTravelled = (now / 1000) * VISUAL_SPEED_KM_PER_SECOND
       return {
@@ -268,7 +291,7 @@ export function createPassengerFlowLayers(
   )
   const pathAlpha = Math.max(
     2,
-    Math.min(22, Math.round(10_000 / Math.max(1, legs.length) / baseDensityScale)),
+    Math.min(22, Math.round(10_000 / Math.max(1, legs.length) / 2 ** (Math.max(0, zoom - 11) * 0.72))),
   )
 
   return [

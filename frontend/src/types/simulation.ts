@@ -13,7 +13,7 @@ export interface ZoneImpact {
   disruptedTravelMinutes: number
   delayMinutes: number
   population: number
-  /** Modeled transit-dependent trip assignments per day. */
+  /** Modeled transit-dependent trip assignments during the selected hour. */
   estimatedTrips: number
 }
 
@@ -26,7 +26,7 @@ export interface PoiPressure {
   addedRegions: number
   baselineDemand: number
   disruptedDemand: number
-  /** Additional modeled trip assignments per day. */
+  /** Additional modeled trips accumulated since the closure started. */
   addedDemand: number
   capacity: number | null
   loadRatio: number | null
@@ -50,8 +50,36 @@ export interface PoiCriticalStation {
   access: PoiStationPressure[]
 }
 
+export interface HospitalCapacity {
+  poiId: string
+  poiName: string
+  /** Licensed/staffed bed proxy from CMS, or null when the facility is unmatched. */
+  capacity: number | null
+  /** Historically occupied beds estimated from CMS inpatient days / bed-days. */
+  baselineDemand: number | null
+  /** Projected occupied beds at the selected elapsed scenario time. */
+  demand: number | null
+  /** Share of real beds occupied, or null when capacity is unknown. */
+  loadRatio: number | null
+  /** Closure-induced admissions still occupying beds. */
+  addedDemand: number
+  /** Historical CMS occupancy ratio used as the starting state. */
+  baselineOccupancyRate: number | null
+  /** Closure-induced admissions arriving in the selected hour. */
+  incomingAdmissionsPerHour: number
+  /** Patients above reported bed capacity. */
+  overflowPatients: number
+  /** Projected clock minute when capacity is crossed, possibly after midnight. */
+  projectedFullMinute: number | null
+  averageLengthOfStayDays: number | null
+  utilizationReportEnd: string | null
+  atMaxCapacity: boolean
+}
+
 export interface ImpactSummary {
   populationAffected: number
+  /** Modeled transit-dependent arrivals affected during the selected clock hour. */
+  visitorsAffected: number
   averageAddedTravelMinutes: number
   zonesAffected: number
 }
@@ -93,6 +121,7 @@ export interface SimulationResult {
   summary: ImpactSummary
   zoneImpacts: ZoneImpact[]
   poiPressure: PoiPressure[]
+  hospitalCapacity: HospitalCapacity[]
   traces: Record<string, TraceImpact>
   flowJourneys?: PassengerJourney[]
 }
@@ -105,4 +134,7 @@ export interface SimulateScenarioRequest {
   pois: PointOfInterest[]
   stations: Station[]
   transitEdges: TransitEdge[]
+  timeMinute?: number
+  failureStartMinute?: number
+  failureElapsedMinutes?: number
 }

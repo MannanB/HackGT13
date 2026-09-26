@@ -1,4 +1,5 @@
 import { apiGet, endpoints, fetchAllPages } from '@/services/api'
+import hospitalBedData from '@/data/hospitalBeds.json'
 import type { PointOfInterest, PoiCategory, ResidentialZone, StreetRouteMap } from '@/types/geography'
 import type { AccessEdge } from '@/types/network'
 import type { MultiPolygon, Polygon } from 'geojson'
@@ -77,17 +78,18 @@ function mapZone(row: ApiZone): ResidentialZone {
 }
 
 function mapPoi(row: ApiPoi): PointOfInterest {
+  const category = mapCategory(row.category)
   return {
     id: String(row.id),
     name: row.name,
-    category: mapCategory(row.category),
+    category,
     latitude: row.location.lat,
     longitude: row.location.lon,
     source: row.source,
     sourceId: row.source_id,
     jobsCount: row.jobs_count,
     enrollment: row.enrollment,
-    capacity: row.enrollment ?? row.jobs_count,
+    capacity: category === 'hospital' ? null : row.enrollment ?? row.jobs_count,
     stationAccess: [],
   }
 }
@@ -217,6 +219,31 @@ interface ExperimentalContext {
   poiEnrichment: ExperimentalPoi[]
 }
 
+interface HospitalBedRecord {
+  beds: number
+  providerId: string
+  source: string
+  baselineOccupancyRate?: number
+  averageLengthOfStayDays?: number
+  utilizationReportEnd?: string
+}
+
+const hospitalBeds = hospitalBedData.hospitals as Record<string, HospitalBedRecord>
+
+function attachHospitalBed(poi: PointOfInterest): PointOfInterest {
+  if (poi.category !== 'hospital') return poi
+  const row = hospitalBeds[`${poi.source}:${poi.sourceId}`]
+  if (!row) return { ...poi, capacity: null, capacitySource: null }
+  return {
+    ...poi,
+    capacity: row.beds,
+    capacitySource: `${row.source} · CCN ${row.providerId}`,
+    baselineOccupancyRate: row.baselineOccupancyRate ?? null,
+    averageLengthOfStayDays: row.averageLengthOfStayDays ?? null,
+    utilizationReportEnd: row.utilizationReportEnd ?? null,
+  }
+}
+
 export async function getExperimentalContext(): Promise<ExperimentalContext | null> {
   try {
     const context = await apiGet<ExperimentalContext>(endpoints.experimentalContext)
@@ -244,7 +271,7 @@ export function attachExperimental(
   pois: PointOfInterest[],
   context: ExperimentalContext | null,
 ): { zones: ResidentialZone[]; pois: PointOfInterest[] } {
-  if (!context) return { zones, pois }
+  if (!context) return { zones, pois: pois.map(attachHospitalBed) }
   const nextZones = zones.map((zone) => {
     const row = context.zones[zone.id]
     if (!row) return zone
@@ -272,13 +299,13 @@ export function attachExperimental(
   )
   const nextPois = pois.map((poi) => {
     const row = enrichment.get(`${poi.source}:${poi.sourceId}`)
-    if (!row) return poi
-    return {
+    if (!row) return attachHospitalBed(poi)
+    return attachHospitalBed({
       ...poi,
       openingHours: row.openingHours,
       capacity: row.capacity ?? row.enrollment ?? poi.capacity,
       enrollment: row.enrollment ?? poi.enrollment,
-    }
+    })
   })
   const existing = new Set(nextPois.map((poi) => poi.id))
   const employmentCenters = context.employmentCenters

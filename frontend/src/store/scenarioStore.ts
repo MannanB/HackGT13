@@ -24,6 +24,7 @@ import type { PointOfInterest, PoiCategory, ResidentialZone, StreetRouteMap } fr
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation, RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
 import type { IntelEvent } from '@/types/intelligence'
+import { DEFAULT_TIME_MINUTE } from '@/utils/hourlyDemand'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
 export type AppMode = 'disrupt' | 'add' | 'intel'
@@ -49,6 +50,9 @@ interface ScenarioState {
   selectedStationId: string | null
   hoveredStationId: string | null
   selectedServiceCategories: PoiCategory[]
+  failureStartMinute: number
+  failureElapsedMinutes: number
+  timeMinute: number
 
   result: SimulationResult | null
   disruptionResult: SimulationResult | null
@@ -80,6 +84,8 @@ interface ScenarioState {
   setStationState: (id: string, status: StationOperatingState) => void
   resetStationStates: () => void
   toggleServiceCategory: (category: PoiCategory) => void
+  setFailureStartMinute: (minute: number) => void
+  setFailureElapsedMinutes: (minute: number) => void
   selectZone: (zoneId: string | null) => void
   hoverZone: (zoneId: string | null) => void
   setDelayRange: (range: [number, number] | null) => void
@@ -156,6 +162,9 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           pois: destinations.pois,
           stations: state.stations,
           transitEdges: state.transitEdges,
+          timeMinute: state.timeMinute,
+          failureStartMinute: state.failureStartMinute,
+          failureElapsedMinutes: state.failureElapsedMinutes,
         })
         const keepZone = state.selectedZoneId && result.traces[state.selectedZoneId]
         const adding = state.appMode === 'add'
@@ -219,6 +228,9 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           transitEdges: latest.transitEdges,
           maintenanceStations,
           shutdownStations,
+          timeMinute: latest.timeMinute,
+          failureStartMinute: latest.failureStartMinute,
+          failureElapsedMinutes: latest.failureElapsedMinutes,
         })
         const keepZone = latest.selectedZoneId && result.traces[latest.selectedZoneId]
         set({ computing: false, result, simulationError: null, selectedZoneId: keepZone ? latest.selectedZoneId : null })
@@ -251,6 +263,9 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     selectedStationId: null,
     hoveredStationId: null,
     selectedServiceCategories: DEFAULT_CATEGORIES,
+    failureStartMinute: 0,
+    failureElapsedMinutes: DEFAULT_TIME_MINUTE,
+    timeMinute: DEFAULT_TIME_MINUTE,
 
     result: null,
     disruptionResult: null,
@@ -451,6 +466,24 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       if (next.length === 0) return
       set({ selectedServiceCategories: next })
       recompute()
+    },
+
+    setFailureStartMinute: (minute) => {
+      const failureStartMinute = Math.max(0, Math.min(1439, Math.round(minute)))
+      if (failureStartMinute === get().failureStartMinute) return
+      const previousCurrentStep = Math.floor(get().timeMinute / 15)
+      const timeMinute = (failureStartMinute + get().failureElapsedMinutes) % 1440
+      set({ failureStartMinute, timeMinute })
+      if (Math.floor(timeMinute / 15) !== previousCurrentStep) recompute()
+    },
+
+    setFailureElapsedMinutes: (minute) => {
+      const failureElapsedMinutes = Math.max(0, Math.min(1440, Math.round(minute)))
+      if (failureElapsedMinutes === get().failureElapsedMinutes) return
+      const previousElapsedStep = Math.floor(get().failureElapsedMinutes / 15)
+      const timeMinute = (get().failureStartMinute + failureElapsedMinutes) % 1440
+      set({ failureElapsedMinutes, timeMinute })
+      if (Math.floor(failureElapsedMinutes / 15) !== previousElapsedStep) recompute()
     },
 
     selectZone: (zoneId) => {

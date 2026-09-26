@@ -61,6 +61,10 @@ export interface PointOfInterest {
   jobsCount?: number | null
   enrollment?: number | null
   capacity?: number | null
+  capacitySource?: string | null
+  baselineOccupancyRate?: number | null
+  averageLengthOfStayDays?: number | null
+  utilizationReportEnd?: string | null
   openingHours?: string | null
   nearestStationId?: string
   stationAccess?: StationAccess[]

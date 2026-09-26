@@ -28,6 +28,11 @@ export const STATE_RGB = {
 /** Closure-induced demand that moved to a different destination. */
 export const SURGE_RGB: RGB = [255, 112, 92]
 
+/** Reported beds are fully occupied at this point. */
+export const HOSPITAL_MAX_LOAD = 1
+export const MAX_CAPACITY_RGB: RGB = [255, 78, 96]
+export const MAX_CAPACITY_RING_RGB: RGB = [255, 214, 160]
+
 export const IMPACT_BREAKS: { min: number; max: number; label: string; color: RGB }[] = [
   { min: 0, max: 5, label: '< 5', color: [246, 226, 122] },
   { min: 5, max: 15, label: '5 – 15', color: [240, 180, 41] },
@@ -78,6 +83,16 @@ const full = new Intl.NumberFormat('en-US')
 
 export function formatPopulation(value: number): string {
   return full.format(Math.round(value))
+}
+
+/** Keep small hourly arrival rates visible instead of rounding them to zero. */
+export function formatVisitorRate(value: number): string {
+  if (value === 0) return '0'
+  if (value > 0 && value < 0.01) return '<0.01'
+  if (value < 10) {
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)
+  }
+  return formatPopulation(value)
 }
 
 export function formatCompact(value: number): string {

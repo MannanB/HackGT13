@@ -1,9 +1,10 @@
 import { RefreshCw } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { IntelligencePanel } from '@/components/intelligence/IntelligencePanel'
 import { ImpactPanel } from '@/components/impact/ImpactPanel'
 import { CivicMap } from '@/components/map/CivicMap'
 import { ScenarioSidebar } from '@/components/scenario/ScenarioSidebar'
+import { TimeSlider } from '@/components/timeline/TimeSlider'
 import { useScenarioStore } from '@/store/scenarioStore'
 
 export function AppShell() {
@@ -11,18 +12,25 @@ export function AppShell() {
   const loadStatus = useScenarioStore((state) => state.loadStatus)
   const loadError = useScenarioStore((state) => state.loadError)
   const appMode = useScenarioStore((state) => state.appMode)
+  const [timelineOpen, setTimelineOpen] = useState(false)
   useEffect(() => {
     void loadNetwork()
   }, [loadNetwork])
 
   return (
-    <div className="relative h-full overflow-hidden bg-ink-950">
+    <div
+      className="relative h-full overflow-hidden bg-ink-950"
+      style={{ '--timeline-clearance': timelineOpen ? '8.75rem' : '4.75rem' } as CSSProperties}
+    >
       <CivicMap />
       {loadStatus === 'ready' && (
-        <div className="pointer-events-none absolute inset-3 z-10 flex items-start justify-between gap-3">
-          <ScenarioSidebar />
-          {appMode === 'intel' ? <IntelligencePanel /> : <ImpactPanel />}
-        </div>
+        <>
+          <div className="pointer-events-none absolute inset-3 z-10 flex items-start justify-between gap-3 pb-[var(--timeline-clearance)] transition-[padding] duration-300">
+            <ScenarioSidebar />
+            {appMode === 'intel' ? <IntelligencePanel /> : <ImpactPanel />}
+          </div>
+          <TimeSlider open={timelineOpen} onToggle={() => setTimelineOpen((open) => !open)} />
+        </>
       )}
       {loadStatus === 'error' && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm">

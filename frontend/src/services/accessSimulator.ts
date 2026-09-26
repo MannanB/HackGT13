@@ -1,9 +1,21 @@
 import { categoryWeight } from '@/utils/categoryWeights'
-import { MIN_ADDITION_GAIN_MINUTES, TRANSFER_PENALTY_MINUTES } from '@/utils/constants'
+import {
+  MIN_ADDITION_GAIN_MINUTES,
+  TRANSFER_PENALTY_MINUTES,
+} from '@/utils/constants'
 import { haversineKm, walkMinutes } from '@/utils/geo'
+import {
+  DEFAULT_TIME_MINUTE,
+  dailyZoneDemand,
+  hourlyHospitalAdmissionDemand,
+  aggregateZoneDemand,
+  hourlyShare,
+  hourlyZoneDemand,
+} from '@/utils/hourlyDemand'
 import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
 import type {
+  HospitalCapacity,
   PathNode,
   PassengerJourney,
   PoiCriticalStation,
@@ -35,19 +47,13 @@ function poiPoint(poi: PointOfInterest): LatLng {
 }
 
 function zoneDemand(zone: ResidentialZone, category?: PoiCategory): number {
-  if (category === 'employment' && zone.commuteJobs != null) return zone.commuteJobs
-  const noVehicleResidents =
-    zone.households && zone.noVehicleHouseholds != null
-      ? (zone.noVehicleHouseholds / zone.households) * zone.population
-      : 0
-  if (zone.transitCommuters != null || zone.noVehicleHouseholds != null) {
-    return Math.max(0, Math.round(Math.max(zone.transitCommuters ?? 0, noVehicleResidents)))
-  }
-  return zone.population
+  return dailyZoneDemand(zone, category)
 }
 
 function poiCapacity(poi: PointOfInterest): number | null {
-  const capacity = poi.capacity ?? poi.enrollment ?? poi.jobsCount
+  const capacity = poi.category === 'hospital'
+    ? poi.capacity
+    : poi.capacity ?? poi.enrollment ?? poi.jobsCount
   return capacity != null && capacity > 0 ? capacity : null
 }
 
@@ -67,9 +73,10 @@ function poiCohortDemand(
   zone: ResidentialZone,
   poi: PointOfInterest,
   categoryCounts: Map<PoiCategory, number>,
+  minuteOfDay: number,
 ) {
   const facilities = Math.max(1, categoryCounts.get(poi.category) ?? 1)
-  return Math.max(1, Math.round(zoneDemand(zone, poi.category) / Math.sqrt(facilities)))
+  return hourlyZoneDemand(zone, poi.category, minuteOfDay) / Math.sqrt(facilities)
 }
 
 interface AccessChoice {
@@ -214,9 +221,11 @@ function bestByCategory(
   nearest: NearestFinder,
   graph: RailGraph,
   blocked: Set<string>,
+  skip?: ReadonlySet<PoiCategory>,
 ): Map<PoiCategory, Trip> {
   const chosen = new Map<PoiCategory, Trip>()
   for (const [category, pois] of grouped) {
+    if (skip?.has(category)) continue
     let best: Trip | null = null
     for (const poi of pois) {
       const trip = optimalTrip(zone, poi, nearest, graph, blocked)
@@ -225,6 +234,149 @@ function bestByCategory(
     if (best) chosen.set(category, best)
   }
   return chosen
+}
+
+function rankHospitals(
+  zones: ResidentialZone[],
+  hospitals: PointOfInterest[],
+  nearest: NearestFinder,
+  graph: RailGraph,
+  blocked: Set<string>,
+): Map<string, Trip[]> {
+  const ranked = new Map<string, Trip[]>()
+  for (const zone of zones) {
+    const trips = hospitals
+      .map((poi) => optimalTrip(zone, poi, nearest, graph, blocked))
+      .sort((a, b) => a.minutes - b.minutes || a.poi.id.localeCompare(b.poi.id))
+    if (trips.length > 0) ranked.set(zone.id, trips)
+  }
+  return ranked
+}
+
+function hospitalBeds(hospitals: PointOfInterest[]): Map<string, number> {
+  return new Map(
+    hospitals.flatMap((hospital) => {
+      const beds = hospital.capacity
+      return beds != null && beds > 0 ? [[hospital.id, beds] as const] : []
+    }),
+  )
+}
+
+interface HospitalAllocation {
+  trip: Trip
+  demand: number
+  redirected: boolean
+}
+
+type HospitalAssignments = Map<string, HospitalAllocation[]>
+
+function assignHospitals(
+  zones: ResidentialZone[],
+  ranked: Map<string, Trip[]>,
+  beforeByZone: Map<string, Map<PoiCategory, Trip>>,
+  minuteOfDay: number,
+): HospitalAssignments {
+  const assigned: HospitalAssignments = new Map()
+  for (const zone of zones) {
+    const baseline = beforeByZone.get(zone.id)?.get('hospital')
+    const trip = ranked.get(zone.id)?.[0]
+    const demand = hourlyZoneDemand(zone, 'hospital', minuteOfDay)
+    if (!baseline || !trip || demand <= 0) continue
+    assigned.set(zone.id, [{ trip, demand, redirected: trip.poi.id !== baseline.poi.id }])
+  }
+  return assigned
+}
+
+function hospitalCapacityReport(
+  hospitals: PointOfInterest[],
+  beds: Map<string, number>,
+  zones: ResidentialZone[],
+  ranked: Map<string, Trip[]>,
+  beforeByZone: Map<string, Map<PoiCategory, Trip>>,
+  minuteOfDay: number,
+  failureStartMinute = 0,
+  failureElapsedMinutes = minuteOfDay,
+): HospitalCapacity[] {
+  const baselineOccupied = new Map<string, number>()
+  const surgeOccupied = new Map<string, number>()
+  for (const hospital of hospitals) {
+    const capacity = beds.get(hospital.id)
+    const rate = hospital.baselineOccupancyRate
+    if (capacity != null && rate != null) baselineOccupied.set(hospital.id, capacity * rate)
+  }
+
+  const admissionsForHour = (hour: number) => {
+    const incoming = new Map<string, number>()
+    for (const zone of zones) {
+      const baselineId = beforeByZone.get(zone.id)?.get('hospital')?.poi.id
+      const disruptedId = ranked.get(zone.id)?.[0]?.poi.id
+      if (!baselineId || !disruptedId || baselineId === disruptedId) continue
+      const admissions = hourlyHospitalAdmissionDemand(zone, hour * 60)
+      incoming.set(disruptedId, (incoming.get(disruptedId) ?? 0) + admissions)
+    }
+    return incoming
+  }
+
+  const elapsedHours = Math.max(0, Math.min(24, failureElapsedMinutes / 60))
+  const fullHours = Math.floor(elapsedHours)
+  const startHour = Math.floor((((failureStartMinute % 1440) + 1440) % 1440) / 60)
+  for (let offset = 0; offset < fullHours; offset += 1) {
+    const incoming = admissionsForHour((startHour + offset) % 24)
+    for (const hospital of hospitals) {
+      const stayHours = Math.max(1, (hospital.averageLengthOfStayDays ?? 5) * 24)
+      const retained = (surgeOccupied.get(hospital.id) ?? 0) * Math.exp(-1 / stayHours)
+      surgeOccupied.set(hospital.id, retained + (incoming.get(hospital.id) ?? 0))
+    }
+  }
+  const partialHour = elapsedHours - fullHours
+  if (partialHour > 0 && fullHours < 24) {
+    const incoming = admissionsForHour((startHour + fullHours) % 24)
+    for (const hospital of hospitals) {
+      const stayHours = Math.max(1, (hospital.averageLengthOfStayDays ?? 5) * 24)
+      const retained = (surgeOccupied.get(hospital.id) ?? 0) * Math.exp(-partialHour / stayHours)
+      surgeOccupied.set(hospital.id, retained + (incoming.get(hospital.id) ?? 0) * partialHour)
+    }
+  }
+
+  const selectedHour = Math.min(23, Math.floor(minuteOfDay / 60))
+  const incomingNow = admissionsForHour(selectedHour)
+  return hospitals
+    .map((poi) => {
+      const capacity = beds.get(poi.id) ?? null
+      const baselineDemand = baselineOccupied.get(poi.id) ?? null
+      const addedDemand = surgeOccupied.get(poi.id) ?? 0
+      const demand = capacity == null || baselineDemand == null ? null : baselineDemand + addedDemand
+      const loadRatio = capacity == null || demand == null ? null : demand / capacity
+      const overflowPatients = capacity == null || demand == null ? 0 : Math.max(0, demand - capacity)
+      const incomingAdmissionsPerHour = incomingNow.get(poi.id) ?? 0
+      const stayHours = Math.max(1, (poi.averageLengthOfStayDays ?? 5) * 24)
+      const netAdmissionsPerHour = incomingAdmissionsPerHour - addedDemand / stayHours
+      const projectedFullMinute =
+        capacity != null && demand != null && demand < capacity && netAdmissionsPerHour > 1e-9
+          ? minuteOfDay + ((capacity - demand) / netAdmissionsPerHour) * 60
+          : null
+      return {
+        poiId: poi.id,
+        poiName: poi.name,
+        capacity,
+        baselineDemand,
+        demand,
+        loadRatio,
+        addedDemand,
+        baselineOccupancyRate: poi.baselineOccupancyRate ?? null,
+        incomingAdmissionsPerHour,
+        overflowPatients,
+        projectedFullMinute,
+        averageLengthOfStayDays: poi.averageLengthOfStayDays ?? null,
+        utilizationReportEnd: poi.utilizationReportEnd ?? null,
+        atMaxCapacity: loadRatio != null && loadRatio + 1e-9 >= 1,
+      }
+    })
+    .filter((item) => item.capacity != null || item.addedDemand > 0)
+    .sort((a, b) =>
+      Number(b.atMaxCapacity) - Number(a.atMaxCapacity) ||
+      (b.loadRatio ?? -1) - (a.loadRatio ?? -1),
+    )
 }
 
 function stationNode(id: string, stations: Map<string, Station>, blocked: Set<string>): PathNode {
@@ -333,6 +485,7 @@ export function buildBaselineJourneys(
   const grouped = groupByCategory(request.pois, request.serviceCategories)
   const { beforeByZone, graph, nearest } = baseline(scoped, grouped)
   const stationById = new Map(request.stations.map((station) => [station.id, station]))
+  const minuteOfDay = request.timeMinute ?? DEFAULT_TIME_MINUTE
   const journeys: PassengerJourney[] = []
 
   for (const zone of candidateZones) {
@@ -342,7 +495,7 @@ export function buildBaselineJourneys(
       journeys.push({
         id: `${zone.id}:${category}`,
         path: buildPath(zone, trip, stationById, new Set()),
-        estimatedTrips: zoneDemand(zone, category),
+        estimatedTrips: hourlyZoneDemand(zone, category, minuteOfDay),
         delayMinutes: 0,
       })
     }
@@ -359,7 +512,7 @@ export function buildBaselineJourneys(
     journeys.push({
       id: `poi:${poi.id}`,
       path: buildPath(zone, trip, stationById, new Set()),
-      estimatedTrips: poiCohortDemand(zone, poi, categoryCounts),
+      estimatedTrips: poiCohortDemand(zone, poi, categoryCounts, minuteOfDay),
       delayMinutes: 0,
     })
   }
@@ -374,6 +527,9 @@ export interface AdditionRequest extends SimulateScenarioRequest {
 /** Mirror of the disruption solve: minutes each area saves when new destinations exist. */
 export function buildAdditionSimulation(request: AdditionRequest): SimulationResult {
   const { zones, addedPois } = request
+  const minuteOfDay = request.timeMinute ?? DEFAULT_TIME_MINUTE
+  const failureStartMinute = request.failureStartMinute ?? 0
+  const failureElapsedMinutes = request.failureElapsedMinutes ?? minuteOfDay
   if (request.stations.length === 0) throw new Error('Station network is not loaded')
   const categories = [...new Set([...request.serviceCategories, ...addedPois.map((poi) => poi.category)])]
   const scoped = { ...request, serviceCategories: categories }
@@ -397,6 +553,7 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
   const traces: Record<string, TraceImpact> = {}
   const gained = new Map<string, number>()
   const gainedDemand = new Map<string, number>()
+  const gainedHour = new Map<string, number>()
 
   for (const zone of zones) {
     const before = beforeByZone.get(zone.id)
@@ -413,19 +570,23 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
     for (const [category, trip] of before) {
       const candidate = bestNew.get(category)
       if (!candidate || candidate.minutes >= trip.minutes) continue
+      const activity = hourlyShare(category, minuteOfDay)
+      if (activity <= 0) continue
       const saved = trip.minutes - candidate.minutes
       if (saved < MIN_ADDITION_GAIN_MINUTES) continue
-      const score = saved * categoryWeight(category)
+      const score = saved * categoryWeight(category) * activity
       if (!focus || score > focus.score) focus = { before: trip, after: candidate, score }
     }
     if (!focus) continue
     const savedMinutes = Math.round(focus.before.minutes - focus.after.minutes)
     if (savedMinutes < MIN_ADDITION_GAIN_MINUTES) continue
-    gained.set(focus.after.poi.id, (gained.get(focus.after.poi.id) ?? 0) + 1)
-    gainedDemand.set(
-      focus.after.poi.id,
-      (gainedDemand.get(focus.after.poi.id) ?? 0) + zoneDemand(zone, focus.after.poi.category),
-    )
+    const hourly = hourlyZoneDemand(zone, focus.after.poi.category, minuteOfDay)
+    const total = aggregateZoneDemand(zone, focus.after.poi.category, failureStartMinute, failureElapsedMinutes)
+    if (total > 0) {
+      gained.set(focus.after.poi.id, (gained.get(focus.after.poi.id) ?? 0) + 1)
+      gainedDemand.set(focus.after.poi.id, (gainedDemand.get(focus.after.poi.id) ?? 0) + total)
+      gainedHour.set(focus.after.poi.id, (gainedHour.get(focus.after.poi.id) ?? 0) + hourly)
+    }
 
     const normalTravelMinutes = Math.round(focus.before.minutes)
     const disruptedTravelMinutes = Math.round(focus.after.minutes)
@@ -439,7 +600,7 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
       disruptedTravelMinutes,
       delayMinutes: savedMinutes,
       population: zone.population,
-      estimatedTrips: zoneDemand(zone, focus.after.poi.category),
+      estimatedTrips: hourlyZoneDemand(zone, focus.after.poi.category, minuteOfDay),
     })
     traces[zone.id] = {
       zoneId: zone.id,
@@ -454,12 +615,14 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
 
   impacts.sort((a, b) => b.delayMinutes - a.delayMinutes || b.population - a.population)
   const populationAffected = impacts.reduce((sum, impact) => sum + impact.population, 0)
-  const weighted = impacts.reduce((sum, impact) => sum + impact.delayMinutes * impact.population, 0)
+  const visitorsAffected = impacts.reduce((sum, impact) => sum + impact.estimatedTrips, 0)
+  const weighted = impacts.reduce((sum, impact) => sum + impact.delayMinutes * impact.estimatedTrips, 0)
 
   return {
     summary: {
       populationAffected,
-      averageAddedTravelMinutes: populationAffected ? weighted / populationAffected : 0,
+      visitorsAffected,
+      averageAddedTravelMinutes: visitorsAffected ? weighted / visitorsAffected : 0,
       zonesAffected: impacts.length,
     },
     zoneImpacts: impacts,
@@ -467,6 +630,7 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
       .filter((poi) => gained.has(poi.id))
       .map((poi) => {
         const demand = gainedDemand.get(poi.id) ?? 0
+        const hourly = gainedHour.get(poi.id) ?? 0
         const capacity = poiCapacity(poi)
         return {
           poiId: poi.id,
@@ -476,13 +640,14 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
           disruptedRegions: gained.get(poi.id)!,
           addedRegions: gained.get(poi.id)!,
           baselineDemand: 0,
-          disruptedDemand: demand,
+          disruptedDemand: hourly,
           addedDemand: demand,
           capacity,
-          loadRatio: capacity ? demand / capacity : null,
+          loadRatio: capacity ? hourly / capacity : null,
         }
       })
       .sort((a, b) => b.addedDemand - a.addedDemand),
+    hospitalCapacity: [],
     traces,
   }
 }
@@ -567,6 +732,9 @@ export function findOptimalAdditionSite(request: {
 export function buildAccessSimulation(request: SimulateScenarioRequest): SimulationResult {
   const { zones, stations, transitEdges: edges, maintenanceStations, shutdownStations } = request
   const categories = request.serviceCategories
+  const minuteOfDay = request.timeMinute ?? DEFAULT_TIME_MINUTE
+  const failureStartMinute = request.failureStartMinute ?? 0
+  const failureElapsedMinutes = request.failureElapsedMinutes ?? minuteOfDay
   if (maintenanceStations.length + shutdownStations.length === 0) {
     throw new Error('Set a station to maintenance or shut down')
   }
@@ -589,6 +757,8 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   const afterCount = new Map<string, number>()
   const beforeDemand = new Map<string, number>()
   const afterDemand = new Map<string, number>()
+  const beforeTotal = new Map<string, number>()
+  const afterTotal = new Map<string, number>()
   const impacts: ZoneImpact[] = []
   const traces: Record<string, TraceImpact> = {}
   const flowJourneys: PassengerJourney[] = []
@@ -597,12 +767,28 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
 
   const disruptedGraph = buildGraph(stations, edges, blocked)
   const disruptedNearest = nearestFinder(stations, unboardable)
+  const hospitals = grouped.get('hospital') ?? []
+  const hospitalRanks = hospitals.length
+    ? rankHospitals(zones, hospitals, disruptedNearest, disruptedGraph, blocked)
+    : null
+  const hospitalBedsById = hospitalRanks ? hospitalBeds(hospitals) : null
+  const hospitalAssignment =
+    hospitalRanks && hospitalBedsById
+      ? assignHospitals(
+          zones,
+          hospitalRanks,
+          beforeByZone,
+          minuteOfDay,
+        )
+      : null
+  const skipHospital = hospitalAssignment ? new Set<PoiCategory>(['hospital']) : undefined
 
   for (const zone of zones) {
     const before = beforeByZone.get(zone.id)
     if (!before) continue
-    const after = bestByCategory(zone, grouped, disruptedNearest, disruptedGraph, blocked)
-    if (before.size === 0 || after.size === 0) continue
+    const after = bestByCategory(zone, grouped, disruptedNearest, disruptedGraph, blocked, skipHospital)
+    const hospitalAllocations = hospitalAssignment?.get(zone.id) ?? []
+    if (before.size === 0 || (after.size === 0 && hospitalAllocations.length === 0)) continue
 
     let weightSum = 0
     let weightedDelay = 0
@@ -611,15 +797,22 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     let focusScore = -1
     let focusWeight = -1
     for (const [category, baseline] of before) {
+      if (category === 'hospital' && hospitalAssignment) continue
       const disrupted = after.get(category)
       if (!disrupted) continue
-      const weight = categoryWeight(category)
+      const demand = hourlyZoneDemand(zone, category, minuteOfDay)
+      const total = aggregateZoneDemand(zone, category, failureStartMinute, failureElapsedMinutes)
+      const weight = categoryWeight(category) * hourlyShare(category, minuteOfDay)
+      if (total > 0) {
+        beforeCount.set(baseline.poi.id, (beforeCount.get(baseline.poi.id) ?? 0) + 1)
+        afterCount.set(disrupted.poi.id, (afterCount.get(disrupted.poi.id) ?? 0) + 1)
+        beforeTotal.set(baseline.poi.id, (beforeTotal.get(baseline.poi.id) ?? 0) + total)
+        afterTotal.set(disrupted.poi.id, (afterTotal.get(disrupted.poi.id) ?? 0) + total)
+      }
+      if (demand <= 0 || weight <= 0) continue
       const delay = Math.max(0, disrupted.minutes - baseline.minutes)
       weightSum += weight
       weightedDelay += delay * weight
-      beforeCount.set(baseline.poi.id, (beforeCount.get(baseline.poi.id) ?? 0) + 1)
-      afterCount.set(disrupted.poi.id, (afterCount.get(disrupted.poi.id) ?? 0) + 1)
-      const demand = zoneDemand(zone, category)
       beforeDemand.set(baseline.poi.id, (beforeDemand.get(baseline.poi.id) ?? 0) + demand)
       afterDemand.set(disrupted.poi.id, (afterDemand.get(disrupted.poi.id) ?? 0) + demand)
       flowJourneys.push({
@@ -634,6 +827,58 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
         focusWeight = weight
         focusBaseline = baseline
         focusDisrupted = disrupted
+      }
+    }
+
+    const hospitalBaseline = before.get('hospital')
+    const hospitalTrip = hospitalRanks?.get(zone.id)?.[0] ?? null
+    if (hospitalAssignment && hospitalBaseline && hospitalTrip) {
+      const hospitalTotal = aggregateZoneDemand(zone, 'hospital', failureStartMinute, failureElapsedMinutes)
+      if (hospitalTotal > 0) {
+        beforeCount.set(hospitalBaseline.poi.id, (beforeCount.get(hospitalBaseline.poi.id) ?? 0) + 1)
+        afterCount.set(hospitalTrip.poi.id, (afterCount.get(hospitalTrip.poi.id) ?? 0) + 1)
+        beforeTotal.set(hospitalBaseline.poi.id, (beforeTotal.get(hospitalBaseline.poi.id) ?? 0) + hospitalTotal)
+        afterTotal.set(hospitalTrip.poi.id, (afterTotal.get(hospitalTrip.poi.id) ?? 0) + hospitalTotal)
+      }
+    }
+    if (hospitalBaseline && hospitalAllocations.length > 0) {
+      const demand = hospitalAllocations.reduce((sum, allocation) => sum + allocation.demand, 0)
+      if (demand > 0) {
+        const weight = categoryWeight('hospital') * hourlyShare('hospital', minuteOfDay)
+        const averageDelay = hospitalAllocations.reduce(
+          (sum, allocation) =>
+            sum + Math.max(0, allocation.trip.minutes - hospitalBaseline.minutes) * allocation.demand,
+          0,
+        ) / demand
+        weightSum += weight
+        weightedDelay += averageDelay * weight
+        beforeDemand.set(
+          hospitalBaseline.poi.id,
+          (beforeDemand.get(hospitalBaseline.poi.id) ?? 0) + demand,
+        )
+
+        for (const allocation of hospitalAllocations) {
+          const fraction = allocation.demand / demand
+          const disrupted = allocation.trip
+          const delay = Math.max(0, disrupted.minutes - hospitalBaseline.minutes)
+          afterDemand.set(
+            disrupted.poi.id,
+            (afterDemand.get(disrupted.poi.id) ?? 0) + allocation.demand,
+          )
+          flowJourneys.push({
+            id: `${zone.id}:hospital:${disrupted.poi.id}`,
+            path: buildPath(zone, disrupted, stationById, blocked),
+            estimatedTrips: allocation.demand,
+            delayMinutes: delay,
+          })
+          const score = delay * weight * fraction
+          if (score > focusScore || (score === focusScore && weight > focusWeight)) {
+            focusScore = score
+            focusWeight = weight
+            focusBaseline = hospitalBaseline
+            focusDisrupted = disrupted
+          }
+        }
       }
     }
     if (!focusBaseline || !focusDisrupted || weightSum === 0) continue
@@ -653,7 +898,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       disruptedTravelMinutes,
       delayMinutes,
       population: zone.population,
-      estimatedTrips: zoneDemand(zone, afterBest.poi.category),
+      estimatedTrips: hourlyZoneDemand(zone, afterBest.poi.category, minuteOfDay),
     })
     traces[zone.id] = {
       zoneId: zone.id,
@@ -674,7 +919,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     flowJourneys.push({
       id: `poi:${poi.id}`,
       path: buildPath(zone, trip, stationById, blocked),
-      estimatedTrips: poiCohortDemand(zone, poi, categoryCounts),
+      estimatedTrips: poiCohortDemand(zone, poi, categoryCounts, minuteOfDay),
       delayMinutes: 0,
     })
   }
@@ -682,10 +927,25 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   impacts.sort((a, b) => b.delayMinutes - a.delayMinutes || b.population - a.population)
   const slowed = impacts.filter((impact) => impact.delayMinutes > 0)
   const populationAffected = slowed.reduce((sum, impact) => sum + impact.population, 0)
+  const visitorsAffected = slowed.reduce((sum, impact) => sum + impact.estimatedTrips, 0)
   const weightedDelay = slowed.reduce(
-    (sum, impact) => sum + impact.delayMinutes * impact.population,
+    (sum, impact) => sum + impact.delayMinutes * impact.estimatedTrips,
     0,
   )
+
+  const hospitalCapacity =
+    hospitalAssignment && hospitalBedsById
+      ? hospitalCapacityReport(
+          hospitals,
+          hospitalBedsById,
+          zones,
+          hospitalRanks!,
+          beforeByZone,
+          minuteOfDay,
+          failureStartMinute,
+          failureElapsedMinutes,
+        )
+      : []
 
   const poiPressure: PoiPressure[] = []
   for (const [poiId, disruptedRegions] of afterCount) {
@@ -695,8 +955,10 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     if (!poi || addedRegions <= 0) continue
     const baselineDemand = beforeDemand.get(poiId) ?? 0
     const disruptedDemand = afterDemand.get(poiId) ?? 0
-    const addedDemand = Math.max(0, disruptedDemand - baselineDemand)
-    const capacity = poiCapacity(poi)
+    const addedDemand = Math.max(0, (afterTotal.get(poiId) ?? 0) - (beforeTotal.get(poiId) ?? 0))
+    const modeled = hospitalCapacity.find((item) => item.poiId === poiId)
+    const rawCapacity = modeled ? modeled.capacity : poiCapacity(poi)
+    const capacity = rawCapacity != null && rawCapacity > 0 ? rawCapacity : null
     poiPressure.push({
       poiId,
       poiName: poi.name,
@@ -708,7 +970,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       disruptedDemand,
       addedDemand,
       capacity,
-      loadRatio: capacity ? disruptedDemand / capacity : null,
+      loadRatio: modeled ? modeled.loadRatio : capacity ? disruptedDemand / capacity : null,
     })
   }
   poiPressure.sort((a, b) => {
@@ -720,11 +982,13 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   return {
     summary: {
       populationAffected,
-      averageAddedTravelMinutes: populationAffected ? weightedDelay / populationAffected : 0,
+      visitorsAffected,
+      averageAddedTravelMinutes: visitorsAffected ? weightedDelay / visitorsAffected : 0,
       zonesAffected: slowed.length,
     },
     zoneImpacts: impacts,
     poiPressure,
+    hospitalCapacity,
     traces,
     flowJourneys,
   }

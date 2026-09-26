@@ -1,0 +1,155 @@
+{
+  "metadata": {
+    "unit": "CMS PSF bedSize",
+    "sourcePage": "https://www.cms.gov/medicare/payment/prospective-payment-systems/provider-specific-data-public-use-parquet-format",
+    "sourceFiles": [
+      "https://pds.mps.cms.gov/fiss/inpatient/export?format=csv&latestRecordOnly=Y",
+      "https://pds.mps.cms.gov/fiss/inpatient/export?facilityType=IPF&format=csv&latestRecordOnly=Y",
+      "https://pds.mps.cms.gov/fiss/inpatient/export?facilityType=LTCH&format=csv&latestRecordOnly=Y"
+    ],
+    "utilizationSource": "https://data.cms.gov/data-api/v1/dataset/44060663-47d8-4ced-a115-b53b4c270acb/data?size=7000&offset=0",
+    "notes": [
+      "Only hand-matched facilities with a positive CMS bedSize are included.",
+      "Unmatched hospitals remain capacity-unknown; no median or inferred fallback is used.",
+      "Starting occupancy and average length of stay use the latest CMS cost-report utilization fields available in the 2023 dataset."
+    ]
+  },
+  "hospitals": {
+    "openstreetmap:node/10834409036": {
+      "beds": 76,
+      "providerId": "110252",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.973739,
+      "averageLengthOfStayDays": 5.622,
+      "utilizationReportEnd": "2023-09-30"
+    },
+    "openstreetmap:node/10834460762": {
+      "beds": 116,
+      "providerId": "114012",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.729452,
+      "averageLengthOfStayDays": 7.977,
+      "utilizationReportEnd": "2023-12-31"
+    },
+    "openstreetmap:node/358779826": {
+      "beds": 114,
+      "providerId": "114019",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.955853,
+      "averageLengthOfStayDays": 39.644,
+      "utilizationReportEnd": "2024-06-30"
+    },
+    "openstreetmap:relation/3612501": {
+      "beds": 516,
+      "providerId": "110078",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.862864,
+      "averageLengthOfStayDays": 5.949,
+      "utilizationReportEnd": "2024-08-31"
+    },
+    "openstreetmap:relation/5675786": {
+      "beds": 820,
+      "providerId": "110079",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.975451,
+      "averageLengthOfStayDays": 7.512,
+      "utilizationReportEnd": "2023-12-31"
+    },
+    "openstreetmap:way/34844784": {
+      "beds": 229,
+      "providerId": "110165",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.378517,
+      "averageLengthOfStayDays": 4.845,
+      "utilizationReportEnd": "2023-12-31"
+    },
+    "openstreetmap:way/34845193": {
+      "beds": 79,
+      "providerId": "110226",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.707225,
+      "averageLengthOfStayDays": 5.104,
+      "utilizationReportEnd": "2024-08-31"
+    },
+    "openstreetmap:way/34845332": {
+      "beds": 369,
+      "providerId": "110076",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.629233,
+      "averageLengthOfStayDays": 5.974,
+      "utilizationReportEnd": "2024-08-31"
+    },
+    "openstreetmap:way/34845384": {
+      "beds": 576,
+      "providerId": "110083",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.837717,
+      "averageLengthOfStayDays": 5.91,
+      "utilizationReportEnd": "2024-06-30"
+    },
+    "openstreetmap:way/34845864": {
+      "beds": 711,
+      "providerId": "110161",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.927786,
+      "averageLengthOfStayDays": 6.688,
+      "utilizationReportEnd": "2023-09-30"
+    },
+    "openstreetmap:way/493718918": {
+      "beds": 168,
+      "providerId": "110198",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.833748,
+      "averageLengthOfStayDays": 5.575,
+      "utilizationReportEnd": "2024-06-30"
+    },
+    "openstreetmap:way/494853109": {
+      "beds": 329,
+      "providerId": "110082",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.749354,
+      "averageLengthOfStayDays": 5.56,
+      "utilizationReportEnd": "2024-08-31"
+    },
+    "openstreetmap:way/494853126": {
+      "beds": 319,
+      "providerId": "113301",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.764856,
+      "averageLengthOfStayDays": 5.664,
+      "utilizationReportEnd": "2023-12-31"
+    },
+    "openstreetmap:way/561382363": {
+      "beds": 246,
+      "providerId": "114010",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.670654,
+      "averageLengthOfStayDays": 7.224,
+      "utilizationReportEnd": "2023-12-31"
+    },
+    "openstreetmap:way/61494982": {
+      "beds": 636,
+      "providerId": "110010",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.83344,
+      "averageLengthOfStayDays": 7.928,
+      "utilizationReportEnd": "2024-08-31"
+    },
+    "openstreetmap:way/692241977": {
+      "beds": 122,
+      "providerId": "114032",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.760948,
+      "averageLengthOfStayDays": 8.467,
+      "utilizationReportEnd": "2023-12-31"
+    },
+    "openstreetmap:way/933073925": {
+      "beds": 259,
+      "providerId": "113300",
+      "source": "CMS Provider Specific File",
+      "baselineOccupancyRate": 0.764641,
+      "averageLengthOfStayDays": 7.935,
+      "utilizationReportEnd": "2023-12-31"
+    }
+  }
+}

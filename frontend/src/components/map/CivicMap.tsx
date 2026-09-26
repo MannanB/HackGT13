@@ -19,7 +19,7 @@ import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
 import { buildBaselineJourneys } from '@/services/accessSimulator'
 import type { PointOfInterest, PoiCategory } from '@/types/geography'
 import type { Station } from '@/types/network'
-import type { PoiStationPressure } from '@/types/simulation'
+import type { HospitalCapacity, PoiStationPressure } from '@/types/simulation'
 import { categoryMeta, categoryRgb } from '@/utils/categories'
 import {
   ATLANTA_VIEW,
@@ -33,6 +33,7 @@ import {
   hex,
 } from '@/utils/constants'
 import { softenBasemapRoads } from '@/utils/softenBasemap'
+import { hourAt } from '@/utils/hourlyDemand'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 const PANEL_PADDING = { top: 40, bottom: 40, left: 380, right: 400 }
@@ -92,6 +93,8 @@ export function CivicMap() {
   const movePoi = useScenarioStore((state) => state.movePoi)
   const setMapCenter = useScenarioStore((state) => state.setMapCenter)
   const disruptionResult = useScenarioStore((state) => state.disruptionResult)
+  const timeMinute = useScenarioStore((state) => state.timeMinute)
+  const selectedHour = hourAt(timeMinute)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const gain = appMode === 'add'
   const motionActive = stations.length > 0
@@ -109,6 +112,19 @@ export function CivicMap() {
       ),
     [zones, disruptionResult, gain, result],
   )
+  const hospitalCapacity = useMemo(() => {
+    if (result?.hospitalCapacity && result.hospitalCapacity.length > 0) return result.hospitalCapacity
+    return disruptionResult?.hospitalCapacity ?? []
+  }, [result, disruptionResult])
+  const hospitalLoadById = useMemo(() => {
+    const loads = new globalThis.Map<string, HospitalCapacity>()
+    for (const item of hospitalCapacity) loads.set(item.poiId, item)
+    return loads
+  }, [hospitalCapacity])
+  const maxCapacityIds = useMemo(
+    () => new Set(hospitalCapacity.filter((item) => item.atMaxCapacity).map((item) => item.poiId)),
+    [hospitalCapacity],
+  )
   const baselineJourneys = useMemo(
     () => buildBaselineJourneys({
       serviceCategories: categories,
@@ -116,8 +132,9 @@ export function CivicMap() {
       pois,
       stations,
       transitEdges,
+      timeMinute: selectedHour * 60,
     }),
-    [categories, zones, pois, stations, transitEdges],
+    [categories, zones, pois, stations, transitEdges, selectedHour],
   )
   const trains = useMemo(
     () => (motionActive ? simulatedTrains(stations, transitEdges, shutdownIds, motionTime) : []),
@@ -177,6 +194,7 @@ export function CivicMap() {
         pois,
         categories,
         pressure: result?.poiPressure ?? [],
+        maxCapacityIds,
         tracePoiId: trace?.poiId ?? null,
         zoom: mapZoom,
         gain,
@@ -198,7 +216,7 @@ export function CivicMap() {
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
       shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
       hoveredStationId, gain, addedPois, draggingId, intelEvent, motionTime, trains,
-      baselineJourneys, streetRoutes, mapZoom, disruptionResult,
+      baselineJourneys, streetRoutes, mapZoom, disruptionResult, maxCapacityIds,
     ],
   )
 
@@ -367,6 +385,7 @@ export function CivicMap() {
           <TooltipBody
             hover={hover.item}
             stationStates={stationStates}
+            hospitalLoad={hover.item.kind === 'poi' ? hospitalLoadById.get(hover.item.poi.id) ?? null : null}
           />
         </div>
       )}
@@ -388,7 +407,10 @@ export function CivicMap() {
       )}
 
       {(disruptionResult || (gain && result)) && (
-        <div className="pointer-events-auto absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-end gap-2">
+        <div
+          className="pointer-events-auto absolute left-1/2 z-20 flex -translate-x-1/2 items-end gap-2 transition-[bottom] duration-300"
+          style={{ bottom: 'var(--timeline-clearance, 4.75rem)' }}
+        >
           {disruptionResult && (
             <div className="glass rounded-xl px-3 py-2">
               <div className="eyebrow mb-1.5">Added travel time (min)</div>
@@ -400,6 +422,12 @@ export function CivicMap() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {maxCapacityIds.size > 0 && (
+            <div className="glass flex items-center gap-2 rounded-xl px-3 py-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#ff4e60] ring-2 ring-[#ffd6a0]" />
+              <span className="text-[11px] text-fog-200">Projected hospital overload</span>
             </div>
           )}
           {gain && result && (
@@ -455,9 +483,11 @@ function intelAddLabels(facilities: { category: string }[]): string {
 function TooltipBody({
   hover,
   stationStates,
+  hospitalLoad,
 }: {
   hover: Hover
   stationStates: Record<string, string>
+  hospitalLoad: HospitalCapacity | null
 }) {
   if (hover.kind === 'station') {
     const { station } = hover
@@ -486,6 +516,13 @@ function TooltipBody({
         <div className="text-[11px]" style={{ color: hex(categoryRgb(hover.poi.category)) }}>
           {meta?.label ?? hover.poi.category}
         </div>
+        {hospitalLoad?.atMaxCapacity && hospitalLoad.loadRatio != null && (
+          <div className="mt-1 text-[11px] text-[#ffd6a0]">
+            Projected overload · {Math.round(hospitalLoad.loadRatio * 100)}% occupied-equivalent
+            {hospitalLoad.overflowPatients > 0 &&
+              ` · ${hospitalLoad.overflowPatients.toFixed(2)} patients above beds`}
+          </div>
+        )}
       </>
     )
   }
@@ -515,6 +552,35 @@ function TooltipBody({
         <div className="mt-1 text-[11px] text-fog-500">Unaffected</div>
       ) : null}
     </>
+  )
+}
+
+function HospitalStatus({ poiId }: { poiId: string }) {
+  const result = useScenarioStore((state) => state.result)
+  const disruptionResult = useScenarioStore((state) => state.disruptionResult)
+  const loads =
+    result?.hospitalCapacity && result.hospitalCapacity.length > 0
+      ? result.hospitalCapacity
+      : (disruptionResult?.hospitalCapacity ?? [])
+  const load = loads.find((item) => item.poiId === poiId)
+  if (!load || load.loadRatio == null || load.capacity == null || load.demand == null) return null
+  return (
+    <div className={`mt-1.5 text-[11.5px] leading-relaxed ${load.atMaxCapacity ? 'text-[#ffd6a0]' : 'text-fog-400'}`}>
+      <p>
+        Projected {Math.round(load.loadRatio * 100)}% occupied · {Math.round(load.demand)} of{' '}
+        {load.capacity} beds
+      </p>
+      <p>
+        +{load.addedDemand.toFixed(2)} closure admissions still occupying beds
+        {load.overflowPatients > 0 && ` · ${load.overflowPatients.toFixed(2)} overflow`}
+      </p>
+      {load.baselineOccupancyRate != null && (
+        <p className="text-[10px] text-fog-500">
+          Starts from {Math.round(load.baselineOccupancyRate * 100)}% historical CMS occupancy
+          {load.utilizationReportEnd ? ` · report ending ${load.utilizationReportEnd}` : ''}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -559,6 +625,12 @@ function PoiPopover({
           <div className="text-[11px]" style={{ color: hex(categoryRgb(poi.category)) }}>
             {meta?.label ?? poi.category}
           </div>
+          {poi.category === 'hospital' && (
+            <div className="mt-0.5 text-[10.5px] text-fog-500" title={poi.capacitySource ?? undefined}>
+              {poi.capacity != null ? `${poi.capacity} CMS beds` : 'Bed capacity unknown'}
+            </div>
+          )}
+          <HospitalStatus poiId={poi.id} />
         </div>
         <button
           type="button"
