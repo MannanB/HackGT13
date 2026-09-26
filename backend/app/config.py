@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
 
     @property
     def cors_origin_list(self) -> list[str]:

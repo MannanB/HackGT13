@@ -1,7 +1,10 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.gemini import interpret_event
+from app.gemini import interpret_event as interpret_with_gemini
+from app.openai import interpret_event as interpret_with_openai
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["intelligence"])
 
@@ -17,13 +20,14 @@ class StationCatalogItem(BaseModel):
 class InterpretRequest(BaseModel):
     event: str = Field(min_length=3, max_length=4000)
     stations: list[StationCatalogItem]
+    provider: Literal["gemini", "openai"] = "gemini"
 
 
 @router.post("/events")
 def interpret_urban_event(payload: InterpretRequest) -> dict:
     if not payload.stations:
         raise HTTPException(status_code=400, detail="Station catalog is required")
-    return interpret_event(
-        payload.event,
-        [item.model_dump() for item in payload.stations],
-    )
+    stations = [item.model_dump() for item in payload.stations]
+    if payload.provider == "openai":
+        return interpret_with_openai(payload.event, stations)
+    return interpret_with_gemini(payload.event, stations)
