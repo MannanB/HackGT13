@@ -162,16 +162,31 @@ def create_poi(conn: psycopg.Connection, payload: dict[str, Any]) -> dict[str, A
     row = conn.execute(
         sql.SQL(
             """
-            INSERT INTO points_of_interest (name, category, location)
+            INSERT INTO points_of_interest (
+                name, category, location, source, source_id, jobs_count, enrollment
+            )
             VALUES (
                 %(name)s,
                 %(category)s,
-                ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)::geography
+                ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)::geography,
+                %(source)s,
+                %(source_id)s,
+                %(jobs_count)s,
+                %(enrollment)s
             )
             RETURNING {columns}
             """
         ).format(columns=sql.SQL(POI_COLUMNS)),
-        {"name": payload["name"], "category": payload["category"], "lon": location["lon"], "lat": location["lat"]},
+        {
+            "name": payload["name"],
+            "category": payload["category"],
+            "lon": location["lon"],
+            "lat": location["lat"],
+            "source": payload.get("source"),
+            "source_id": payload.get("source_id"),
+            "jobs_count": payload.get("jobs_count"),
+            "enrollment": payload.get("enrollment"),
+        },
     ).fetchone()
     assert row is not None
     return with_json(row, "location")

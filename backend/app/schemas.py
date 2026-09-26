@@ -134,6 +134,10 @@ class PointOfInterestCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     category: str = Field(min_length=1, max_length=64)
     location: LonLat
+    source: str | None = Field(default=None, max_length=64)
+    source_id: str | None = Field(default=None, max_length=128)
+    jobs_count: int | None = Field(default=None, ge=0)
+    enrollment: int | None = Field(default=None, ge=0)
 
 
 class AccessEdge(BaseModel):
@@ -223,6 +227,71 @@ class ImpactReport(BaseModel):
 class Network(BaseModel):
     stations: list[Station]
     transit_edges: list[TransitEdge]
+
+
+class StationNeighbor(BaseModel):
+    """An existing station the new stop connects to on its line."""
+
+    station_id: str = Field(min_length=1, max_length=64)
+    travel_minutes: float | None = Field(default=None, gt=0)
+
+
+class StationBuild(BaseModel):
+    """Permanently add a rail stop, wire it into the line, and refresh walking links."""
+
+    id: str | None = Field(default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    name: str = Field(min_length=1, max_length=200)
+    location: LonLat
+    line: MartaLine
+    extra_lines: list[MartaLine] = []
+    neighbors: list[StationNeighbor] = Field(default_factory=list, max_length=2)
+    frequency_minutes: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def neighbors_differ(self) -> StationBuild:
+        ids = [item.station_id for item in self.neighbors]
+        if len(set(ids)) != len(ids):
+            raise ValueError("neighbors must be distinct stations")
+        if self.id is not None and self.id in ids:
+            raise ValueError("a station cannot neighbor itself")
+        return self
+
+    @property
+    def all_lines(self) -> list[MartaLine]:
+        return list(dict.fromkeys([self.line, *self.extra_lines]))
+
+
+class StationBuildResult(BaseModel):
+    station: Station
+    transit_edges: list[TransitEdge]
+    removed_edges: int
+    access_edges: int
+    total_access_edges: int
+
+
+class StationRemoveResult(BaseModel):
+    station: Station
+    removed_edges: int
+    bridged_edges: list[TransitEdge]
+    total_access_edges: int
+
+
+class PoiRemoveResult(BaseModel):
+    poi: PointOfInterest
+    removed_access_edges: int
+
+
+class PoiBuild(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    category: str = Field(min_length=1, max_length=64)
+    location: LonLat
+    enrollment: int | None = Field(default=None, ge=0)
+    jobs_count: int | None = Field(default=None, ge=0)
+
+
+class PoiBuildResult(BaseModel):
+    poi: PointOfInterest
+    access_edges: list[AccessEdge]
 
 
 class PoiCriticalCache(BaseModel):

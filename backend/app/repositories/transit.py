@@ -113,3 +113,74 @@ def delete_edge(conn: psycopg.Connection, edge_id: str) -> bool:
         (edge_id,),
     ).fetchone()
     return row is not None
+
+
+def delete_between(conn: psycopg.Connection, station_a: str, station_b: str, line: str) -> int:
+    """Remove the direct hop between two stations on a line, in both directions."""
+    rows = conn.execute(
+        """
+        DELETE FROM transit_edges
+        WHERE line = %(line)s
+          AND (
+            (from_station = %(a)s AND to_station = %(b)s)
+            OR (from_station = %(b)s AND to_station = %(a)s)
+          )
+        RETURNING id
+        """,
+        {"a": station_a, "b": station_b, "line": line},
+    ).fetchall()
+    return len(rows)
+
+
+def neighbors_of(conn: psycopg.Connection, station_id: str) -> list[dict[str, Any]]:
+    """Every station directly linked to this one, one row per (line, other station)."""
+    return conn.execute(
+        """
+        SELECT
+            line,
+            CASE WHEN from_station = %(id)s THEN to_station ELSE from_station END AS other,
+            avg(travel_minutes) AS travel_minutes,
+            avg(frequency_minutes) AS frequency_minutes
+        FROM transit_edges
+        WHERE from_station = %(id)s OR to_station = %(id)s
+        GROUP BY line, other
+        ORDER BY line, other
+        """,
+        {"id": station_id},
+    ).fetchall()
+
+
+def direct_link_exists(conn: psycopg.Connection, station_a: str, station_b: str, line: str) -> bool:
+    row = conn.execute(
+        """
+        SELECT 1 FROM transit_edges
+        WHERE line = %(line)s
+          AND (
+            (from_station = %(a)s AND to_station = %(b)s)
+            OR (from_station = %(b)s AND to_station = %(a)s)
+          )
+        LIMIT 1
+        """,
+        {"a": station_a, "b": station_b, "line": line},
+    ).fetchone()
+    return row is not None
+
+
+def line_defaults(conn: psycopg.Connection, line: str) -> dict[str, float | None]:
+    """Typical speed (km/min) and headway for a line, from the edges already loaded."""
+    row = conn.execute(
+        """
+        SELECT
+            avg(ST_Distance(a.location, b.location) / 1000.0 / e.travel_minutes) AS km_per_minute,
+            avg(e.frequency_minutes) AS frequency_minutes
+        FROM transit_edges AS e
+        JOIN stations AS a ON a.id = e.from_station
+        JOIN stations AS b ON b.id = e.to_station
+        WHERE e.line = %s AND e.travel_minutes > 0
+        """,
+        (line,),
+    ).fetchone()
+    return {
+        "km_per_minute": float(row["km_per_minute"]) if row and row["km_per_minute"] else None,
+        "frequency_minutes": float(row["frequency_minutes"]) if row and row["frequency_minutes"] else None,
+    }

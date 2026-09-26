@@ -39,7 +39,7 @@ import type { IntelEvent } from '@/types/intelligence'
 import { DEFAULT_TIME_MINUTE, DEFAULT_FAILURE_ELAPSED_MINUTES } from '@/utils/hourlyDemand'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
-export type AppMode = 'disrupt' | 'add' | 'intel'
+export type AppMode = 'disrupt' | 'add' | 'intel' | 'build'
 
 interface FocusRequest {
   bounds: [[number, number], [number, number]]

@@ -4,6 +4,7 @@ import { Loader2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Map as MapView, useControl, type MapRef } from 'react-map-gl/maplibre'
 import { ADDED_POI_LAYER, createAddedPoiLayers } from '@/components/map/AddedPoiLayer'
+import { createBuildLayers } from '@/components/map/BuildLayer'
 import { createEventRadiusLayer } from '@/components/map/EventRadiusLayer'
 import { createPassengerFlowLayers } from '@/components/map/FlowMapLayer'
 import { createLiveTrainLayers, simulatedTrains } from '@/components/map/LiveTrainLayer'
@@ -15,6 +16,7 @@ import { createZoneImpactLayer, zoneCollection, type ZoneFeature } from '@/compo
 import { StationStatePicker } from '@/components/scenario/StationStatePicker'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Segmented } from '@/components/ui/Segmented'
+import { useBuildStore } from '@/store/buildStore'
 import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
 import { buildBaselineJourneys } from '@/services/accessSimulator'
 import type { PointOfInterest, PoiCategory } from '@/types/geography'
@@ -27,6 +29,7 @@ import {
   IMPACT_BREAKS,
   MAP_STYLE,
   MARTA_LINE_HEX,
+  MARTA_LINE_RGB,
   delayHex,
   formatPopulation,
   formatVisitorRate,
@@ -97,7 +100,42 @@ export function CivicMap() {
   const selectedHour = hourAt(timeMinute)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const gain = appMode === 'add'
+  const building = appMode === 'build'
   const motionActive = stations.length > 0
+
+  const buildKind = useBuildStore((state) => state.kind)
+  const buildPending = useBuildStore((state) => state.pending)
+  const buildStationName = useBuildStore((state) => state.stationName)
+  const buildPoiName = useBuildStore((state) => state.poiName)
+  const buildLine = useBuildStore((state) => state.line)
+  const buildCategory = useBuildStore((state) => state.category)
+  const buildNeighborIds = useBuildStore((state) => state.neighborIds)
+  const buildTarget = useBuildStore((state) => state.target)
+  const setBuildPending = useBuildStore((state) => state.setPending)
+  const selectBuildTarget = useBuildStore((state) => state.selectTarget)
+  const buildLayers = useMemo(() => {
+    if (!building) return []
+    const isStation = buildKind === 'station'
+    const color = isStation ? MARTA_LINE_RGB[buildLine] : categoryRgb(buildCategory)
+    return createBuildLayers({
+      pending: buildPending
+        ? {
+            point: buildPending,
+            label: (isStation ? buildStationName : buildPoiName).trim() || (isStation ? 'New stop' : 'New destination'),
+            color,
+            isStation,
+          }
+        : null,
+      neighborStations: buildNeighborIds
+        .map((id) => stations.find((station) => station.id === id))
+        .filter((station): station is Station => Boolean(station)),
+      lineColor: MARTA_LINE_RGB[buildLine],
+      target: buildTarget,
+    })
+  }, [
+    building, buildKind, buildPending, buildStationName, buildPoiName, buildLine, buildCategory,
+    buildNeighborIds, buildTarget, stations,
+  ])
 
   const closedPoiIds = useScenarioStore((state) => state.closedPoiIds)
   const destroyedPoiIds = useScenarioStore((state) => state.destroyedPoiIds)
@@ -216,12 +254,14 @@ export function CivicMap() {
       }),
       ...createLiveTrainLayers(trains),
       ...(addedPois.length > 0 ? createAddedPoiLayers(addedPois, draggingId) : []),
+      ...buildLayers,
     ],
     [
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
       shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
       hoveredStationId, gain, addedPois, draggingId, intelEvent, motionTime, trains,
       baselineJourneys, streetRoutes, mapZoom, disruptionResult, maxCapacityIds, closedPoiIdSet, destroyedPoiIdSet,
+      buildLayers,
     ],
   )
 
@@ -300,6 +340,23 @@ export function CivicMap() {
 
   const onClick = (info: PickingInfo) => {
     const id = info.layer?.id
+    if (building) {
+      // Build tab: clicks select existing nodes or place the new one; no scenario popovers.
+      setPopover(null)
+      setPoiPopover(null)
+      if (id === 'stations' && info.object) {
+        selectBuildTarget({ type: 'station', station: info.object as Station })
+        return
+      }
+      if ((id === 'pois' || id === 'pois-hit') && info.object) {
+        selectBuildTarget({ type: 'poi', poi: info.object as PointOfInterest })
+        return
+      }
+      if (info.coordinate) {
+        setBuildPending({ longitude: info.coordinate[0], latitude: info.coordinate[1] })
+      }
+      return
+    }
     if (id === 'stations' && info.object) {
       const station = info.object as Station
       selectStation(station.id)
@@ -364,7 +421,9 @@ export function CivicMap() {
           layers={layers}
           interleaved={false}
           pickingRadius={8}
-          getCursor={({ isHovering, isDragging }) => (isDragging ? 'grabbing' : isHovering ? 'pointer' : 'grab')}
+          getCursor={({ isHovering, isDragging }) =>
+            isDragging ? 'grabbing' : isHovering ? 'pointer' : building ? 'crosshair' : 'grab'
+          }
           onHover={onHover}
           onClick={onClick}
         />
@@ -372,7 +431,7 @@ export function CivicMap() {
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgb(5_7_11/0.55))]" />
 
-      <div className="pointer-events-auto absolute top-3 left-1/2 z-20 -translate-x-1/2">
+      <div className="pointer-events-auto absolute top-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
         <Segmented
           className="glass rounded-xl"
           value={appMode}
@@ -381,6 +440,7 @@ export function CivicMap() {
             { value: 'disrupt', label: 'Disrupt' },
             { value: 'add', label: 'Add new', activeClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/40' },
             { value: 'intel', label: 'Intelligence', activeClass: 'bg-signal/15 text-signal-soft ring-1 ring-signal/40' },
+            { value: 'build', label: 'Build', activeClass: 'bg-white/[0.08] text-fog-100 ring-1 ring-white/15' },
           ]}
         />
       </div>
@@ -394,6 +454,7 @@ export function CivicMap() {
             hover={hover.item}
             stationStates={stationStates}
             hospitalLoad={hover.item.kind === 'poi' ? hospitalLoadById.get(hover.item.poi.id) ?? null : null}
+            building={building}
           />
         </div>
       )}
@@ -483,14 +544,16 @@ function TooltipBody({
   hover,
   stationStates,
   hospitalLoad,
+  building,
 }: {
   hover: Hover
   stationStates: Record<string, string>
   hospitalLoad: HospitalCapacity | null
+  building: boolean
 }) {
   if (hover.kind === 'station') {
     const { station } = hover
-    const state = stationStates[station.id]
+    const state = building ? undefined : stationStates[station.id]
     return (
       <>
         <div className="flex items-center gap-2 text-[13px] font-medium">
@@ -502,7 +565,13 @@ function TooltipBody({
           </span>
         </div>
         <div className={`text-[11px] ${state === 'shutdown' ? 'text-shut' : state === 'maintenance' ? 'text-maint' : 'text-fog-500'}`}>
-          {state === 'shutdown' ? 'Shut down' : state === 'maintenance' ? 'Maintenance' : 'Click to change state'}
+          {state === 'shutdown'
+            ? 'Shut down'
+            : state === 'maintenance'
+              ? 'Maintenance'
+              : building
+                ? 'Click to select'
+                : 'Click to change state'}
         </div>
       </>
     )

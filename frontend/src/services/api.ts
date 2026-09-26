@@ -11,6 +11,8 @@ export const endpoints = {
   experimentalStreetRoutes: '/api/v1/experimental/street-routes',
   hospitalChoiceModel: '/api/v1/hospital-choice/model',
   activityModel: '/api/v1/activity/model',
+  buildStations: '/api/v1/build/stations',
+  buildPois: '/api/v1/build/pois',
 } as const
 
 interface Page<T> {
@@ -44,6 +46,49 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
   })
   if (!response.ok) {
     throw new ApiError(response.status, `Request failed: ${path} (${response.status})`)
+  }
+  return response.json() as Promise<T>
+}
+
+/** FastAPI puts validation and business errors in `detail`, as a string or a list. */
+async function errorDetail(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await response.json()) as { detail?: unknown }
+    if (typeof body.detail === 'string') return body.detail
+    if (Array.isArray(body.detail)) {
+      const messages = body.detail
+        .map((item) => (item && typeof item === 'object' && 'msg' in item ? String(item.msg) : null))
+        .filter((item): item is string => Boolean(item))
+      if (messages.length > 0) return messages.join('; ')
+    }
+  } catch {
+    /* not JSON */
+  }
+  return fallback
+}
+
+export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      await errorDetail(response, `Request failed: ${path} (${response.status})`),
+    )
+  }
+  return response.json() as Promise<T>
+}
+
+export async function apiDelete<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, { method: 'DELETE' })
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      await errorDetail(response, `Request failed: ${path} (${response.status})`),
+    )
   }
   return response.json() as Promise<T>
 }

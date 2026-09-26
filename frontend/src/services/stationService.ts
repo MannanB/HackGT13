@@ -6,7 +6,7 @@ interface LonLat {
   lat: number
 }
 
-interface ApiStation {
+export interface ApiStation {
   id: string
   name: string
   location: LonLat
@@ -14,7 +14,7 @@ interface ApiStation {
   is_active: boolean
 }
 
-interface ApiTransitEdge {
+export interface ApiTransitEdge {
   id: string
   from_station: string
   to_station: string

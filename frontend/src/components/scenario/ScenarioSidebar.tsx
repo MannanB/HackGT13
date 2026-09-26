@@ -1,3 +1,4 @@
+import { BuildSidebar } from '@/components/builder/BuildSidebar'
 import { AddInfrastructure, PlacedPoiList } from '@/components/scenario/AddInfrastructure'
 import { ServiceLayerToggle } from '@/components/scenario/ServiceLayerToggle'
 import { StationSelector } from '@/components/scenario/StationSelector'
@@ -28,6 +29,8 @@ export function ScenarioSidebar() {
               will be proposed from that event.
             </p>
           </section>
+        ) : appMode === 'build' ? (
+          <BuildSidebar />
         ) : appMode === 'add' ? (
           <section className="space-y-2">
             <h2 className="eyebrow">Add infrastructure</h2>

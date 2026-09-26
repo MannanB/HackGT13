@@ -18,7 +18,7 @@ interface ApiZone {
   median_income?: number | null
 }
 
-interface ApiPoi {
+export interface ApiPoi {
   id: string
   name: string
   category: string
@@ -77,7 +77,7 @@ function mapZone(row: ApiZone): ResidentialZone {
   }
 }
 
-function mapPoi(row: ApiPoi): PointOfInterest {
+export function mapPoi(row: ApiPoi): PointOfInterest {
   const category = mapCategory(row.category)
   return {
     id: String(row.id),

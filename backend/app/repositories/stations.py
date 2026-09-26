@@ -35,6 +35,21 @@ def missing_ids(conn: psycopg.Connection, station_ids: list[str]) -> list[str]:
     return [station_id for station_id in station_ids if station_id not in found]
 
 
+def distance_km(conn: psycopg.Connection, station_id: str, lon: float, lat: float) -> float:
+    row = conn.execute(
+        """
+        SELECT ST_Distance(
+            location,
+            ST_SetSRID(ST_MakePoint(%(lon)s, %(lat)s), 4326)::geography
+        ) / 1000.0 AS km
+        FROM stations
+        WHERE id = %(id)s
+        """,
+        {"id": station_id, "lon": lon, "lat": lat},
+    ).fetchone()
+    return float(row["km"]) if row else 0.0
+
+
 def _where(line: str | None, is_active: bool | None) -> tuple[sql.Composable, dict[str, Any]]:
     clauses: list[sql.Composable] = [sql.SQL("TRUE")]
     params: dict[str, Any] = {}

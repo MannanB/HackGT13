@@ -1,5 +1,6 @@
 import { RefreshCw } from 'lucide-react'
 import { useEffect, useState, type CSSProperties } from 'react'
+import { BuildPanel } from '@/components/builder/BuildPanel'
 import { IntelligencePanel } from '@/components/intelligence/IntelligencePanel'
 import { ImpactPanel } from '@/components/impact/ImpactPanel'
 import { CivicMap } from '@/components/map/CivicMap'
@@ -27,7 +28,7 @@ export function AppShell() {
         <>
           <div className="pointer-events-none absolute inset-3 z-10 flex items-start justify-between gap-3 pb-[var(--timeline-clearance)] transition-[padding] duration-300">
             <ScenarioSidebar />
-            {appMode === 'intel' ? <IntelligencePanel /> : <ImpactPanel />}
+            {appMode === 'intel' ? <IntelligencePanel /> : appMode === 'build' ? <BuildPanel /> : <ImpactPanel />}
           </div>
           <TimeSlider open={timelineOpen} onToggle={() => setTimelineOpen((open) => !open)} />
         </>
