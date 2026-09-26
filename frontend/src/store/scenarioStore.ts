@@ -69,6 +69,9 @@ interface ScenarioState {
 }
 
 const DEFAULT_CATEGORIES: PoiCategory[] = ['government', 'hospital', 'grocery']
+const CRITICAL_START_DELAY_MS = 600
+const CRITICAL_STEP_DELAY_MS = 120
+const CRITICAL_PUBLISH_EVERY = 4
 
 function allDestinations(state: Pick<ScenarioState, 'pois' | 'addedPois' | 'selectedServiceCategories'>) {
   const pois = [...state.pois, ...state.addedPois]
@@ -248,22 +251,25 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
             stations: network.stations,
             transitEdges: network.transitEdges,
           })
+          const total = index.stations.length
           let cursor = 0
           const step = () => {
             if (generation !== criticalGeneration) return
-            const batchEnd = Math.min(cursor + 2, index.stations.length)
-            while (cursor < batchEnd) {
+            if (cursor < total) {
               index.absorb(index.stations[cursor])
               cursor += 1
             }
+            const done = cursor >= total
             set({
-              poiCriticalById: index.snapshot(),
-              poiCriticalProgress: index.stations.length ? cursor / index.stations.length : 1,
+              poiCriticalProgress: total ? cursor / total : 1,
+              ...(done || cursor % CRITICAL_PUBLISH_EVERY === 0
+                ? { poiCriticalById: index.snapshot() }
+                : {}),
             })
-            if (cursor < index.stations.length) window.setTimeout(step, 0)
+            if (!done) window.setTimeout(step, CRITICAL_STEP_DELAY_MS)
           }
           step()
-        }, 16)
+        }, CRITICAL_START_DELAY_MS)
         recompute()
       } catch (error) {
         set({

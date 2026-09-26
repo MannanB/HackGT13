@@ -10,6 +10,7 @@ import { createRouteLayers } from '@/components/map/RouteLayer'
 import { createStationLayers } from '@/components/map/StationLayer'
 import { createZoneImpactLayer, zoneCollection, type ZoneFeature } from '@/components/map/ZoneImpactLayer'
 import { StationStatePicker } from '@/components/scenario/StationStatePicker'
+import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Segmented } from '@/components/ui/Segmented'
 import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
 import type { PointOfInterest } from '@/types/geography'
@@ -225,7 +226,7 @@ export function CivicMap() {
     setPopover(null)
     if (id === 'pois' && info.object) {
       setHover(null)
-      setPoiPopover(place(info.object as PointOfInterest, info, 320, 300))
+      setPoiPopover(place(info.object as PointOfInterest, info, 360, 320))
       return
     }
     setPoiPopover(null)
@@ -429,18 +430,18 @@ function PoiPopover({
   const pressure = critical?.pressure ?? []
   const access = critical?.access ?? []
 
-  const simulate = (stationId: string) => {
-    if (stationStates[stationId] === 'shutdown') {
+  const simulate = (stationId: string, status: 'maintenance' | 'shutdown') => {
+    if (stationStates[stationId] === status) {
       setStationState(stationId, 'normal')
       return
     }
     if (appMode !== 'disrupt') setAppMode('disrupt')
-    setStationState(stationId, 'shutdown')
+    setStationState(stationId, status)
   }
 
   return (
     <div
-      className="glass absolute z-30 w-[320px] animate-rise rounded-2xl p-3"
+      className="glass absolute z-30 w-[360px] animate-rise rounded-2xl p-3"
       style={position}
       onPointerDown={(event) => event.stopPropagation()}
     >
@@ -492,14 +493,21 @@ function PoiPopover({
       )}
 
       {analyzing && (
-        <div className="mt-2.5 flex items-center gap-1.5 text-[10.5px] text-fog-500">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          Testing station closures · {Math.round(progress * 100)}%
+        <div className="mt-2.5">
+          <div className="mb-1 flex items-center justify-between text-[10.5px] text-fog-500">
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Testing station closures
+            </span>
+            <span className="font-mono">{Math.round(progress * 100)}%</span>
+          </div>
+          <ProgressBar value={progress} />
         </div>
       )}
     </div>
   )
 }
+
 
 function StationImpactList({
   items,
@@ -509,13 +517,13 @@ function StationImpactList({
 }: {
   items: PoiStationPressure[]
   stationStates: Record<string, string>
-  onSimulate: (stationId: string) => void
+  onSimulate: (stationId: string, status: 'maintenance' | 'shutdown') => void
   describe: (item: PoiStationPressure) => string
 }) {
   return (
     <ul className="flex flex-col gap-1">
       {items.map((item) => {
-        const shut = stationStates[item.stationId] === 'shutdown'
+        const state = stationStates[item.stationId]
         return (
           <li
             key={item.stationId}
@@ -525,18 +533,32 @@ function StationImpactList({
               <div className="truncate text-[12px] text-fog-100">{item.stationName}</div>
               <div className="font-mono text-[10.5px] text-fog-500">{describe(item)}</div>
             </div>
-            <button
-              type="button"
-              aria-pressed={shut}
-              onClick={() => onSimulate(item.stationId)}
-              className={
-                shut
-                  ? 'shrink-0 rounded-md bg-shut/20 px-2 py-1 text-[10.5px] text-fog-100 ring-1 ring-shut/60 hover:bg-shut/10'
-                  : 'shrink-0 rounded-md px-2 py-1 text-[10.5px] text-shut ring-1 ring-shut/40 hover:bg-shut/10'
-              }
-            >
-              {shut ? 'Restore' : 'Simulate'}
-            </button>
+            <div className="flex shrink-0 gap-1">
+              <button
+                type="button"
+                aria-pressed={state === 'maintenance'}
+                onClick={() => onSimulate(item.stationId, 'maintenance')}
+                className={
+                  state === 'maintenance'
+                    ? 'rounded-md bg-maint/20 px-2 py-1 text-[10.5px] text-fog-100 ring-1 ring-maint/60 hover:bg-maint/10'
+                    : 'rounded-md px-2 py-1 text-[10.5px] text-maint ring-1 ring-maint/40 hover:bg-maint/10'
+                }
+              >
+                {state === 'maintenance' ? 'Restore' : 'Maintenance'}
+              </button>
+              <button
+                type="button"
+                aria-pressed={state === 'shutdown'}
+                onClick={() => onSimulate(item.stationId, 'shutdown')}
+                className={
+                  state === 'shutdown'
+                    ? 'rounded-md bg-shut/20 px-2 py-1 text-[10.5px] text-fog-100 ring-1 ring-shut/60 hover:bg-shut/10'
+                    : 'rounded-md px-2 py-1 text-[10.5px] text-shut ring-1 ring-shut/40 hover:bg-shut/10'
+                }
+              >
+                {state === 'shutdown' ? 'Restore' : 'Shut down'}
+              </button>
+            </div>
           </li>
         )
       })}
