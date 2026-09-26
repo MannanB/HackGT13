@@ -1,10 +1,13 @@
 import { create } from 'zustand'
+import { downloadCipPdf } from '@/services/cipPdf'
+import { planCapitalImprovements } from '@/services/cipPlanner'
 import {
   buildAccessSimulation,
   buildAdditionSimulation,
   createPoiCriticalIndex,
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
+import type { CipPlan } from '@/types/cip'
 import {
   networkFingerprint,
   readCriticalCache,
@@ -67,8 +70,14 @@ interface ScenarioState {
   intelEvent: IntelEvent | null
   intelNarrative: string | null
   criticalFromCache: boolean
+  cipBudget: number
+  cipPlan: CipPlan | null
+  cipStatus: string | null
 
   setAppMode: (mode: AppMode) => void
+  setCipBudget: (budget: number) => void
+  generateCipPlan: () => void
+  downloadCip: () => void
   setMapCenter: (longitude: number, latitude: number) => void
   addPoi: (category: PoiCategory, label: string) => void
   placeOptimalPoi: (category: PoiCategory, label: string) => void
@@ -268,6 +277,9 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     intelEvent: null,
     intelNarrative: null,
     criticalFromCache: false,
+    cipBudget: 10_000_000,
+    cipPlan: null,
+    cipStatus: null,
 
     loadNetwork: async () => {
       criticalGeneration += 1
@@ -364,6 +376,62 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     },
 
     setMapCenter: (longitude, latitude) => set({ mapCenter: { longitude, latitude } }),
+
+    setCipBudget: (cipBudget) => set({ cipBudget }),
+
+    generateCipPlan: () => {
+      const generation = ++impactGeneration
+      set({ computing: true, cipStatus: null })
+      window.setTimeout(() => {
+        if (generation !== impactGeneration) return
+        const state = get()
+        const { maintenanceStations, shutdownStations } = disruptionLists(state.stationStates)
+        const disruptionStationNames = [...maintenanceStations, ...shutdownStations]
+          .map((id) => state.stations.find((station) => station.id === id)?.name)
+          .filter((name): name is string => Boolean(name))
+        try {
+          const plan = planCapitalImprovements({
+            budget: state.cipBudget,
+            zones: state.zones,
+            pois: state.pois,
+            stations: state.stations,
+            transitEdges: state.transitEdges,
+            maintenanceStations,
+            shutdownStations,
+            poiCriticalById: state.poiCriticalById,
+            disruptionStationNames,
+          })
+          if (plan.projects.length === 0) {
+            set({
+              computing: false,
+              cipPlan: plan,
+              cipStatus: 'Nothing in the menu both fits this budget and saves at least 15 minutes. Raise the budget or fail a station first.',
+            })
+            return
+          }
+          const addedPois = plan.projects.map((project) => ({
+            id: project.id,
+            name: project.name,
+            category: project.category,
+            latitude: project.latitude,
+            longitude: project.longitude,
+          }))
+          set({ addedPois, cipPlan: plan, cipStatus: null })
+          recompute()
+        } catch (error) {
+          set({
+            computing: false,
+            cipStatus: error instanceof Error ? error.message : 'Could not build a capital plan',
+          })
+        }
+      }, 16)
+    },
+
+    downloadCip: () => {
+      const state = get()
+      if (!state.cipPlan) return
+      downloadCipPdf(state.cipPlan, state.zones, state.result)
+    },
 
     addPoi: (category, label) => {
       poiSequence += 1
