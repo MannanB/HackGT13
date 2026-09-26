@@ -73,6 +73,8 @@ interface ScenarioState {
 
   result: SimulationResult | null
   disruptionResult: SimulationResult | null
+  /** Access gains from destinations placed in Plan. Stays on the map in every tab. */
+  additionResult: SimulationResult | null
   computing: boolean
   simulationError: string | null
 
@@ -216,6 +218,17 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     })
   }
 
+  /** Drops shutdown colors, then measures any Plan destination against the restored network. */
+  const clearDisruptionOnly = () => {
+    const hasPlan = get().addedPois.length > 0
+    clearImpacts()
+    if (!hasPlan) {
+      set({ additionResult: null })
+      return
+    }
+    recomputeAddition()
+  }
+
   const hasDisruption = () => {
     const { stationStates, closedPoiIds, destroyedPoiIds, evacuation } = get()
     return (
@@ -256,10 +269,10 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     })
   }
 
-  const runDisruption = () => {
+  const runDisruption = (refreshPlan = false) => {
     const { maintenanceStations, shutdownStations } = disruptionLists(get().stationStates)
     if (!hasDisruption()) {
-      clearImpacts()
+      clearDisruptionOnly()
       return
     }
     const generation = ++impactGeneration
@@ -267,6 +280,16 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     window.setTimeout(() => {
       if (generation !== impactGeneration) return
       const state = get()
+      if (
+        Object.keys(state.stationStates).length +
+          Object.keys(state.closedPoiIds).length +
+          Object.keys(state.destroyedPoiIds).length ===
+          0 &&
+        state.evacuation == null
+      ) {
+        clearDisruptionOnly()
+        return
+      }
       try {
         const destinations = allDestinations(state)
         const result = buildAccessSimulation({
@@ -292,7 +315,8 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           simulationError: null,
           selectedZoneId: adding ? state.selectedZoneId : keepZone ? state.selectedZoneId : null,
         })
-        if (adding && state.addedPois.length > 0) recomputeAddition()
+        if (refreshPlan && get().addedPois.length > 0) recomputeAddition()
+        else if (get().addedPois.length === 0) set({ additionResult: null })
       } catch (error) {
         set({
           computing: false,
@@ -305,25 +329,22 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     }, 16)
   }
 
-  const recompute = () => {
-    if (get().appMode === 'add') {
-      if (hasDisruption()) {
-        runDisruption()
-        return
-      }
-      recomputeAddition()
+  const recompute = (refreshPlan = false) => {
+    if (!hasDisruption()) {
+      clearDisruptionOnly()
       return
     }
-    runDisruption()
+    runDisruption(refreshPlan)
   }
 
   const recomputeAddition = () => {
     const state = get()
     if (state.addedPois.length === 0) {
+      impactGeneration += 1
       set({
         computing: false,
-        result: null,
-        selectedZoneId: null,
+        additionResult: null,
+        ...(state.appMode === 'add' ? { result: null, selectedZoneId: null } : {}),
         simulationError: null,
       })
       return
@@ -333,6 +354,14 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     window.requestAnimationFrame(() => {
       if (generation !== impactGeneration) return
       const latest = get()
+      if (latest.addedPois.length === 0) {
+        set({
+          computing: false,
+          additionResult: null,
+          ...(latest.appMode === 'add' ? { result: null, selectedZoneId: null } : {}),
+        })
+        return
+      }
       const { maintenanceStations, shutdownStations } = disruptionLists(latest.stationStates)
       try {
         const result = buildAdditionSimulation({
@@ -349,12 +378,20 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           failureElapsedMinutes: latest.failureElapsedMinutes,
         })
         const keepZone = latest.selectedZoneId && result.traces[latest.selectedZoneId]
-        set({ computing: false, result, simulationError: null, selectedZoneId: keepZone ? latest.selectedZoneId : null })
+        const onPlan = latest.appMode === 'add'
+        set({
+          computing: false,
+          additionResult: result,
+          simulationError: null,
+          ...(onPlan
+            ? { result, selectedZoneId: keepZone ? latest.selectedZoneId : null }
+            : {}),
+        })
       } catch (error) {
         set({
           computing: false,
-          result: null,
-          selectedZoneId: null,
+          additionResult: null,
+          ...(get().appMode === 'add' ? { result: null, selectedZoneId: null } : {}),
           simulationError: error instanceof Error ? error.message : 'Simulation failed',
         })
       }
@@ -388,6 +425,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
 
     result: null,
     disruptionResult: null,
+    additionResult: null,
     computing: false,
     simulationError: null,
 
@@ -560,7 +598,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
             longitude: project.longitude,
           }))
           set({ addedPois, cipPlan: plan, cipStatus: null })
-          recompute()
+          recompute(true)
         } catch (error) {
           set({
             computing: false,
@@ -588,7 +626,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         latitude: mapCenter.latitude + jitter(),
       }
       set({ addedPois: [...addedPois, poi] })
-      recompute()
+      recompute(true)
     },
 
     placeOptimalPoi: (category, label) => {
@@ -619,7 +657,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           latitude: site?.latitude ?? fallback.latitude,
         }
         set({ addedPois: [...state.addedPois, poi] })
-        recompute()
+        recompute(true)
       }, 16)
     },
 
@@ -627,12 +665,13 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       set({
         addedPois: get().addedPois.map((poi) => (poi.id === id ? { ...poi, longitude, latitude } : poi)),
       })
-      recompute()
+      recompute(true)
     },
 
     removePoi: (id) => {
-      set({ addedPois: get().addedPois.filter((poi) => poi.id !== id) })
-      recompute()
+      const addedPois = get().addedPois.filter((poi) => poi.id !== id)
+      set(addedPois.length === 0 ? { addedPois, additionResult: null } : { addedPois })
+      recompute(true)
     },
 
     selectStation: (id) => set({ selectedStationId: id }),
@@ -659,7 +698,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         intelEvent: null,
         intelNarrative: null,
       })
-      clearImpacts()
+      clearDisruptionOnly()
     },
 
     togglePoiClosed: (id) => {
@@ -685,7 +724,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         : [...current, category]
       if (next.length === 0) return
       set({ selectedServiceCategories: next })
-      recompute()
+      recompute(true)
     },
 
     setFailureStartMinute: (minute) => {
@@ -694,7 +733,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       const previousCurrentStep = Math.floor(get().timeMinute / 15)
       const timeMinute = (failureStartMinute + get().failureElapsedMinutes) % 1440
       set({ failureStartMinute, timeMinute })
-      if (Math.floor(timeMinute / 15) !== previousCurrentStep) recompute()
+      if (Math.floor(timeMinute / 15) !== previousCurrentStep) recompute(true)
     },
 
     setFailureElapsedMinutes: (minute) => {
@@ -703,7 +742,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       const previousElapsedStep = Math.floor(get().failureElapsedMinutes / 15)
       const timeMinute = (get().failureStartMinute + failureElapsedMinutes) % 1440
       set({ failureElapsedMinutes, timeMinute })
-      if (Math.floor(failureElapsedMinutes / 15) !== previousElapsedStep) recompute()
+      if (Math.floor(failureElapsedMinutes / 15) !== previousElapsedStep) recompute(true)
     },
 
     selectZone: (zoneId) => {

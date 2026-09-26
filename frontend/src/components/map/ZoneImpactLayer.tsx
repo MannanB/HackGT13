@@ -7,7 +7,7 @@ import { delayRgb, gainRgb, type RGBA } from '@/utils/constants'
 export interface ZoneProps {
   zone: ResidentialZone
   impact?: ZoneImpact
-  shade?: 'delay' | 'gain'
+  shade?: 'delay' | 'gain' | 'overlap'
 }
 
 export type ZoneFeature = Feature<Polygon | MultiPolygon, ZoneProps>
@@ -24,13 +24,16 @@ export function zoneCollection(
     features: zones.map((zone) => {
       const gainImpact = gained.get(zone.id)
       const delayImpact = delayed.get(zone.id)
+      const showsGain = (gainImpact?.delayMinutes ?? 0) > 0
+      const showsDelay = (delayImpact?.delayMinutes ?? 0) > 0
+      const overlap = showsGain && showsDelay
       return {
         type: 'Feature' as const,
         geometry: zone.geometry,
         properties: {
           zone,
-          impact: gainImpact ?? delayImpact,
-          shade: gainImpact ? 'gain' : delayImpact ? 'delay' : undefined,
+          impact: overlap ? delayImpact : gainImpact ?? delayImpact,
+          shade: overlap ? 'overlap' : gainImpact ? 'gain' : delayImpact ? 'delay' : undefined,
         },
       }
     }),
@@ -73,6 +76,7 @@ export function createZoneImpactLayer({
       const delay = delayOf(item)
       const id = item.properties.zone.id
       const gain = item.properties.shade === 'gain'
+      if (item.properties.shade === 'overlap') return [48, 78, 108, 40]
       if (delay <= 0) {
         return id === selectedZoneId ? [124, 196, 255, 60] : [48, 78, 108, 40]
       }
@@ -118,8 +122,8 @@ export function createZoneImpactLayer({
     updateTriggers: {
       getFillColor: [selectedZoneId, hoveredZoneId, delayRange, extruded, impactKey],
       getElevation: [extruded, impactKey],
-      getLineColor: [selectedZoneId, hoveredZoneId],
-      getLineWidth: [selectedZoneId, hoveredZoneId],
+      getLineColor: [selectedZoneId, hoveredZoneId, impactKey],
+      getLineWidth: [selectedZoneId, hoveredZoneId, impactKey],
     },
   })
 }

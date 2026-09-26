@@ -96,10 +96,12 @@ export function CivicMap() {
   const movePoi = useScenarioStore((state) => state.movePoi)
   const setMapCenter = useScenarioStore((state) => state.setMapCenter)
   const disruptionResult = useScenarioStore((state) => state.disruptionResult)
+  const additionResult = useScenarioStore((state) => state.additionResult)
   const timeMinute = useScenarioStore((state) => state.timeMinute)
   const selectedHour = hourAt(timeMinute)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const gain = appMode === 'add'
+  const showPlanGain = appMode === 'add' || appMode === 'intel'
   const building = appMode === 'build'
   const motionActive = stations.length > 0
 
@@ -149,9 +151,9 @@ export function CivicMap() {
       zoneCollection(
         zones,
         disruptionResult?.zoneImpacts ?? [],
-        gain ? (result?.zoneImpacts ?? []) : [],
+        showPlanGain ? (additionResult?.zoneImpacts ?? []) : [],
       ),
-    [zones, disruptionResult, gain, result],
+    [zones, disruptionResult, additionResult, showPlanGain],
   )
   const hospitalCapacity = useMemo(() => {
     if (result?.hospitalCapacity && result.hospitalCapacity.length > 0) return result.hospitalCapacity
@@ -228,7 +230,7 @@ export function CivicMap() {
         mapZoom,
       ),
       ...createPoiLayers({
-        pois,
+        pois: showPlanGain ? pois : [...pois, ...addedPois],
         categories,
         pressure: result?.poiPressure ?? [],
         maxCapacityIds,
@@ -249,13 +251,13 @@ export function CivicMap() {
         hoveredId: hoveredStationId,
       }),
       ...createLiveTrainLayers(trains),
-      ...(addedPois.length > 0 ? createAddedPoiLayers(addedPois, draggingId) : []),
+      ...(showPlanGain && addedPois.length > 0 ? createAddedPoiLayers(addedPois, draggingId) : []),
       ...buildLayers,
     ],
     [
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
       shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
-      hoveredStationId, gain, addedPois, draggingId, intelEvent, motionTime, trains,
+      hoveredStationId, gain, showPlanGain, addedPois, draggingId, intelEvent, motionTime, trains,
       baselineJourneys, streetRoutes, mapZoom, disruptionResult, maxCapacityIds, closedPoiIdSet, destroyedPoiIdSet,
       buildLayers, building, buildSelectedStationId,
     ],
@@ -387,7 +389,9 @@ export function CivicMap() {
     if (id === 'zone-impacts' && info.object) {
       const feature = info.object as ZoneFeature
       const traces =
-        feature.properties.shade === 'gain' ? result?.traces : disruptionResult?.traces ?? result?.traces
+        feature.properties.shade === 'gain'
+          ? additionResult?.traces
+          : disruptionResult?.traces ?? result?.traces
       if (traces?.[feature.properties.zone.id]) {
         const zoneId = feature.properties.zone.id
         selectZone(zoneId === selectedZoneId ? null : zoneId)
@@ -457,16 +461,16 @@ export function CivicMap() {
               activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-red-500/15 hover:text-red-200 hover:ring-1 hover:ring-red-400/40',
             },
             {
-              value: 'intel',
-              label: 'Intelligence',
-              idleClass: 'text-fog-400 hover:bg-blue-500/15 hover:text-blue-200 hover:ring-1 hover:ring-blue-400/40',
-              activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-blue-500/15 hover:text-blue-200 hover:ring-1 hover:ring-blue-400/40',
-            },
-            {
               value: 'add',
               label: 'Plan',
               idleClass: 'text-fog-400 hover:bg-emerald-500/15 hover:text-emerald-300 hover:ring-1 hover:ring-emerald-400/40',
               activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-emerald-500/15 hover:text-emerald-300 hover:ring-1 hover:ring-emerald-400/40',
+            },
+            {
+              value: 'intel',
+              label: 'Intelligence',
+              idleClass: 'text-fog-400 hover:bg-blue-500/15 hover:text-blue-200 hover:ring-1 hover:ring-blue-400/40',
+              activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-blue-500/15 hover:text-blue-200 hover:ring-1 hover:ring-blue-400/40',
             },
             {
               value: 'build',
@@ -508,7 +512,7 @@ export function CivicMap() {
         />
       )}
 
-      {(disruptionResult || (gain && result)) && (
+      {(disruptionResult || (showPlanGain && additionResult)) && (
         <div
           className="pointer-events-auto absolute left-1/2 z-20 flex -translate-x-1/2 items-end gap-2 transition-[bottom] duration-300"
           style={{ bottom: 'var(--timeline-clearance, 4.75rem)' }}
@@ -532,7 +536,7 @@ export function CivicMap() {
               <span className="text-[11px] text-fog-200">Projected hospital overload</span>
             </div>
           )}
-          {gain && result && (
+          {showPlanGain && additionResult && (
             <div className="glass rounded-xl px-3 py-2">
               <div className="eyebrow mb-1.5">Travel time saved (min)</div>
               <div className="flex gap-1">
