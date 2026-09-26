@@ -5,6 +5,12 @@ import {
   createPoiCriticalIndex,
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
+import {
+  hasCriticalCache,
+  networkFingerprint,
+  readCriticalCache,
+  writeCriticalCache,
+} from '@/services/criticalCache'
 import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
@@ -51,6 +57,7 @@ interface ScenarioState {
   poiCriticalProgress: number
   intelEvent: IntelEvent | null
   intelNarrative: string | null
+  criticalFromCache: boolean
 
   setAppMode: (mode: AppMode) => void
   setMapCenter: (longitude: number, latitude: number) => void
@@ -74,6 +81,7 @@ interface ScenarioState {
 }
 
 const DEFAULT_CATEGORIES: PoiCategory[] = ['government', 'hospital', 'grocery']
+const CRITICAL_PUBLISH_EVERY = 4
 
 function allDestinations(state: Pick<ScenarioState, 'pois' | 'addedPois' | 'selectedServiceCategories'>) {
   const pois = [...state.pois, ...state.addedPois]
@@ -199,7 +207,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     appMode: 'disrupt',
     addedPois: [],
     mapCenter: { longitude: -84.39, latitude: 33.755 },
-    loadStatus: 'loading',
+    loadStatus: hasCriticalCache() ? 'ready' : 'loading',
     loadError: null,
     stations: [],
     transitEdges: [],
@@ -222,13 +230,18 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     extruded: false,
     focusRequest: null,
     poiCriticalById: {},
-    poiCriticalProgress: 0,
+    poiCriticalProgress: hasCriticalCache() ? 1 : 0,
     intelEvent: null,
     intelNarrative: null,
+    criticalFromCache: hasCriticalCache(),
 
     loadNetwork: async () => {
       criticalGeneration += 1
-      set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0 })
+      const alreadyShowingMap = get().stations.length > 0
+      const diskCache = hasCriticalCache()
+      if (!alreadyShowingMap && !diskCache) {
+        set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0, criticalFromCache: false })
+      }
       try {
         const [network, zones, pois, accessEdges] = await Promise.all([
           getNetwork(),
@@ -237,6 +250,13 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           getAccessEdges(),
         ])
         const connected = attachAccess(zones, pois, accessEdges)
+        const fingerprint = networkFingerprint({
+          stations: network.stations,
+          transitEdges: network.transitEdges,
+          zones: connected.zones,
+          pois: connected.pois,
+        })
+        const cached = readCriticalCache(fingerprint)
         set({
           stations: network.stations,
           transitEdges: network.transitEdges,
@@ -247,33 +267,37 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
             network.stations.find((station) => /five points/i.test(station.name))?.id ??
             null,
           loadStatus: 'ready',
-          poiCriticalById: {},
+          poiCriticalById: cached ?? {},
+          poiCriticalProgress: cached ? 1 : 0,
+          criticalFromCache: Boolean(cached),
         })
-        const generation = ++criticalGeneration
-        window.setTimeout(() => {
-          if (generation !== criticalGeneration) return
+        if (!cached) {
+          const generation = ++criticalGeneration
           const index = createPoiCriticalIndex({
             zones: connected.zones,
             pois: connected.pois,
             stations: network.stations,
             transitEdges: network.transitEdges,
           })
+          const total = index.stations.length
           let cursor = 0
           const step = () => {
             if (generation !== criticalGeneration) return
-            const batchEnd = Math.min(cursor + 2, index.stations.length)
-            while (cursor < batchEnd) {
+            if (cursor < total) {
               index.absorb(index.stations[cursor])
               cursor += 1
             }
+            const done = cursor >= total
+            const snapshot = done || cursor % CRITICAL_PUBLISH_EVERY === 0 ? index.snapshot() : null
             set({
-              poiCriticalById: index.snapshot(),
-              poiCriticalProgress: index.stations.length ? cursor / index.stations.length : 1,
+              poiCriticalProgress: total ? cursor / total : 1,
+              ...(snapshot ? { poiCriticalById: snapshot } : {}),
             })
-            if (cursor < index.stations.length) window.setTimeout(step, 0)
+            if (done && snapshot) writeCriticalCache(fingerprint, snapshot)
+            if (!done) window.requestAnimationFrame(step)
           }
-          step()
-        }, 16)
+          window.requestAnimationFrame(step)
+        }
         recompute()
       } catch (error) {
         set({
