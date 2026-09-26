@@ -1,81 +1,73 @@
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers'
-import { poiVisibleForFilters, type PointOfInterest, type PoiCategory } from '@/types/geography'
+import type { PointOfInterest, PoiCategory } from '@/types/geography'
 import type { PoiPressure } from '@/types/simulation'
-import { formatPopulation } from '@/utils/constants'
+import { categoryRgb } from '@/utils/categories'
+import type { RGBA } from '@/utils/constants'
 
-const CATEGORY_COLOR: Record<PoiCategory, [number, number, number, number]> = {
-  hospital: [227, 24, 55, 230],
-  clinic: [227, 24, 55, 200],
-  grocery: [22, 163, 74, 230],
-  pharmacy: [96, 165, 250, 230],
-  school: [240, 180, 41, 230],
-  university: [240, 180, 41, 200],
-  library: [183, 195, 211, 230],
-  government: [183, 195, 211, 230],
-  employment: [183, 195, 211, 230],
-  other: [139, 155, 176, 220],
-}
+export function createPoiLayers({
+  pois,
+  categories,
+  pressure,
+  tracePoiId,
+}: {
+  pois: PointOfInterest[]
+  categories: PoiCategory[]
+  pressure: PoiPressure[]
+  tracePoiId: string | null
+}) {
+  const visible = pois.filter((poi) => categories.includes(poi.category))
+  const added = new Map(pressure.map((item) => [item.poiId, item.addedRegions]))
+  const topStressed = new Set(pressure.slice(0, 5).map((item) => item.poiId))
+  const stressed = visible.filter((poi) => topStressed.has(poi.id))
+  const labeled = new Set(tracePoiId ? [tracePoiId] : [])
+  const triggers = [pressure, tracePoiId]
 
-export function createPoiLayers(
-  pois: PointOfInterest[],
-  categories: PoiCategory[],
-  selectedPoiId: string | null,
-  emphasized: boolean,
-  pressure: PoiPressure[] = [],
-) {
-  const visible = pois.filter((poi) => poiVisibleForFilters(poi.category, categories))
-  const addedById = new Map(pressure.map((item) => [item.poiId, item.addedPopulation]))
-  const labeled = new Set(
-    pressure.slice(0, 6).map((item) => item.poiId),
-  )
-  if (selectedPoiId) labeled.add(selectedPoiId)
-
-  const dots = new ScatterplotLayer<PointOfInterest>({
-    id: 'pois',
-    data: visible,
-    getPosition: (d) => [d.longitude, d.latitude],
-    getRadius: (d) => {
-      const added = addedById.get(d.id) ?? 0
-      if (added > 0) return Math.min(22, 9 + Math.log10(added) * 3.2)
-      return d.id === selectedPoiId ? 7 : 4.5
-    },
-    radiusUnits: 'pixels',
-    getFillColor: (d) => {
-      if ((addedById.get(d.id) ?? 0) > 0) return [255, 176, 64, 245]
-      return CATEGORY_COLOR[d.category]
-    },
-    getLineColor: (d) =>
-      (addedById.get(d.id) ?? 0) > 0 ? [255, 90, 40, 255] : [11, 18, 32, 220],
-    lineWidthMinPixels: 1,
-    stroked: true,
-    pickable: true,
-    opacity: emphasized ? 1 : 0.9,
-    updateTriggers: {
-      getRadius: [selectedPoiId, pressure],
-      getFillColor: [pressure],
-      getLineColor: [pressure],
-    },
-  })
-
-  const labels = new TextLayer<PointOfInterest>({
-    id: 'poi-labels',
-    data: visible.filter((poi) => labeled.has(poi.id)),
-    getPosition: (d) => [d.longitude, d.latitude],
-    getText: (d) => {
-      const added = addedById.get(d.id) ?? 0
-      if (added > 0) return `${d.name}  +${formatPopulation(added)} regions`
-      return d.name
-    },
-    getSize: 12,
-    getColor: (d) => ((addedById.get(d.id) ?? 0) > 0 ? [255, 214, 140, 255] : [232, 238, 245, 230]),
-    getPixelOffset: [0, 16],
-    fontFamily: 'IBM Plex Sans, sans-serif',
-    getTextAnchor: 'middle',
-    updateTriggers: {
-      getText: [pressure, selectedPoiId],
-      getColor: [pressure],
-    },
-  })
-
-  return [dots, labels]
+  return [
+    new ScatterplotLayer<PointOfInterest>({
+      id: 'poi-pressure-ring',
+      data: stressed,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getRadius: (d) => 7 + Math.sqrt(added.get(d.id) ?? 0) * 2.4,
+      radiusUnits: 'pixels',
+      getFillColor: (d) => [...categoryRgb(d.category), 20],
+      getLineColor: (d) => [...categoryRgb(d.category), 150],
+      stroked: true,
+      lineWidthMinPixels: 1.25,
+      transitions: { getRadius: 500 },
+      updateTriggers: { getRadius: triggers },
+    }),
+    new ScatterplotLayer<PointOfInterest>({
+      id: 'pois',
+      data: visible,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getRadius: (d) => (d.id === tracePoiId ? 6 : topStressed.has(d.id) ? 3.5 : 2),
+      radiusUnits: 'pixels',
+      getFillColor: (d): RGBA => [...categoryRgb(d.category), topStressed.has(d.id) || d.id === tracePoiId ? 255 : 110],
+      getLineColor: [5, 7, 11, 220],
+      lineWidthMinPixels: 0.5,
+      stroked: true,
+      pickable: true,
+      updateTriggers: { getRadius: triggers, getFillColor: triggers },
+    }),
+    new TextLayer<PointOfInterest>({
+      id: 'poi-labels',
+      data: visible.filter((poi) => labeled.has(poi.id)),
+      getPosition: (d) => [d.longitude, d.latitude],
+      getText: (d) => {
+        const extra = added.get(d.id)
+        return extra ? `${d.name}  +${extra}` : d.name
+      },
+      getSize: 11,
+      getColor: (d) => [...categoryRgb(d.category), 255],
+      getPixelOffset: [0, 14],
+      fontFamily: 'Geist, sans-serif',
+      fontWeight: 500,
+      fontSettings: { sdf: true },
+      outlineWidth: 3,
+      outlineColor: [5, 7, 11, 230],
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'top',
+      updateTriggers: { getText: triggers },
+    }),
+  ]
 }

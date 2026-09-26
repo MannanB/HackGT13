@@ -49,14 +49,13 @@ function mapCategory(value: string): PoiCategory {
   return CATEGORY_ALIASES[value.toLowerCase()] ?? 'other'
 }
 
-export function shortZoneName(name: string): string {
-  const tract = name.match(/Census Tract ([^,]+)/i)
-  const county = name.match(/,\s*([^,]+?)(?: County)?,\s*Georgia/i)
-  if (tract) {
-    const place = county?.[1] ? `, ${county[1]}` : ''
-    return `Tract ${tract[1]}${place}`
-  }
-  return name
+function shortZoneName(name: string): string {
+  const tract = name.match(/Census Tract ([^;,]+)/i)?.[1]
+  const group = name.match(/Block Group ([^;,]+)/i)?.[1]
+  const county = name.match(/[;,]\s*([^;,]+?) County/i)?.[1]
+  if (!tract) return name
+  const id = group ? `${tract}·${group}` : tract
+  return county ? `${county} ${id}` : `Tract ${id}`
 }
 
 function mapZone(row: ApiZone): ResidentialZone {

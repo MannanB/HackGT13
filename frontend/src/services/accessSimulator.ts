@@ -1,5 +1,5 @@
 import { categoryWeight } from '@/utils/categoryWeights'
-import { haversineKm } from '@/utils/geo'
+import { walkMinutes } from '@/utils/geo'
 import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
 import type {
@@ -12,8 +12,6 @@ import type {
   ZoneImpact,
 } from '@/types/simulation'
 
-const WALK_METERS_PER_MINUTE = 80
-
 interface RailGraph {
   ids: string[]
   index: Map<string, number>
@@ -25,10 +23,6 @@ interface Trip {
   minutes: number
   poi: PointOfInterest
   stationIds: string[]
-}
-
-function walkMinutes(from: LatLng, to: LatLng): number {
-  return (haversineKm(from, to) * 1000) / WALK_METERS_PER_MINUTE
 }
 
 function poiPoint(poi: PointOfInterest): LatLng {
@@ -109,17 +103,26 @@ function railStationIds(graph: RailGraph, fromId: string, toId: string): string[
   return path
 }
 
+type NearestFinder = (key: object, point: LatLng) => Station | null
+
+function nearestFinder(stations: Station[], unboardable: Set<string>): NearestFinder {
+  const cache = new Map<object, Station | null>()
+  return (key, point) => {
+    if (!cache.has(key)) cache.set(key, nearestStation(point, stations, unboardable))
+    return cache.get(key) ?? null
+  }
+}
+
 function optimalTrip(
   zone: ResidentialZone,
   poi: PointOfInterest,
-  stations: Station[],
+  nearest: NearestFinder,
   graph: RailGraph,
   blocked: Set<string>,
-  unboardable: Set<string>,
 ): Trip {
   const direct = walkMinutes(zone.centroid, poiPoint(poi))
-  const board = nearestStation(zone.centroid, stations, unboardable)
-  const alight = nearestStation(poiPoint(poi), stations, unboardable)
+  const board = nearest(zone, zone.centroid)
+  const alight = nearest(poi, poiPoint(poi))
   if (!board || !alight) return { minutes: direct, poi, stationIds: [] }
 
   const stationIds = railStationIds(graph, board.id, alight.id)
@@ -137,16 +140,15 @@ function optimalTrip(
 function bestByCategory(
   zone: ResidentialZone,
   grouped: Map<PoiCategory, PointOfInterest[]>,
-  stations: Station[],
+  nearest: NearestFinder,
   graph: RailGraph,
   blocked: Set<string>,
-  unboardable: Set<string>,
 ): Map<PoiCategory, Trip> {
   const chosen = new Map<PoiCategory, Trip>()
   for (const [category, pois] of grouped) {
     let best: Trip | null = null
     for (const poi of pois) {
-      const trip = optimalTrip(zone, poi, stations, graph, blocked, unboardable)
+      const trip = optimalTrip(zone, poi, nearest, graph, blocked)
       if (!best || trip.minutes < best.minutes) best = trip
     }
     if (best) chosen.set(category, best)
@@ -203,39 +205,20 @@ let baselineCache: Baseline | null = null
 
 function baselineKey(request: SimulateScenarioRequest): string {
   const categories = [...request.serviceCategories].sort().join(',')
-  const zones = request.zones?.map((zone) => zone.id).join(',') ?? ''
-  const pois = request.pois?.map((poi) => `${poi.id}:${poi.category}`).join(',') ?? ''
-  return `${categories}|${zones}|${pois}|${request.stations?.length ?? 0}|${request.transitEdges?.length ?? 0}`
-}
-
-function describeDisruptions(
-  stations: Map<string, Station>,
-  maintenanceStations: string[],
-  shutdownStations: string[],
-): string {
-  const nameOf = (id: string) => stations.get(id)?.name ?? id
-  const parts = [
-    ...shutdownStations.map((id) => `${nameOf(id)} is shut down, so trains cannot pass through`),
-    ...maintenanceStations.map(
-      (id) => `${nameOf(id)} is under maintenance, so trains still pass through`,
-    ),
-  ]
-  return `${parts.join('. ')}. Each region keeps the faster of a direct walk or a ride, and can switch to another destination.`
+  const zones = request.zones.map((zone) => zone.id).join(',')
+  const pois = request.pois.map((poi) => `${poi.id}:${poi.category}`).join(',')
+  return `${categories}|${zones}|${pois}|${request.stations.length}|${request.transitEdges.length}`
 }
 
 export function buildAccessSimulation(request: SimulateScenarioRequest): SimulationResult {
-  const zones = request.zones ?? []
-  const stations = request.stations ?? []
-  const edges = request.transitEdges ?? []
+  const { zones, stations, transitEdges: edges, maintenanceStations, shutdownStations } = request
   const categories = request.serviceCategories
-  const maintenanceStations = request.maintenanceStations
-  const shutdownStations = request.shutdownStations
   if (maintenanceStations.length + shutdownStations.length === 0) {
     throw new Error('Set a station to maintenance or shut down')
   }
   if (stations.length === 0) throw new Error('Station network is not loaded')
 
-  const candidates = (request.pois ?? []).filter((poi) => categories.includes(poi.category))
+  const candidates = request.pois.filter((poi) => categories.includes(poi.category))
   if (candidates.length === 0) {
     throw new Error('None of the selected services have destinations on the map')
   }
@@ -259,22 +242,24 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   let beforeByZone = baselineCache?.key === key ? baselineCache.beforeByZone : null
   if (!beforeByZone) {
     const openGraph = buildGraph(stations, edges, new Set())
+    const openNearest = nearestFinder(stations, new Set())
     beforeByZone = new Map()
     for (const zone of zones) {
       beforeByZone.set(
         zone.id,
-        bestByCategory(zone, grouped, stations, openGraph, new Set(), new Set()),
+        bestByCategory(zone, grouped, openNearest, openGraph, new Set()),
       )
     }
     baselineCache = { key, beforeByZone }
   }
 
   const disruptedGraph = buildGraph(stations, edges, blocked)
+  const disruptedNearest = nearestFinder(stations, unboardable)
 
   for (const zone of zones) {
     const before = beforeByZone.get(zone.id)
     if (!before) continue
-    const after = bestByCategory(zone, grouped, stations, disruptedGraph, blocked, unboardable)
+    const after = bestByCategory(zone, grouped, disruptedNearest, disruptedGraph, blocked)
     if (before.size === 0 || after.size === 0) continue
 
     let weightSum = 0
@@ -312,12 +297,11 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       zoneName: zone.name,
       poiId: afterBest.poi.id,
       poiName: afterBest.poi.name,
+      poiCategory: afterBest.poi.category,
       normalTravelMinutes,
       disruptedTravelMinutes,
       delayMinutes,
       population: zone.population,
-      severity: Math.min(1, delayMinutes / 45),
-      lostAccess: false,
     })
     traces[zone.id] = {
       zoneId: zone.id,
@@ -348,37 +332,25 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       poiId,
       poiName: poi.name,
       category: poi.category,
-      baselinePopulation: baselineRegions,
-      disruptedPopulation: disruptedRegions,
-      addedPopulation: addedRegions,
+      baselineRegions,
+      disruptedRegions,
+      addedRegions,
     })
   }
   poiPressure.sort((a, b) => {
-    const scoreA = a.addedPopulation * categoryWeight(request.categoryWeights, a.category)
-    const scoreB = b.addedPopulation * categoryWeight(request.categoryWeights, b.category)
-    return scoreB - scoreA || b.addedPopulation - a.addedPopulation
+    const scoreA = a.addedRegions * categoryWeight(request.categoryWeights, a.category)
+    const scoreB = b.addedRegions * categoryWeight(request.categoryWeights, b.category)
+    return scoreB - scoreA || b.addedRegions - a.addedRegions
   })
 
-  const scenarioKey = [...shutdownStations].sort().join(',') + '|' + [...maintenanceStations].sort().join(',')
   return {
-    scenario: {
-      id: `ops-${scenarioKey}`,
-      createdAt: new Date().toISOString(),
-      closedStations: shutdownStations,
-      maintenanceStations,
-      description: describeDisruptions(stationById, maintenanceStations, shutdownStations),
-    },
     summary: {
       populationAffected,
       averageAddedTravelMinutes: populationAffected ? weightedDelay / populationAffected : 0,
       zonesAffected: slowed.length,
-      communitiesLosingAccess: slowed.length,
     },
     zoneImpacts: impacts,
     poiPressure,
-    failedStations: shutdownStations,
-    maintenanceStations,
-    reroutedPaths: [],
     traces,
   }
 }

@@ -68,13 +68,3 @@ export async function getNetwork(): Promise<{ stations: Station[]; transitEdges:
     throw new Error('Could not load the MARTA network from the API')
   }
 }
-
-export async function getStations(): Promise<Station[]> {
-  const network = await getNetwork()
-  return network.stations
-}
-
-export async function getTransitEdges(): Promise<TransitEdge[]> {
-  const network = await getNetwork()
-  return network.transitEdges
-}

@@ -1,4 +1,3 @@
-import { ChevronDown, Train } from 'lucide-react'
 import { ServiceLayerToggle } from '@/components/scenario/ServiceLayerToggle'
 import { StationSelector } from '@/components/scenario/StationSelector'
 import { StationStateControl } from '@/components/scenario/StationStateControl'
@@ -11,20 +10,13 @@ export function ScenarioSidebar() {
   const disrupted = Object.values(stationStates).some((status) => status !== 'normal')
 
   return (
-    <aside className="civic-scroll z-10 flex w-[320px] shrink-0 flex-col overflow-auto border-r border-ink-700 bg-ink-900">
+    <aside className="glass scroll-thin pointer-events-auto flex max-h-full w-[320px] flex-col overflow-y-auto rounded-2xl">
       <div className="space-y-6 p-4">
         <section>
           <Step n={1} title="Select a station">
             Click a station on the map, or choose one here.
           </Step>
           <div className="mt-3 space-y-3">
-            <div className="flex items-center justify-between rounded-xl border border-ink-600 bg-ink-850 px-3 py-2.5">
-              <span className="flex items-center gap-2 text-sm text-fog-100">
-                <Train className="h-4 w-4 text-fog-400" />
-                MARTA Rail Network
-              </span>
-              <ChevronDown className="h-4 w-4 text-fog-400" />
-            </div>
             <div>
               <div className="mb-2 text-xs text-fog-400">Select a station</div>
               <StationSelector />
@@ -37,7 +29,7 @@ export function ScenarioSidebar() {
             Maintenance keeps trains moving through the station. Shut down stops trains from passing.
           </Step>
           <div className="mt-3 space-y-2">
-            <StationStateControl stationId={selectedStationId} />
+            {selectedStationId && <StationStateControl stationId={selectedStationId} />}
             {disrupted && (
               <button
                 type="button"
@@ -58,17 +50,6 @@ export function ScenarioSidebar() {
             <ServiceLayerToggle />
           </div>
         </section>
-      </div>
-
-      <div className="mt-auto border-t border-ink-700 p-4">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between rounded-xl px-1 py-1 text-xs text-fog-400"
-          disabled
-        >
-          Advanced settings
-          <ChevronDown className="h-3.5 w-3.5" />
-        </button>
       </div>
     </aside>
   )

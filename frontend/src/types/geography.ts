@@ -36,20 +36,3 @@ export interface PointOfInterest {
   longitude: number
   nearestStationId?: string
 }
-
-export const SERVICE_CATEGORIES: PoiCategory[] = [
-  'clinic',
-  'government',
-  'grocery',
-  'hospital',
-  'library',
-  'school',
-  'university',
-]
-
-export function poiVisibleForFilters(
-  category: PoiCategory,
-  selected: PoiCategory[],
-): boolean {
-  return selected.includes(category)
-}

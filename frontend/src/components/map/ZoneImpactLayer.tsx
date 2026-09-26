@@ -1,65 +1,91 @@
 import { GeoJsonLayer } from '@deck.gl/layers'
-import { impactColor } from '@/utils/constants'
-import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
+import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import type { ResidentialZone } from '@/types/geography'
 import type { ZoneImpact } from '@/types/simulation'
+import { delayRgb, type RGBA } from '@/utils/constants'
 
-interface ZoneProps {
+export interface ZoneProps {
   zone: ResidentialZone
   impact?: ZoneImpact
 }
 
-export function createZoneImpactLayer(
+export type ZoneFeature = Feature<Polygon | MultiPolygon, ZoneProps>
+
+export function zoneCollection(
   zones: ResidentialZone[],
   impacts: ZoneImpact[],
-  selectedZoneId: string | null,
-  simulated: boolean,
-  onSelectZone: (zoneId: string) => void,
-) {
-  const impactByZone = new Map(impacts.map((item) => [item.zoneId, item]))
-  const collection: FeatureCollection<Polygon | MultiPolygon, ZoneProps> = {
+): FeatureCollection<Polygon | MultiPolygon, ZoneProps> {
+  const byZone = new Map(impacts.map((impact) => [impact.zoneId, impact]))
+  return {
     type: 'FeatureCollection',
     features: zones.map((zone) => ({
       type: 'Feature',
       geometry: zone.geometry,
-      properties: { zone, impact: impactByZone.get(zone.id) },
+      properties: { zone, impact: byZone.get(zone.id) },
     })),
   }
+}
+
+export function createZoneImpactLayer({
+  data,
+  selectedZoneId,
+  hoveredZoneId,
+  delayRange,
+  extruded,
+}: {
+  data: FeatureCollection<Polygon | MultiPolygon, ZoneProps>
+  selectedZoneId: string | null
+  hoveredZoneId: string | null
+  delayRange: [number, number] | null
+  extruded: boolean
+}) {
+  const delayOf = (feature: ZoneFeature) => feature.properties.impact?.delayMinutes ?? 0
+  const inRange = (delay: number) =>
+    !delayRange || (delay >= delayRange[0] && delay < delayRange[1])
 
   return new GeoJsonLayer<ZoneProps>({
     id: 'zone-impacts',
-    data: collection,
+    data: data as never,
     filled: true,
-    stroked: true,
-    getFillColor: (feature) => {
-      const impact = feature.properties.impact
-      const selected = feature.properties.zone.id === selectedZoneId
-      const sameTrip =
-        impact?.disruptedTravelMinutes != null &&
-        impact.disruptedTravelMinutes <= impact.normalTravelMinutes
-      if (!simulated || !impact || impact.delayMinutes <= 0 || sameTrip) {
-        return selected ? [59, 130, 246, 70] : [48, 78, 108, 78]
+    stroked: !extruded,
+    extruded,
+    wireframe: false,
+    material: { ambient: 0.55, diffuse: 0.6, shininess: 24, specularColor: [60, 60, 70] },
+    getElevation: (feature) => delayOf(feature as ZoneFeature) * 45,
+    getFillColor: (feature): RGBA => {
+      const delay = delayOf(feature as ZoneFeature)
+      const id = feature.properties.zone.id
+      if (delay <= 0) {
+        return id === selectedZoneId ? [124, 196, 255, 60] : [48, 78, 108, 40]
       }
-      const alpha = selected ? 210 : 140 + Math.round(impact.severity * 50)
-      return impactColor(impact.delayMinutes, alpha)
+      const [r, g, b] = delayRgb(delay)
+      const focused = id === selectedZoneId || id === hoveredZoneId
+      const severity = Math.min(1, delay / 45)
+      const alpha = !inRange(delay) ? 22 : focused ? 225 : extruded ? 230 : 130 + Math.round(severity * 50)
+      return [r, g, b, alpha]
     },
-    getLineColor: (feature) => {
-      if (feature.properties.zone.id === selectedZoneId) return [232, 238, 245, 230]
-      return [20, 30, 44, 80]
+    getLineColor: (feature): RGBA => {
+      const id = feature.properties.zone.id
+      if (id === selectedZoneId) return [255, 255, 255, 255]
+      if (id === hoveredZoneId) return [255, 255, 255, 170]
+      return [0, 0, 0, 0]
     },
-    getLineWidth: (feature) => (feature.properties.zone.id === selectedZoneId ? 2 : 0.5),
+    getLineWidth: (feature) => {
+      const id = feature.properties.zone.id
+      if (id === selectedZoneId) return 2.5
+      if (id === hoveredZoneId) return 1.5
+      return 0.5
+    },
     lineWidthUnits: 'pixels',
     pickable: true,
-    autoHighlight: true,
-    highlightColor: [255, 255, 255, 40],
-    onClick: (info) => {
-      const zoneId = info.object?.properties.zone.id
-      if (zoneId) onSelectZone(zoneId)
+    transitions: {
+      getFillColor: 450,
+      getElevation: { duration: 700, easing: (t: number) => 1 - (1 - t) ** 3 },
     },
     updateTriggers: {
-      getFillColor: [simulated, selectedZoneId, impacts],
-      getLineColor: [selectedZoneId],
-      getLineWidth: [selectedZoneId],
+      getFillColor: [selectedZoneId, hoveredZoneId, delayRange, extruded],
+      getLineColor: [selectedZoneId, hoveredZoneId],
+      getLineWidth: [selectedZoneId, hoveredZoneId],
     },
   })
 }

@@ -3,50 +3,62 @@ import { buildAccessSimulation } from '@/services/accessSimulator'
 import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
-import { DEFAULT_CATEGORY_WEIGHTS, categoryWeight } from '@/utils/categoryWeights'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
-import type {
-  AppMode,
-  SimulationResult,
-  SimulationStatus,
-  TraceImpact,
-} from '@/types/simulation'
+import type { RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
+import { DEFAULT_CATEGORY_WEIGHTS, categoryWeight } from '@/utils/categoryWeights'
+
+type LoadStatus = 'loading' | 'ready' | 'error'
+
+interface FocusRequest {
+  bounds: [[number, number], [number, number]]
+  key: number
+}
 
 interface ScenarioState {
-  activeAppMode: AppMode
-  selectedStationId: string
-  stationStates: Record<string, StationOperatingState>
-  selectedServiceCategories: PoiCategory[]
-  categoryWeights: Record<PoiCategory, number>
-  simulationStatus: SimulationStatus
-  simulationError: string | null
-  simulationResult: SimulationResult | null
-  impactPending: boolean
-  selectedZoneId: string | null
-  selectedPoiId: string | null
-  traceImpact: TraceImpact | null
-  traceStatus: SimulationStatus
-  beforeAfterMode: 'both' | 'normal' | 'disrupted'
+  loadStatus: LoadStatus
+  loadError: string | null
   stations: Station[]
   transitEdges: TransitEdge[]
   zones: ResidentialZone[]
   pois: PointOfInterest[]
-  networkReady: boolean
-  focusRequest: { longitude: number; latitude: number; zoom: number; key: number } | null
-  setAppMode: (mode: AppMode) => void
-  setSelectedStation: (id: string) => void
+
+  stationStates: Record<string, StationOperatingState>
+  selectedStationId: string | null
+  hoveredStationId: string | null
+  selectedServiceCategories: PoiCategory[]
+  categoryWeights: Record<PoiCategory, number>
+
+  result: SimulationResult | null
+  computing: boolean
+  simulationError: string | null
+
+  selectedZoneId: string | null
+  hoveredZoneId: string | null
+  delayRange: [number, number] | null
+  routeView: RouteView
+  extruded: boolean
+  focusRequest: FocusRequest | null
+
+  loadNetwork: () => Promise<void>
+  selectStation: (id: string | null) => void
+  hoverStation: (id: string | null) => void
   setStationState: (id: string, status: StationOperatingState) => void
   resetStationStates: () => void
   toggleServiceCategory: (category: PoiCategory) => void
   setCategoryWeight: (category: PoiCategory, weight: number) => void
-  loadNetwork: () => Promise<void>
   selectZone: (zoneId: string | null) => void
-  setBeforeAfterMode: (mode: 'both' | 'normal' | 'disrupted') => void
+  hoverZone: (zoneId: string | null) => void
+  setDelayRange: (range: [number, number] | null) => void
+  setRouteView: (view: RouteView) => void
+  setExtruded: (extruded: boolean) => void
 }
 
-const defaultCategories: PoiCategory[] = ['government', 'hospital', 'grocery']
+const DEFAULT_CATEGORIES: PoiCategory[] = ['government', 'hospital', 'grocery']
 
-let impactGeneration = 0
+export function selectTrace(state: ScenarioState): TraceImpact | null {
+  if (!state.selectedZoneId || !state.result) return null
+  return state.result.traces[state.selectedZoneId] ?? null
+}
 
 function disruptionLists(stationStates: Record<string, StationOperatingState>) {
   const maintenanceStations: string[] = []
@@ -58,126 +70,133 @@ function disruptionLists(stationStates: Record<string, StationOperatingState>) {
   return { maintenanceStations, shutdownStations }
 }
 
-function clearedImpacts() {
-  return {
-    impactPending: false,
-    simulationStatus: 'idle' as const,
-    simulationResult: null,
-    simulationError: null,
-    selectedZoneId: null,
-    selectedPoiId: null,
-    traceImpact: null,
-    traceStatus: 'idle' as const,
-    beforeAfterMode: 'both' as const,
-  }
-}
-
-function impactsFrom(
-  snapshot: Pick<
-    ScenarioState,
-    | 'selectedServiceCategories'
-    | 'categoryWeights'
-    | 'zones'
-    | 'pois'
-    | 'stations'
-    | 'transitEdges'
-    | 'selectedZoneId'
-  >,
-  stationStates: Record<string, StationOperatingState>,
-) {
-  const { maintenanceStations, shutdownStations } = disruptionLists(stationStates)
-  if (maintenanceStations.length + shutdownStations.length === 0) return clearedImpacts()
-  try {
-    const simulationResult = buildAccessSimulation({
-      maintenanceStations,
-      shutdownStations,
-      serviceCategories: snapshot.selectedServiceCategories,
-      categoryWeights: snapshot.categoryWeights,
-      zones: snapshot.zones,
-      pois: snapshot.pois,
-      stations: snapshot.stations,
-      transitEdges: snapshot.transitEdges,
-    })
-    const zoneId = snapshot.selectedZoneId
-    const traceImpact = zoneId ? (simulationResult.traces[zoneId] ?? null) : null
-    return {
-      impactPending: false,
-      simulationStatus: 'success' as const,
-      simulationResult,
-      simulationError: null,
-      selectedZoneId: traceImpact ? zoneId : null,
-      selectedPoiId: traceImpact?.poiId ?? null,
-      traceImpact,
-      traceStatus: traceImpact ? ('success' as const) : ('idle' as const),
-    }
-  } catch (error) {
-    return {
-      impactPending: false,
-      simulationStatus: 'error' as const,
-      simulationError: error instanceof Error ? error.message : 'Simulation failed',
-      simulationResult: null,
-      traceImpact: null,
-      traceStatus: 'idle' as const,
-      selectedZoneId: null,
-      selectedPoiId: null,
-    }
-  }
-}
+let impactGeneration = 0
 
 export const useScenarioStore = create<ScenarioState>((set, get) => {
-  const publishImpacts = (stationStates: Record<string, StationOperatingState>) => {
-    const { maintenanceStations, shutdownStations } = disruptionLists(stationStates)
+  const clearImpacts = () => {
+    impactGeneration += 1
+    set({
+      computing: false,
+      result: null,
+      simulationError: null,
+      selectedZoneId: null,
+      delayRange: null,
+    })
+  }
+
+  const recompute = () => {
+    const { maintenanceStations, shutdownStations } = disruptionLists(get().stationStates)
     if (maintenanceStations.length + shutdownStations.length === 0) {
-      impactGeneration += 1
-      set(clearedImpacts())
+      clearImpacts()
       return
     }
     const generation = ++impactGeneration
-    set({ impactPending: true })
+    set({ computing: true })
+    // Yield a frame so the UI can paint the pending state before the synchronous solve.
     window.setTimeout(() => {
       if (generation !== impactGeneration) return
-      const current = get()
-      set(impactsFrom(current, current.stationStates))
-    }, 0)
+      const state = get()
+      try {
+        const result = buildAccessSimulation({
+          maintenanceStations,
+          shutdownStations,
+          serviceCategories: state.selectedServiceCategories,
+          categoryWeights: state.categoryWeights,
+          zones: state.zones,
+          pois: state.pois,
+          stations: state.stations,
+          transitEdges: state.transitEdges,
+        })
+        const keepZone = state.selectedZoneId && result.traces[state.selectedZoneId]
+        set({
+          computing: false,
+          result,
+          simulationError: null,
+          selectedZoneId: keepZone ? state.selectedZoneId : null,
+        })
+      } catch (error) {
+        set({
+          computing: false,
+          result: null,
+          selectedZoneId: null,
+          simulationError: error instanceof Error ? error.message : 'Simulation failed',
+        })
+      }
+    }, 16)
   }
 
   return {
-    activeAppMode: 'simulate',
-    selectedStationId: '',
-    stationStates: {},
-    selectedServiceCategories: defaultCategories,
-    categoryWeights: { ...DEFAULT_CATEGORY_WEIGHTS },
-    simulationStatus: 'idle',
-    simulationError: null,
-    simulationResult: null,
-    impactPending: false,
-    selectedZoneId: null,
-    selectedPoiId: null,
-    traceImpact: null,
-    traceStatus: 'idle',
-    beforeAfterMode: 'both',
+    loadStatus: 'loading',
+    loadError: null,
     stations: [],
     transitEdges: [],
     zones: [],
     pois: [],
-    networkReady: false,
+
+    stationStates: {},
+    selectedStationId: null,
+    hoveredStationId: null,
+    selectedServiceCategories: DEFAULT_CATEGORIES,
+    categoryWeights: { ...DEFAULT_CATEGORY_WEIGHTS },
+
+    result: null,
+    computing: false,
+    simulationError: null,
+
+    selectedZoneId: null,
+    hoveredZoneId: null,
+    delayRange: null,
+    routeView: 'both',
+    extruded: false,
     focusRequest: null,
 
-    setAppMode: (mode) => set({ activeAppMode: mode }),
+    loadNetwork: async () => {
+      set({ loadStatus: 'loading', loadError: null })
+      try {
+        const [network, zones, pois, accessEdges] = await Promise.all([
+          getNetwork(),
+          getZones(),
+          getPointsOfInterest(),
+          getAccessEdges(),
+        ])
+        const connected = attachAccess(zones, pois, accessEdges)
+        set({
+          stations: network.stations,
+          transitEdges: network.transitEdges,
+          zones: connected.zones,
+          pois: connected.pois,
+          selectedStationId:
+            get().selectedStationId ??
+            network.stations.find((station) => /five points/i.test(station.name))?.id ??
+            null,
+          loadStatus: 'ready',
+        })
+        recompute()
+      } catch (error) {
+        set({
+          loadStatus: 'error',
+          loadError: error instanceof Error ? error.message : 'Failed to load network',
+        })
+      }
+    },
 
-    setSelectedStation: (id) => set({ selectedStationId: id }),
+    selectStation: (id) => set({ selectedStationId: id }),
+
+    hoverStation: (id) => {
+      if (get().hoveredStationId !== id) set({ hoveredStationId: id })
+    },
 
     setStationState: (id, status) => {
       const stationStates = { ...get().stationStates }
       if (status === 'normal') delete stationStates[id]
       else stationStates[id] = status
       set({ stationStates, selectedStationId: id })
-      publishImpacts(stationStates)
+      recompute()
     },
 
     resetStationStates: () => {
-      impactGeneration += 1
-      set({ stationStates: {}, ...clearedImpacts() })
+      set({ stationStates: {} })
+      clearImpacts()
     },
 
     toggleServiceCategory: (category) => {
@@ -187,76 +206,56 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         : [...current, category]
       if (next.length === 0) return
       set({ selectedServiceCategories: next })
-      publishImpacts(get().stationStates)
+      recompute()
     },
 
     setCategoryWeight: (category, weight) => {
       const next = categoryWeight({ [category]: weight }, category)
+      if (get().categoryWeights[category] === next) return
       set({ categoryWeights: { ...get().categoryWeights, [category]: next } })
-      publishImpacts(get().stationStates)
-    },
-
-    loadNetwork: async () => {
-      try {
-        const [network, zones, pois, accessEdges] = await Promise.all([
-          getNetwork(),
-          getZones(),
-          getPointsOfInterest(),
-          getAccessEdges(),
-        ])
-        const connected = attachAccess(zones, pois, accessEdges)
-        const fivePoints = network.stations.find((station) => /five points/i.test(station.name))
-        const currentId = get().selectedStationId
-        const stillValid = network.stations.some((station) => station.id === currentId)
-        const known = new Set(network.stations.map((station) => station.id))
-        const stationStates = Object.fromEntries(
-          Object.entries(get().stationStates).filter(([id]) => known.has(id)),
-        )
-        set({
-          stations: network.stations,
-          transitEdges: network.transitEdges,
-          zones: connected.zones,
-          pois: connected.pois,
-          stationStates,
-          selectedStationId: stillValid
-            ? currentId
-            : (fivePoints?.id ?? network.stations[0]?.id ?? ''),
-          networkReady: true,
-          simulationError: null,
-        })
-        publishImpacts(stationStates)
-      } catch (error) {
-        set({
-          networkReady: true,
-          simulationError: error instanceof Error ? error.message : 'Failed to load network',
-        })
-      }
+      recompute()
     },
 
     selectZone: (zoneId) => {
-      const { simulationResult, zones } = get()
       if (!zoneId) {
-        set({ selectedZoneId: null, selectedPoiId: null, traceImpact: null, traceStatus: 'idle' })
+        set({ selectedZoneId: null })
         return
       }
+      const { zones, result } = get()
       const zone = zones.find((item) => item.id === zoneId)
-      const traceImpact = simulationResult?.traces[zoneId] ?? null
+      const trace = result?.traces[zoneId]
+      const points = trace
+        ? [...trace.normalPath.nodes, ...trace.disruptedPath.nodes]
+        : zone
+          ? [zone.centroid]
+          : []
+      if (points.length === 0) {
+        set({ selectedZoneId: zoneId })
+        return
+      }
+      const pad = 0.004
+      const lngs = points.map((point) => point.longitude)
+      const lats = points.map((point) => point.latitude)
       set({
         selectedZoneId: zoneId,
-        traceImpact,
-        selectedPoiId: traceImpact?.poiId ?? null,
-        traceStatus: traceImpact ? 'success' : 'idle',
-        focusRequest: zone
-          ? {
-              longitude: zone.centroid.longitude,
-              latitude: zone.centroid.latitude,
-              zoom: 12.6,
-              key: Date.now(),
-            }
-          : null,
+        focusRequest: {
+          bounds: [
+            [Math.min(...lngs) - pad, Math.min(...lats) - pad],
+            [Math.max(...lngs) + pad, Math.max(...lats) + pad],
+          ],
+          key: Date.now(),
+        },
       })
     },
 
-    setBeforeAfterMode: (mode) => set({ beforeAfterMode: mode }),
+    hoverZone: (zoneId) => {
+      if (get().hoveredZoneId !== zoneId) set({ hoveredZoneId: zoneId })
+    },
+
+    setDelayRange: (delayRange) => set({ delayRange }),
+
+    setRouteView: (routeView) => set({ routeView }),
+
+    setExtruded: (extruded) => set({ extruded }),
   }
 })

@@ -1,4 +1,4 @@
-import { formatMinutes } from '@/utils/constants'
+const formatMinutes = (value: number) => `${Math.round(value)} min`
 import type { TraceImpact } from '@/types/simulation'
 
 export function BeforeAfterComparison({ trace }: { trace: TraceImpact }) {
@@ -7,11 +7,7 @@ export function BeforeAfterComparison({ trace }: { trace: TraceImpact }) {
       <Stat label="Before" value={formatMinutes(trace.normalTravelMinutes)} />
       <Stat
         label="After"
-        value={
-          trace.disruptedTravelMinutes === null
-            ? 'No path'
-            : formatMinutes(trace.disruptedTravelMinutes)
-        }
+        value={formatMinutes(trace.disruptedTravelMinutes)}
       />
       <Stat
         label="Change"

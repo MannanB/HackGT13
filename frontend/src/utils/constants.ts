@@ -1,54 +1,64 @@
 import type { MartaLine } from '@/types/network'
 
-export const MARTA_LINE_COLORS: Record<MartaLine, [number, number, number, number]> = {
-  red: [227, 24, 55, 255],
-  gold: [240, 180, 41, 255],
-  blue: [29, 123, 214, 255],
-  green: [22, 163, 74, 255],
+export type RGB = [number, number, number]
+export type RGBA = [number, number, number, number]
+
+export const MARTA_LINE_RGB: Record<MartaLine, RGB> = {
+  red: [239, 68, 88],
+  gold: [245, 190, 70],
+  blue: [64, 150, 240],
+  green: [52, 199, 120],
 }
 
-export const MARTA_LINE_HEX: Record<MartaLine, string> = {
-  red: '#e31837',
-  gold: '#f0b429',
-  blue: '#1d7bd6',
-  green: '#16a34a',
+export const MARTA_LINES: MartaLine[] = ['red', 'gold', 'blue', 'green']
+
+export function hex([r, g, b]: RGB): string {
+  return `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`
 }
 
-export const IMPACT_BREAKS = [
-  { min: 0, max: 5, label: '< 5', color: [246, 226, 122] as const, hex: '#f6e27a' },
-  { min: 5, max: 15, label: '5 – 15', color: [240, 180, 41] as const, hex: '#f0b429' },
-  { min: 15, max: 30, label: '15 – 30', color: [230, 122, 53] as const, hex: '#e67a35' },
-  { min: 30, max: 45, label: '30 – 45', color: [212, 72, 58] as const, hex: '#d4483a' },
-  { min: 45, max: Infinity, label: '> 45', color: [155, 29, 46] as const, hex: '#9b1d2e' },
-] as const
+export const MARTA_LINE_HEX = Object.fromEntries(
+  MARTA_LINES.map((line) => [line, hex(MARTA_LINE_RGB[line])]),
+) as Record<MartaLine, string>
+
+export const STATE_RGB = {
+  maintenance: [245, 190, 70] as RGB,
+  shutdown: [255, 77, 94] as RGB,
+}
+
+export const IMPACT_BREAKS: { min: number; max: number; label: string; color: RGB }[] = [
+  { min: 0, max: 5, label: '< 5', color: [246, 226, 122] },
+  { min: 5, max: 15, label: '5 – 15', color: [240, 180, 41] },
+  { min: 15, max: 30, label: '15 – 30', color: [230, 122, 53] },
+  { min: 30, max: 45, label: '30 – 45', color: [212, 72, 58] },
+  { min: 45, max: Infinity, label: '> 45', color: [155, 29, 46] },
+]
+
+export function delayRgb(minutes: number): RGB {
+  const bucket = IMPACT_BREAKS.find((item) => minutes >= item.min && minutes < item.max)
+  return (bucket ?? IMPACT_BREAKS[IMPACT_BREAKS.length - 1]).color
+}
+
+export function delayHex(minutes: number): string {
+  return hex(delayRgb(minutes))
+}
 
 export const ATLANTA_VIEW = {
-  longitude: -84.39,
-  latitude: 33.76,
-  zoom: 11.15,
+  longitude: -84.4,
+  latitude: 33.765,
+  zoom: 10.9,
   pitch: 0,
   bearing: 0,
 }
 
-export const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+export const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
 
-export function impactColor(delayMinutes: number, alpha = 160): [number, number, number, number] {
-  const bucket = IMPACT_BREAKS.find((item) => delayMinutes >= item.min && delayMinutes < item.max)
-  const color = bucket?.color ?? IMPACT_BREAKS[IMPACT_BREAKS.length - 1].color
-  return [color[0], color[1], color[2], alpha]
-}
-
-export function formatMinutes(value: number | null): string {
-  if (value === null) return '—'
-  return `${Math.round(value)} min`
-}
+const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+const full = new Intl.NumberFormat('en-US')
 
 export function formatPopulation(value: number): string {
-  return new Intl.NumberFormat('en-US').format(Math.round(value))
+  return full.format(Math.round(value))
 }
 
-export function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
+export function formatCompact(value: number): string {
+  return compact.format(Math.round(value))
 }

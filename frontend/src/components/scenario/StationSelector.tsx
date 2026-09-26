@@ -8,7 +8,7 @@ export function StationSelector() {
   const stations = useScenarioStore((state) => state.stations)
   const selectedStationId = useScenarioStore((state) => state.selectedStationId)
   const stationStates = useScenarioStore((state) => state.stationStates)
-  const setSelectedStation = useScenarioStore((state) => state.setSelectedStation)
+  const selectStation = useScenarioStore((state) => state.selectStation)
   const [open, setOpen] = useState(false)
 
   const selectable = useMemo(
@@ -16,7 +16,7 @@ export function StationSelector() {
     [stations],
   )
   const selected = stations.find((station) => station.id === selectedStationId)
-  const selectedState = stationStates[selectedStationId] ?? 'normal'
+  const selectedState = (selectedStationId && stationStates[selectedStationId]) || 'normal'
 
   return (
     <div className="relative">
@@ -57,7 +57,7 @@ export function StationSelector() {
               key={station.id}
               type="button"
               onClick={() => {
-                setSelectedStation(station.id)
+                selectStation(station.id)
                 setOpen(false)
               }}
               className={cn(

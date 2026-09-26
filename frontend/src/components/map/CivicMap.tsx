@@ -1,26 +1,33 @@
-import '@/maplibreSetup'
-import { MapboxOverlay } from '@deck.gl/mapbox'
-import type { MapboxOverlayProps } from '@deck.gl/mapbox'
 import type { LayersList, PickingInfo } from '@deck.gl/core'
+import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
+import { Box, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Map, NavigationControl, useControl, type MapRef } from 'react-map-gl/maplibre'
-import { createMartaNetworkLayer } from '@/components/map/MartaNetworkLayer'
-import { MapLegend } from '@/components/map/MapLegend'
+import { Map, useControl, type MapRef } from 'react-map-gl/maplibre'
+import { createMartaNetworkLayers } from '@/components/map/MartaNetworkLayer'
 import { createPoiLayers } from '@/components/map/PoiLayer'
 import { createRouteLayers } from '@/components/map/RouteLayer'
 import { createStationLayers } from '@/components/map/StationLayer'
-import { createZoneImpactLayer } from '@/components/map/ZoneImpactLayer'
-import { MapStationEditor } from '@/components/scenario/StationStateControl'
-import { useScenarioStore } from '@/store/scenarioStore'
-import type { Station, StationOperatingState } from '@/types/network'
-import { ATLANTA_VIEW, MAP_STYLE } from '@/utils/constants'
-import { cn } from '@/utils/cn'
+import { createZoneImpactLayer, zoneCollection, type ZoneFeature } from '@/components/map/ZoneImpactLayer'
+import { StationStatePicker } from '@/components/scenario/StationStatePicker'
+import { Segmented } from '@/components/ui/Segmented'
+import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
+import type { PointOfInterest } from '@/types/geography'
+import type { Station } from '@/types/network'
+import { categoryMeta, categoryRgb } from '@/utils/categories'
+import { ATLANTA_VIEW, IMPACT_BREAKS, MAP_STYLE, MARTA_LINE_HEX, delayHex, formatPopulation, hex } from '@/utils/constants'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-const TIP_COPY: Record<StationOperatingState, string> = {
-  normal: 'Normal',
-  maintenance: 'Maintenance · trains pass through',
-  shutdown: 'Shut down · trains cannot pass',
+const PANEL_PADDING = { top: 40, bottom: 40, left: 380, right: 400 }
+
+type Hover =
+  | { kind: 'station'; station: Station }
+  | { kind: 'zone'; feature: ZoneFeature }
+  | { kind: 'poi'; poi: PointOfInterest }
+
+interface Placed<T> {
+  item: T
+  left: number
+  top: number
 }
 
 function DeckOverlay(props: MapboxOverlayProps) {
@@ -29,200 +36,154 @@ function DeckOverlay(props: MapboxOverlayProps) {
   return null
 }
 
-function asStation(object: unknown): Station | null {
-  if (!object || typeof object !== 'object' || !('lines' in object)) return null
-  const candidate = object as Station
-  if (!Array.isArray(candidate.lines) || typeof candidate.name !== 'string') return null
-  return candidate
-}
-
 export function CivicMap() {
   const mapRef = useRef<MapRef>(null)
   const frameRef = useRef<HTMLDivElement>(null)
-  const tipRef = useRef<HTMLDivElement>(null)
-  const tipIdRef = useRef<string | null>(null)
-  const [editor, setEditor] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [hover, setHover] = useState<Placed<Hover> | null>(null)
+  const [popover, setPopover] = useState<Placed<string> | null>(null)
+
   const stations = useScenarioStore((state) => state.stations)
-  const stationStates = useScenarioStore((state) => state.stationStates)
   const transitEdges = useScenarioStore((state) => state.transitEdges)
   const zones = useScenarioStore((state) => state.zones)
   const pois = useScenarioStore((state) => state.pois)
+  const stationStates = useScenarioStore((state) => state.stationStates)
   const selectedStationId = useScenarioStore((state) => state.selectedStationId)
-  const setSelectedStation = useScenarioStore((state) => state.setSelectedStation)
-  const selectedServiceCategories = useScenarioStore((state) => state.selectedServiceCategories)
-  const simulationResult = useScenarioStore((state) => state.simulationResult)
-  const simulationStatus = useScenarioStore((state) => state.simulationStatus)
+  const hoveredStationId = useScenarioStore((state) => state.hoveredStationId)
+  const categories = useScenarioStore((state) => state.selectedServiceCategories)
+  const result = useScenarioStore((state) => state.result)
   const selectedZoneId = useScenarioStore((state) => state.selectedZoneId)
-  const selectedPoiId = useScenarioStore((state) => state.selectedPoiId)
-  const traceImpact = useScenarioStore((state) => state.traceImpact)
-  const beforeAfterMode = useScenarioStore((state) => state.beforeAfterMode)
-  const selectZone = useScenarioStore((state) => state.selectZone)
+  const hoveredZoneId = useScenarioStore((state) => state.hoveredZoneId)
+  const delayRange = useScenarioStore((state) => state.delayRange)
+  const trace = useScenarioStore(selectTrace)
+  const routeView = useScenarioStore((state) => state.routeView)
+  const extruded = useScenarioStore((state) => state.extruded)
   const focusRequest = useScenarioStore((state) => state.focusRequest)
-  const statesRef = useRef(stationStates)
-  statesRef.current = stationStates
+  const selectStation = useScenarioStore((state) => state.selectStation)
+  const hoverStation = useScenarioStore((state) => state.hoverStation)
+  const selectZone = useScenarioStore((state) => state.selectZone)
+  const hoverZone = useScenarioStore((state) => state.hoverZone)
+  const setExtruded = useScenarioStore((state) => state.setExtruded)
 
-  const simulated = simulationStatus === 'success'
-  const { maintenanceIds, shutdownIds } = useMemo(() => {
-    const maintenanceIds: string[] = []
-    const shutdownIds: string[] = []
-    for (const [id, status] of Object.entries(stationStates)) {
-      if (status === 'maintenance') maintenanceIds.push(id)
-      if (status === 'shutdown') shutdownIds.push(id)
-    }
-    return { maintenanceIds, shutdownIds }
-  }, [stationStates])
-
-  const hideTip = () => {
-    tipIdRef.current = null
-    const el = tipRef.current
-    if (el) el.style.opacity = '0'
-  }
-
-  const paintTip = (station: Station, x: number, y: number) => {
-    const el = tipRef.current
-    if (!el) return
-    const status = statesRef.current[station.id] ?? 'normal'
-    const name = el.querySelector('[data-tip-name]')
-    const state = el.querySelector('[data-tip-state]')
-    if (name) name.textContent = station.name
-    if (state) {
-      state.textContent = TIP_COPY[status]
-      state.className = cn(
-        'text-[11px]',
-        status === 'shutdown' && 'text-line-red',
-        status === 'maintenance' && 'text-line-gold',
-        status === 'normal' && 'text-fog-400',
-      )
-    }
-    tipIdRef.current = station.id
-    const width = frameRef.current?.clientWidth ?? 800
-    const height = frameRef.current?.clientHeight ?? 600
-    const left = Math.min(Math.max(8, x + 14), Math.max(8, width - 220))
-    const top = Math.min(Math.max(8, y + 14), Math.max(8, height - 56))
-    el.style.opacity = '1'
-    el.style.transform = `translate3d(${left}px, ${top}px, 0)`
-  }
-
-  useEffect(() => {
-    const id = tipIdRef.current
-    if (!id) return
-    const station = stations.find((item) => item.id === id)
-    if (!station || !tipRef.current) return
-    const state = tipRef.current.querySelector('[data-tip-state]')
-    const status = stationStates[id] ?? 'normal'
-    if (state) {
-      state.textContent = TIP_COPY[status]
-      state.className = cn(
-        'text-[11px]',
-        status === 'shutdown' && 'text-line-red',
-        status === 'maintenance' && 'text-line-gold',
-        status === 'normal' && 'text-fog-400',
-      )
-    }
-  }, [stationStates, stations])
-
-  useEffect(() => {
-    setEditor((current) => (current && current.id !== selectedStationId ? null : current))
-  }, [selectedStationId])
+  const shutdownIds = useMemo(
+    () => new Set(Object.keys(stationStates).filter((id) => stationStates[id] === 'shutdown')),
+    [stationStates],
+  )
+  const zoneData = useMemo(() => zoneCollection(zones, result?.zoneImpacts ?? []), [zones, result])
 
   useEffect(() => {
     if (!focusRequest) return
-    mapRef.current?.flyTo({
-      center: [focusRequest.longitude, focusRequest.latitude],
-      zoom: focusRequest.zoom,
-      duration: 700,
+    mapRef.current?.fitBounds(focusRequest.bounds, {
+      padding: PANEL_PADDING,
+      maxZoom: 13.5,
+      duration: 900,
       essential: true,
     })
   }, [focusRequest])
 
+  useEffect(() => {
+    mapRef.current?.easeTo({ pitch: extruded ? 52 : 0, bearing: extruded ? -18 : 0, duration: 900 })
+  }, [extruded])
+
+  const layers = useMemo<LayersList>(
+    () => [
+      createZoneImpactLayer({ data: zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded }),
+      ...createMartaNetworkLayers(transitEdges, stations, shutdownIds),
+      ...createPoiLayers({
+        pois,
+        categories,
+        pressure: result?.poiPressure ?? [],
+        tracePoiId: trace?.poiId ?? null,
+      }),
+      ...createRouteLayers(
+        trace && routeView !== 'disrupted' ? trace.normalPath : null,
+        trace && routeView !== 'normal' ? trace.disruptedPath : null,
+      ),
+      ...createStationLayers({
+        stations,
+        stationStates,
+        selectedId: selectedStationId,
+        hoveredId: hoveredStationId,
+      }),
+    ],
+    [
+      zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
+      shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
+      hoveredStationId,
+    ],
+  )
+
+  const place = <T,>(item: T, info: PickingInfo, w: number, h: number): Placed<T> => {
+    const width = frameRef.current?.clientWidth ?? 1200
+    const height = frameRef.current?.clientHeight ?? 800
+    return {
+      item,
+      left: Math.min(Math.max(8, info.x + 16), width - w - 8),
+      top: Math.min(Math.max(8, info.y + 16), height - h - 8),
+    }
+  }
+
+  const activePopover = popover?.item === selectedStationId ? popover : null
+
   const onHover = (info: PickingInfo) => {
-    const station = asStation(info.object)
-    if (!station) {
-      hideTip()
+    const id = info.layer?.id
+    if (id === 'stations' && info.object) {
+      const station = info.object as Station
+      hoverStation(station.id)
+      hoverZone(null)
+      setHover(place({ kind: 'station', station }, info, 240, 60))
       return
     }
-    paintTip(station, info.x, info.y)
+    hoverStation(null)
+    if (id === 'pois' && info.object) {
+      hoverZone(null)
+      setHover(place({ kind: 'poi', poi: info.object as PointOfInterest }, info, 240, 60))
+      return
+    }
+    if (id === 'zone-impacts' && info.object) {
+      const feature = info.object as ZoneFeature
+      hoverZone(feature.properties.impact?.delayMinutes ? feature.properties.zone.id : null)
+      setHover(place({ kind: 'zone', feature }, info, 240, 90))
+      return
+    }
+    hoverZone(null)
+    setHover(null)
   }
 
   const onClick = (info: PickingInfo) => {
-    const station = asStation(info.object)
-    if (station) {
-      setSelectedStation(station.id)
-      setEditor({ id: station.id, x: info.x, y: info.y })
+    const id = info.layer?.id
+    if (id === 'stations' && info.object) {
+      const station = info.object as Station
+      selectStation(station.id)
+      setPopover(place(station.id, info, 300, 130))
       return
     }
-    if (!info.object) setEditor(null)
+    setPopover(null)
+    if (id === 'zone-impacts' && info.object) {
+      const feature = info.object as ZoneFeature
+      if (result?.traces[feature.properties.zone.id]) {
+        const zoneId = feature.properties.zone.id
+        selectZone(zoneId === selectedZoneId ? null : zoneId)
+      }
+    }
   }
 
-  const layers = useMemo<LayersList>(() => {
-    const showNormal =
-      Boolean(traceImpact) && (beforeAfterMode === 'both' || beforeAfterMode === 'normal')
-    const showDisrupted =
-      Boolean(traceImpact) && (beforeAfterMode === 'both' || beforeAfterMode === 'disrupted')
-
-    return [
-      createZoneImpactLayer(
-        zones,
-        simulationResult?.zoneImpacts ?? [],
-        selectedZoneId,
-        simulated,
-        (zoneId) => {
-          if (simulated) selectZone(zoneId)
-        },
-      ),
-      createMartaNetworkLayer(transitEdges, stations, shutdownIds),
-      ...createRouteLayers(
-        showNormal ? traceImpact?.normalPath : null,
-        showDisrupted ? traceImpact?.disruptedPath : null,
-      ),
-      ...createPoiLayers(
-        pois,
-        selectedServiceCategories,
-        selectedPoiId,
-        Boolean(traceImpact),
-        simulationResult?.poiPressure ?? [],
-      ),
-      ...createStationLayers(stations, selectedStationId, maintenanceIds, shutdownIds),
-    ]
-  }, [
-    beforeAfterMode,
-    maintenanceIds,
-    pois,
-    selectZone,
-    selectedPoiId,
-    selectedServiceCategories,
-    selectedStationId,
-    selectedZoneId,
-    shutdownIds,
-    simulated,
-    simulationResult,
-    stations,
-    traceImpact,
-    transitEdges,
-    zones,
-  ])
-
-  const editorPosition = (() => {
-    if (!editor) return null
-    const width = frameRef.current?.clientWidth ?? 800
-    const height = frameRef.current?.clientHeight ?? 600
-    return {
-      left: Math.min(Math.max(8, editor.x + 14), Math.max(8, width - 272)),
-      top: Math.min(Math.max(8, editor.y + 12), Math.max(8, height - 150)),
-    }
-  })()
 
   return (
     <div
       ref={frameRef}
-      className="relative h-full w-full"
-      onPointerLeave={hideTip}
+      className="absolute inset-0"
+      onPointerLeave={() => {
+        setHover(null)
+        hoverZone(null)
+        hoverStation(null)
+      }}
     >
       <Map
         ref={mapRef}
         mapStyle={MAP_STYLE}
         initialViewState={ATLANTA_VIEW}
         attributionControl={{ compact: true }}
+        maxPitch={70}
         reuseMaps
         style={{ width: '100%', height: '100%' }}
       >
@@ -230,28 +191,153 @@ export function CivicMap() {
           layers={layers}
           interleaved={false}
           pickingRadius={6}
-          getCursor={({ isHovering }) => (isHovering ? 'pointer' : 'grab')}
+          getCursor={({ isHovering, isDragging }) => (isDragging ? 'grabbing' : isHovering ? 'pointer' : 'grab')}
           onHover={onHover}
           onClick={onClick}
         />
-        <NavigationControl position="bottom-left" showCompass={false} />
       </Map>
-      <div
-        ref={tipRef}
-        className="pointer-events-none absolute top-0 left-0 z-30 rounded-xl border border-ink-600 bg-ink-900/95 px-3 py-2 opacity-0 shadow-xl"
-      >
-        <div data-tip-name className="text-sm font-medium text-fog-100" />
-        <div data-tip-state className="text-[11px] text-fog-400" />
-      </div>
-      {editor && editorPosition && (
-        <MapStationEditor
-          stationId={editor.id}
-          x={editorPosition.left}
-          y={editorPosition.top}
-          onClose={() => setEditor(null)}
+
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgb(5_7_11/0.55))]" />
+
+      {hover && !activePopover && (
+        <div
+          className="glass pointer-events-none absolute z-30 max-w-[260px] rounded-xl px-3 py-2"
+          style={{ left: hover.left, top: hover.top }}
+        >
+          <TooltipBody hover={hover.item} stationStates={stationStates} />
+        </div>
+      )}
+
+      {activePopover && (
+        <StationPopover
+          id={activePopover.item}
+          position={{ left: activePopover.left, top: activePopover.top }}
+          onClose={() => setPopover(null)}
         />
       )}
-      <MapLegend simulated={simulated} />
+
+      {result && (
+        <div className="pointer-events-auto absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-end gap-2">
+          <div className="glass rounded-xl px-3 py-2">
+            <div className="eyebrow mb-1.5">Added travel time (min)</div>
+            <div className="flex gap-1">
+              {IMPACT_BREAKS.map((bucket) => (
+                <div key={bucket.label} className="flex flex-col items-center gap-1">
+                  <span className="h-1.5 w-12 rounded-sm" style={{ background: hex(bucket.color) }} />
+                  <span className="font-mono text-[9.5px] text-fog-400">{bucket.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <Segmented
+            className="glass rounded-xl"
+            value={extruded ? '3d' : '2d'}
+            onChange={(value) => setExtruded(value === '3d')}
+            options={[
+              { value: '2d', label: <><Square className="h-3 w-3" /> Flat</> },
+              { value: '3d', label: <><Box className="h-3 w-3" /> Extrude delay</> },
+            ]}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TooltipBody({
+  hover,
+  stationStates,
+}: {
+  hover: Hover
+  stationStates: Record<string, string>
+}) {
+  if (hover.kind === 'station') {
+    const { station } = hover
+    const state = stationStates[station.id]
+    return (
+      <>
+        <div className="flex items-center gap-2 text-[13px] font-medium">
+          {station.name}
+          <span className="flex gap-0.5">
+            {station.lines.map((line) => (
+              <span key={line} className="h-1 w-3 rounded-full" style={{ background: MARTA_LINE_HEX[line] }} />
+            ))}
+          </span>
+        </div>
+        <div className={`text-[11px] ${state === 'shutdown' ? 'text-shut' : state === 'maintenance' ? 'text-maint' : 'text-fog-500'}`}>
+          {state === 'shutdown' ? 'Shut down' : state === 'maintenance' ? 'Maintenance' : 'Click to change state'}
+        </div>
+      </>
+    )
+  }
+  if (hover.kind === 'poi') {
+    const meta = categoryMeta(hover.poi.category)
+    return (
+      <>
+        <div className="text-[13px] font-medium">{hover.poi.name}</div>
+        <div className="text-[11px]" style={{ color: hex(categoryRgb(hover.poi.category)) }}>
+          {meta?.label ?? hover.poi.category}
+        </div>
+      </>
+    )
+  }
+  const { zone, impact } = hover.feature.properties
+  return (
+    <>
+      <div className="text-[13px] font-medium">{zone.name}</div>
+      <div className="font-mono text-[10.5px] text-fog-500">{formatPopulation(zone.population)} residents</div>
+      {impact && impact.delayMinutes > 0 ? (
+        <div className="mt-1.5 flex items-baseline gap-2 font-mono text-[11px]">
+          <span className="text-fog-400">{impact.normalTravelMinutes}</span>
+          <span className="text-fog-500">→</span>
+          <span className="text-fog-100">{impact.disruptedTravelMinutes} min</span>
+          <span className="ml-auto" style={{ color: delayHex(impact.delayMinutes) }}>
+            +{impact.delayMinutes}
+          </span>
+        </div>
+      ) : impact ? (
+        <div className="mt-1 text-[11px] text-fog-500">Unaffected</div>
+      ) : null}
+    </>
+  )
+}
+
+function StationPopover({
+  id,
+  position,
+  onClose,
+}: {
+  id: string
+  position: { left: number; top: number }
+  onClose: () => void
+}) {
+  const station = useScenarioStore((state) => state.stations.find((item) => item.id === id))
+  if (!station) return null
+  return (
+    <div
+      className="glass absolute z-30 w-[300px] animate-rise rounded-2xl p-3"
+      style={position}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <div className="mb-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-[13px] font-medium">
+          {station.name}
+          <span className="flex gap-0.5">
+            {station.lines.map((line) => (
+              <span key={line} className="h-1 w-3 rounded-full" style={{ background: MARTA_LINE_HEX[line] }} />
+            ))}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md p-1 text-fog-500 hover:bg-white/5 hover:text-fog-100"
+          aria-label="Close"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <StationStatePicker stationId={station.id} />
     </div>
   )
 }

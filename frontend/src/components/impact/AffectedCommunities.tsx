@@ -1,5 +1,6 @@
 import { useScenarioStore } from '@/store/scenarioStore'
 import { cn } from '@/utils/cn'
+import { delayHex } from '@/utils/constants'
 import type { ZoneImpact } from '@/types/simulation'
 
 export function AffectedCommunities({ impacts }: { impacts: ZoneImpact[] }) {
@@ -19,7 +20,7 @@ export function AffectedCommunities({ impacts }: { impacts: ZoneImpact[] }) {
             <button
               key={impact.zoneId}
               type="button"
-              onClick={() => void selectZone(impact.zoneId)}
+              onClick={() => selectZone(selected ? null : impact.zoneId)}
               className={cn(
                 'flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors',
                 selected
@@ -29,12 +30,10 @@ export function AffectedCommunities({ impacts }: { impacts: ZoneImpact[] }) {
             >
               <span className="truncate pr-2 text-sm">{impact.zoneName}</span>
               <span
-                className={cn(
-                  'text-sm font-medium tabular-nums',
-                  impact.lostAccess ? 'text-line-red' : 'text-impact-3',
-                )}
+                className="font-mono text-sm tabular-nums"
+                style={{ color: delayHex(impact.delayMinutes) }}
               >
-                {impact.lostAccess ? 'Access lost' : `+${impact.delayMinutes} min`}
+                +{impact.delayMinutes} min
               </span>
             </button>
           )

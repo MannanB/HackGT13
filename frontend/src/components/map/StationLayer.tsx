@@ -1,123 +1,97 @@
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers'
-import type { Station } from '@/types/network'
+import type { Station, StationOperatingState } from '@/types/network'
+import { STATE_RGB, type RGBA } from '@/utils/constants'
 
-const LABEL_PATTERN =
-  /Airport|West End|Five Points|North Ave|Arts Center|Lindbergh|Buckhead|East Lake|Oakland City|King Memorial|Midtown|Peachtree Center/i
+const HUBS = /Five Points|Airport|North Springs|Doraville|Holmes|Indian Creek|Bankhead|Lindbergh/i
 
-function shouldLabel(
-  station: Station,
-  selectedStationId: string,
-  maintenance: Set<string>,
-  shutdown: Set<string>,
-) {
-  return (
-    station.id === selectedStationId ||
-    maintenance.has(station.id) ||
-    shutdown.has(station.id) ||
-    station.lines.length > 2 ||
-    LABEL_PATTERN.test(station.name)
+export function createStationLayers({
+  stations,
+  stationStates,
+  selectedId,
+  hoveredId,
+}: {
+  stations: Station[]
+  stationStates: Record<string, StationOperatingState>
+  selectedId: string | null
+  hoveredId: string | null
+}) {
+  const stateOf = (station: Station) => stationStates[station.id] ?? 'normal'
+  const disrupted = stations.filter((station) => stateOf(station) !== 'normal')
+  const focused = stations.filter((station) => station.id === selectedId || station.id === hoveredId)
+  const labeled = stations.filter(
+    (station) =>
+      station.id === selectedId ||
+      station.id === hoveredId ||
+      stateOf(station) !== 'normal' ||
+      HUBS.test(station.name),
   )
-}
+  const triggers = [stationStates, selectedId, hoveredId]
 
-export function createStationLayers(
-  stations: Station[],
-  selectedStationId: string,
-  maintenanceIds: string[],
-  shutdownIds: string[],
-) {
-  const maintenance = new Set(maintenanceIds)
-  const shutdown = new Set(shutdownIds)
-  const changed = stations.filter(
-    (station) => maintenance.has(station.id) || shutdown.has(station.id),
-  )
-
-  const halo = new ScatterplotLayer<Station>({
-    id: 'station-state-halo',
-    data: changed,
-    getPosition: (d) => [d.longitude, d.latitude],
-    getRadius: (d) => (shutdown.has(d.id) ? 16 : 14),
-    radiusUnits: 'pixels',
-    getFillColor: (d) =>
-      shutdown.has(d.id) ? [227, 24, 55, 55] : [240, 180, 41, 50],
-    stroked: false,
-    pickable: false,
-  })
-
-  const selected = stations.filter((station) => station.id === selectedStationId)
-  const ring = new ScatterplotLayer<Station>({
-    id: 'station-selected-ring',
-    data: selected,
-    getPosition: (d) => [d.longitude, d.latitude],
-    getRadius: 15,
-    radiusUnits: 'pixels',
-    filled: false,
-    stroked: true,
-    getLineColor: [147, 197, 253, 255],
-    lineWidthMinPixels: 2,
-    pickable: false,
-  })
-
-  const nodes = new ScatterplotLayer<Station>({
-    id: 'stations',
-    data: stations,
-    getPosition: (d) => [d.longitude, d.latitude],
-    getRadius: (d) => {
-      if (shutdown.has(d.id) || maintenance.has(d.id) || d.id === selectedStationId) return 9
-      if (d.lines.length > 2) return 7
-      return 6.5
-    },
-    radiusUnits: 'pixels',
-    getFillColor: (d) => {
-      if (shutdown.has(d.id)) return [227, 24, 55, 255]
-      if (maintenance.has(d.id)) return [240, 180, 41, 255]
-      if (d.id === selectedStationId) return [96, 165, 250, 255]
-      return [232, 238, 245, 245]
-    },
-    getLineColor: [11, 18, 32, 230],
-    lineWidthMinPixels: 1.5,
-    stroked: true,
-    pickable: true,
-    autoHighlight: true,
-    highlightColor: [255, 255, 255, 255],
-  })
-
-  const shutdownMark = new TextLayer<Station>({
-    id: 'shutdown-mark',
-    data: stations.filter((station) => shutdown.has(station.id)),
-    getPosition: (d) => [d.longitude, d.latitude],
-    getText: () => '×',
-    getSize: 16,
-    getColor: [255, 255, 255, 255],
-    fontFamily: 'IBM Plex Sans, sans-serif',
-    fontWeight: 600,
-    getTextAnchor: 'middle',
-    getAlignmentBaseline: 'center',
-    pickable: false,
-  })
-
-  const labels = new TextLayer<Station>({
-    id: 'station-labels',
-    data: stations.filter((station) => shouldLabel(station, selectedStationId, maintenance, shutdown)),
-    getPosition: (d) => [d.longitude, d.latitude],
-    getText: (d) => {
-      if (shutdown.has(d.id)) return `${d.name}  ·  Shut down`
-      if (maintenance.has(d.id)) return `${d.name}  ·  Maintenance`
-      return d.name
-    },
-    getSize: 11,
-    getColor: (d) => {
-      if (shutdown.has(d.id)) return [255, 210, 210, 255]
-      if (maintenance.has(d.id)) return [255, 224, 150, 255]
-      if (d.id === selectedStationId) return [210, 225, 255, 255]
-      return [183, 195, 211, 230]
-    },
-    getPixelOffset: [0, -16],
-    fontFamily: 'IBM Plex Sans, sans-serif',
-    fontWeight: 500,
-    getTextAnchor: 'middle',
-    getAlignmentBaseline: 'bottom',
-    pickable: false,
-  })
-
-  return [halo, ring, nodes, shutdownMark, labels]
+  return [
+    new ScatterplotLayer<Station>({
+      id: 'station-halo',
+      data: disrupted,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getRadius: 16,
+      radiusUnits: 'pixels',
+      getFillColor: (d) => [...STATE_RGB[stateOf(d) === 'shutdown' ? 'shutdown' : 'maintenance'], 40],
+      getLineColor: (d) => [...STATE_RGB[stateOf(d) === 'shutdown' ? 'shutdown' : 'maintenance'], 140],
+      stroked: true,
+      lineWidthMinPixels: 1,
+      updateTriggers: { getFillColor: triggers, getLineColor: triggers },
+    }),
+    new ScatterplotLayer<Station>({
+      id: 'station-focus',
+      data: focused,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getRadius: 13,
+      radiusUnits: 'pixels',
+      filled: false,
+      stroked: true,
+      getLineColor: (d) => (d.id === selectedId ? [124, 196, 255, 255] : [255, 255, 255, 150]),
+      lineWidthMinPixels: 1.5,
+      updateTriggers: { getLineColor: triggers },
+    }),
+    new ScatterplotLayer<Station>({
+      id: 'stations',
+      data: stations,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getRadius: (d) => (stateOf(d) !== 'normal' ? 7 : d.lines.length > 1 ? 5 : 3.5),
+      radiusUnits: 'pixels',
+      getFillColor: (d): RGBA => {
+        const state = stateOf(d)
+        if (state !== 'normal') return [...STATE_RGB[state], 255]
+        return d.lines.length > 1 ? [238, 242, 247, 255] : [10, 13, 19, 255]
+      },
+      getLineColor: (d): RGBA => (stateOf(d) !== 'normal' ? [5, 7, 11, 255] : [238, 242, 247, 230]),
+      lineWidthMinPixels: 1.6,
+      stroked: true,
+      pickable: true,
+      transitions: { getRadius: 250 },
+      updateTriggers: { getRadius: triggers, getFillColor: triggers, getLineColor: triggers },
+    }),
+    new TextLayer<Station>({
+      id: 'station-labels',
+      data: labeled,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getText: (d) => d.name,
+      getSize: (d) => (d.id === selectedId || stateOf(d) !== 'normal' ? 12 : 10),
+      getColor: (d): RGBA => {
+        const state = stateOf(d)
+        if (state === 'shutdown') return [255, 170, 178, 255]
+        if (state === 'maintenance') return [255, 222, 150, 255]
+        if (d.id === selectedId) return [190, 225, 255, 255]
+        return [180, 189, 202, 210]
+      },
+      getPixelOffset: [0, -15],
+      fontFamily: 'Geist, sans-serif',
+      fontWeight: 500,
+      fontSettings: { sdf: true },
+      outlineWidth: 3,
+      outlineColor: [5, 7, 11, 230],
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'bottom',
+      updateTriggers: { getSize: triggers, getColor: triggers },
+    }),
+  ]
 }

@@ -1,19 +1,13 @@
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export const endpoints = {
-  stations: '/api/v1/stations',
-  transitEdges: '/api/v1/transit-edges',
   zones: '/api/v1/zones',
   pois: '/api/v1/pois',
   network: '/api/v1/network',
   accessEdges: '/api/v1/access-edges',
-  simulate: '/api/v1/scenarios',
-  scenario: (id: string) => `/api/v1/scenarios/${id}`,
-  impacts: (id: string) => `/api/v1/scenarios/${id}/impacts`,
-  trace: (id: string) => `/api/v1/scenarios/${id}/trace`,
 } as const
 
-export interface Page<T> {
+interface Page<T> {
   items: T[]
   total: number
   limit: number

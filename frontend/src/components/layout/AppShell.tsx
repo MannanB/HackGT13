@@ -1,56 +1,52 @@
+import { Loader2, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { ImpactPanel } from '@/components/impact/ImpactPanel'
-import { TopNav } from '@/components/layout/TopNav'
 import { CivicMap } from '@/components/map/CivicMap'
 import { ScenarioSidebar } from '@/components/scenario/ScenarioSidebar'
 import { useScenarioStore } from '@/store/scenarioStore'
 
 export function AppShell() {
   const loadNetwork = useScenarioStore((state) => state.loadNetwork)
-  const activeAppMode = useScenarioStore((state) => state.activeAppMode)
+  const loadStatus = useScenarioStore((state) => state.loadStatus)
+  const loadError = useScenarioStore((state) => state.loadError)
 
   useEffect(() => {
     void loadNetwork()
   }, [loadNetwork])
 
   return (
-    <div className="flex h-full flex-col bg-ink-900">
-      <TopNav />
-      <div className="relative flex min-h-0 flex-1">
-        <ScenarioSidebar />
-        <main className="relative min-w-0 flex-1">
-          <CivicMap />
-          {activeAppMode !== 'simulate' && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-ink-950/55 p-8 backdrop-blur-[2px]">
-              <ModePlaceholder mode={activeAppMode} />
-            </div>
-          )}
-        </main>
-        <ImpactPanel />
-      </div>
-    </div>
-  )
-}
-
-function ModePlaceholder({ mode }: { mode: 'discover' | 'recover' }) {
-  const copy =
-    mode === 'discover'
-      ? {
-          title: 'Discover critical infrastructure',
-          body: 'This mode will rank stations by how much accessibility collapses when they fail — surfacing hidden single points of failure in the MARTA graph.',
-        }
-      : {
-          title: 'Recover in the right order',
-          body: 'This mode will test restoration sequences and show which station coming back online returns the most people to essential services first.',
-        }
-
-  return (
-    <div className="max-w-md rounded-2xl border border-ink-600 bg-ink-850/95 p-6 shadow-2xl">
-      <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-fog-400">
-        Coming next
-      </div>
-      <h2 className="text-lg font-semibold text-fog-100">{copy.title}</h2>
-      <p className="mt-2 text-sm leading-relaxed text-fog-400">{copy.body}</p>
+    <div className="relative h-full overflow-hidden bg-ink-950">
+      <CivicMap />
+      {loadStatus === 'ready' && (
+        <div className="pointer-events-none absolute inset-3 z-10 flex items-start justify-between gap-3">
+          <ScenarioSidebar />
+          <ImpactPanel />
+        </div>
+      )}
+      {loadStatus !== 'ready' && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-ink-950/70 backdrop-blur-sm">
+          <div className="glass w-[340px] rounded-2xl p-6 text-center">
+            {loadStatus === 'loading' ? (
+              <>
+                <Loader2 className="mx-auto h-5 w-5 animate-spin text-accent" />
+                <div className="mt-3 text-[13px] text-fog-300">Loading MARTA network, block groups and destinations…</div>
+              </>
+            ) : (
+              <>
+                <div className="font-serif text-[22px]">Couldn't reach the data API</div>
+                <p className="mt-2 text-[12.5px] text-fog-400">{loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadNetwork()}
+                  className="mx-auto mt-4 flex items-center gap-1.5 rounded-xl bg-white/[0.06] px-3 py-1.5 text-[12px] ring-1 ring-white/10 hover:bg-white/10"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Retry
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

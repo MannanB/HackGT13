@@ -8,12 +8,11 @@ import type { StationOperatingState } from '@/types/network'
 import { cn } from '@/utils/cn'
 
 export function ImpactPanel() {
-  const status = useScenarioStore((state) => state.simulationStatus)
-  const result = useScenarioStore((state) => state.simulationResult)
+  const result = useScenarioStore((state) => state.result)
   const stations = useScenarioStore((state) => state.stations)
   const stationStates = useScenarioStore((state) => state.stationStates)
-  const impactPending = useScenarioStore((state) => state.impactPending)
-  const setSelectedStation = useScenarioStore((state) => state.setSelectedStation)
+  const impactPending = useScenarioStore((state) => state.computing)
+  const setSelectedStation = useScenarioStore((state) => state.selectStation)
   const selectedZoneId = useScenarioStore((state) => state.selectedZoneId)
   const error = useScenarioStore((state) => state.simulationError)
 
@@ -28,9 +27,9 @@ export function ImpactPanel() {
   const anyShutdown = disrupted.some((item) => item.operating === 'shutdown')
 
   return (
-    <aside className="civic-scroll z-10 flex w-[340px] shrink-0 flex-col overflow-auto border-l border-ink-700 bg-ink-900">
+    <aside className="glass scroll-thin pointer-events-auto flex max-h-full w-[340px] flex-col overflow-y-auto rounded-2xl">
       <div className="space-y-5 p-4">
-        {status === 'idle' && !impactPending && (
+        {!result && !error && !impactPending && (
           <div className="rounded-2xl border border-dashed border-ink-600 bg-ink-850/60 px-4 py-8 text-center">
             <p className="text-sm leading-relaxed text-fog-300">
               Set a station to maintenance or shut down. Affected communities update immediately.
@@ -47,7 +46,7 @@ export function ImpactPanel() {
           </div>
         )}
 
-        {status === 'error' && !result && (
+        {error && !result && (
           <div className="rounded-2xl border border-line-red/30 bg-line-red/10 px-4 py-4 text-sm text-fog-100">
             {error ?? 'Could not update impact'}
           </div>
@@ -93,11 +92,14 @@ export function ImpactPanel() {
                 ))}
               </ul>
               <p className="mt-2 text-[12px] leading-relaxed text-fog-300">
-                {result.scenario.description}
+                {anyShutdown
+                  ? 'Shut-down stations cut the line; trains cannot pass through.'
+                  : 'Trains still pass through, but riders cannot board there.'}{' '}
+                Each area keeps the faster of walking or riding.
               </p>
             </div>
 
-            <ImpactSummary summary={result.summary} active />
+            <ImpactSummary summary={result.summary} />
             <PoiPressureList pressure={result.poiPressure} />
             <AffectedCommunities impacts={result.zoneImpacts} />
             {selectedZoneId && <TraceImpactPanel />}

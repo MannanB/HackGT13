@@ -10,17 +10,17 @@ export const STATION_STATE_OPTIONS: {
   {
     value: 'normal',
     label: 'Normal',
-    detail: 'Trains stop and riders can board',
+    detail: 'Trains stop here and riders board as usual.',
   },
   {
     value: 'maintenance',
     label: 'Maintenance',
-    detail: 'Trains can still pass through',
+    detail: 'No boarding here, but trains still run through.',
   },
   {
     value: 'shutdown',
     label: 'Shut down',
-    detail: 'Trains cannot pass through',
+    detail: 'No boarding, and the line is cut at this station.',
   },
 ]
 

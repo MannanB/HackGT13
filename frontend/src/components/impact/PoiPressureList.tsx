@@ -21,7 +21,7 @@ export function PoiPressureList({ pressure }: { pressure: PoiPressure[] }) {
           >
             <span className="truncate pr-2 text-sm">{item.poiName}</span>
             <span className="shrink-0 text-sm font-medium tabular-nums text-impact-2">
-              +{formatPopulation(item.addedPopulation)} regions
+              +{formatPopulation(item.addedRegions)} regions
             </span>
           </div>
         ))}

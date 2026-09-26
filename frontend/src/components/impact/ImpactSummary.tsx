@@ -3,16 +3,10 @@ import { useCountUp } from '@/utils/useCountUp'
 import { formatPopulation } from '@/utils/constants'
 import type { ImpactSummary as ImpactSummaryData } from '@/types/simulation'
 
-export function ImpactSummary({
-  summary,
-  active,
-}: {
-  summary: ImpactSummaryData
-  active: boolean
-}) {
-  const population = useCountUp(summary.populationAffected, active)
-  const delay = useCountUp(summary.averageAddedTravelMinutes, active)
-  const lost = useCountUp(summary.communitiesLosingAccess, active)
+export function ImpactSummary({ summary }: { summary: ImpactSummaryData }) {
+  const population = useCountUp(summary.populationAffected)
+  const delay = useCountUp(summary.averageAddedTravelMinutes)
+  const lost = useCountUp(summary.zonesAffected)
 
   const metrics = [
     {

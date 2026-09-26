@@ -1,28 +1,18 @@
 import { Info } from 'lucide-react'
 import { BeforeAfterComparison } from '@/components/trace/BeforeAfterComparison'
 import { DependencyChain } from '@/components/trace/DependencyChain'
-import { useScenarioStore } from '@/store/scenarioStore'
+import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
 import { cn } from '@/utils/cn'
 
 export function TraceImpactPanel() {
-  const trace = useScenarioStore((state) => state.traceImpact)
-  const traceStatus = useScenarioStore((state) => state.traceStatus)
-  const failedStations = useScenarioStore(
-    (state) => state.simulationResult?.failedStations ?? [],
-  )
-  const beforeAfterMode = useScenarioStore((state) => state.beforeAfterMode)
-  const setBeforeAfterMode = useScenarioStore((state) => state.setBeforeAfterMode)
+  const trace = useScenarioStore(selectTrace)
+  const stationStates = useScenarioStore((state) => state.stationStates)
+  const failedStations = Object.keys(stationStates).filter((id) => stationStates[id] === 'shutdown')
+  const beforeAfterMode = useScenarioStore((state) => state.routeView)
+  const setBeforeAfterMode = useScenarioStore((state) => state.setRouteView)
   const zones = useScenarioStore((state) => state.zones)
   const selectedZoneId = useScenarioStore((state) => state.selectedZoneId)
   const zoneName = zones.find((zone) => zone.id === selectedZoneId)?.name
-
-  if (traceStatus === 'loading') {
-    return (
-      <div className="rounded-xl border border-ink-700 bg-ink-850 px-3 py-4 text-sm text-fog-400">
-        Tracing dependency path…
-      </div>
-    )
-  }
 
   if (!trace) return null
 
