@@ -27,7 +27,7 @@ export function AffectedCommunities({ impacts }: { impacts: ZoneImpact[] }) {
                   : 'text-fog-300 hover:bg-ink-800 hover:text-fog-100',
               )}
             >
-              <span className="text-sm">{impact.zoneName}</span>
+              <span className="truncate pr-2 text-sm">{impact.zoneName}</span>
               <span
                 className={cn(
                   'text-sm font-medium tabular-nums',

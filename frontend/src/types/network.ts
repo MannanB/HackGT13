@@ -17,3 +17,19 @@ export interface TransitEdge {
   line: MartaLine
   frequencyMinutes: number
 }
+
+export interface AccessEdge {
+  id: string
+  locationType: 'zone' | 'poi'
+  locationId: string
+  stationId: string
+  walkingMinutes: number
+}
+
+export function mapMartaLine(value: string): MartaLine | null {
+  const line = value.toLowerCase()
+  if (line === 'red' || line === 'gold' || line === 'blue' || line === 'green') {
+    return line
+  }
+  return null
+}

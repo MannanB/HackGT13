@@ -1,11 +1,16 @@
-import type { MultiPolygon } from 'geojson'
+import type { MultiPolygon, Polygon } from 'geojson'
 
 export type PoiCategory =
   | 'hospital'
+  | 'clinic'
   | 'grocery'
   | 'pharmacy'
   | 'school'
+  | 'university'
+  | 'library'
+  | 'government'
   | 'employment'
+  | 'other'
 
 export interface LatLng {
   latitude: number
@@ -15,10 +20,11 @@ export interface LatLng {
 export interface ResidentialZone {
   id: string
   name: string
-  geometry: MultiPolygon
+  geometry: Polygon | MultiPolygon
   centroid: LatLng
   population: number
-  primaryStationId: string
+  medianIncome?: number | null
+  primaryStationId?: string
   transferStationIds: string[]
 }
 
@@ -28,5 +34,22 @@ export interface PointOfInterest {
   category: PoiCategory
   latitude: number
   longitude: number
-  nearestStationId: string
+  nearestStationId?: string
+}
+
+export const SERVICE_CATEGORIES: PoiCategory[] = [
+  'clinic',
+  'government',
+  'grocery',
+  'hospital',
+  'library',
+  'school',
+  'university',
+]
+
+export function poiVisibleForFilters(
+  category: PoiCategory,
+  selected: PoiCategory[],
+): boolean {
+  return selected.includes(category)
 }

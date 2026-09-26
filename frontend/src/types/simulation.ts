@@ -1,4 +1,5 @@
-import type { PoiCategory } from './geography'
+import type { PointOfInterest, PoiCategory, ResidentialZone } from './geography'
+import type { Station } from './network'
 
 export type AppMode = 'simulate' | 'discover' | 'recover'
 
@@ -69,6 +70,9 @@ export interface SimulationResult {
 export interface SimulateScenarioRequest {
   closedStations: string[]
   serviceCategories: PoiCategory[]
+  zones?: ResidentialZone[]
+  pois?: PointOfInterest[]
+  stations?: Station[]
 }
 
 export interface TraceImpactRequest {

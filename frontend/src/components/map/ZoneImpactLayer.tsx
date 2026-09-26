@@ -1,6 +1,6 @@
 import { GeoJsonLayer } from '@deck.gl/layers'
 import { impactColor } from '@/utils/constants'
-import type { FeatureCollection, MultiPolygon } from 'geojson'
+import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import type { ResidentialZone } from '@/types/geography'
 import type { ZoneImpact } from '@/types/simulation'
 
@@ -17,7 +17,7 @@ export function createZoneImpactLayer(
   onSelectZone: (zoneId: string) => void,
 ) {
   const impactByZone = new Map(impacts.map((item) => [item.zoneId, item]))
-  const collection: FeatureCollection<MultiPolygon, ZoneProps> = {
+  const collection: FeatureCollection<Polygon | MultiPolygon, ZoneProps> = {
     type: 'FeatureCollection',
     features: zones.map((zone) => ({
       type: 'Feature',
@@ -35,7 +35,7 @@ export function createZoneImpactLayer(
       const impact = feature.properties.impact
       const selected = feature.properties.zone.id === selectedZoneId
       if (!simulated || !impact || impact.delayMinutes < 3) {
-        return selected ? [59, 130, 246, 55] : [40, 62, 86, 42]
+        return selected ? [59, 130, 246, 70] : [48, 78, 108, 78]
       }
       const alpha = selected ? 210 : 140 + Math.round(impact.severity * 50)
       return impactColor(impact.delayMinutes, alpha)

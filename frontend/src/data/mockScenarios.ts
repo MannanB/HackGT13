@@ -2,7 +2,8 @@ import { mockPois } from '@/data/mockPois'
 import { mockStations } from '@/data/mockStations'
 import { mockZones } from '@/data/mockZones'
 import { haversineKm } from '@/utils/geo'
-import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
+import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
+import { poiVisibleForFilters } from '@/types/geography'
 import type { Station } from '@/types/network'
 import type {
   PathNode,
@@ -13,10 +14,16 @@ import type {
   ZoneImpact,
 } from '@/types/simulation'
 
-const stationById = new Map(mockStations.map((station) => [station.id, station]))
+function stationLookup(stations: Station[]) {
+  return new Map(stations.map((station) => [station.id, station]))
+}
 
-function stationNode(id: string, failed = false): PathNode {
-  const station = stationById.get(id)
+function stationNode(
+  id: string,
+  stations: Map<string, Station>,
+  failed = false,
+): PathNode {
+  const station = stations.get(id)
   if (!station) {
     return { type: 'station', id, name: id, latitude: 33.75, longitude: -84.39, failed }
   }
@@ -50,16 +57,38 @@ function poiNode(poi: PointOfInterest): PathNode {
   }
 }
 
-function pickPoi(categories: PoiCategory[], zone: ResidentialZone): PointOfInterest {
-  if (zone.id === 'west-end' && categories.includes('hospital')) {
-    const grady = mockPois.find((poi) => poi.id === 'grady')
-    if (grady) return grady
+function nearestStation(point: LatLng, stations: Station[]): Station | undefined {
+  if (stations.length === 0) return undefined
+  return stations.reduce((best, station) => {
+    const bestDist = haversineKm(point, {
+      latitude: best.latitude,
+      longitude: best.longitude,
+    })
+    const nextDist = haversineKm(point, {
+      latitude: station.latitude,
+      longitude: station.longitude,
+    })
+    return nextDist < bestDist ? station : best
+  })
+}
+
+function poiMatches(category: PoiCategory, selected: PoiCategory[]): boolean {
+  return poiVisibleForFilters(category, selected)
+}
+
+function pickPoi(
+  categories: PoiCategory[],
+  zone: ResidentialZone,
+  pois: PointOfInterest[],
+): PointOfInterest | undefined {
+  const namedGrady = pois.find((poi) => /grady/i.test(poi.name) && poi.category === 'hospital')
+  if (namedGrady && /west end/i.test(zone.name) && categories.includes('hospital')) {
+    return namedGrady
   }
-  const priority: PoiCategory[] = ['hospital', 'grocery', 'pharmacy']
-  const enabled = priority.filter((category) => categories.includes(category))
-  const target = enabled[0] ?? 'hospital'
-  const candidates = mockPois.filter((poi) => poi.category === target)
-  return candidates.reduce((best, poi) => {
+  const candidates = pois.filter((poi) => poiMatches(poi.category, categories))
+  const pool = candidates.length ? candidates : pois
+  if (pool.length === 0) return undefined
+  return pool.reduce((best, poi) => {
     const bestDist = haversineKm(zone.centroid, {
       latitude: best.latitude,
       longitude: best.longitude,
@@ -72,113 +101,39 @@ function pickPoi(categories: PoiCategory[], zone: ResidentialZone): PointOfInter
   })
 }
 
-function dependsOnFailed(zone: ResidentialZone, failedId: string): boolean {
-  return (
-    zone.primaryStationId === failedId ||
-    zone.transferStationIds.includes(failedId) ||
-    failedId === 'FIVE_POINTS'
-  )
+function findStationId(stations: Station[], pattern: RegExp): string | undefined {
+  return stations.find((station) => pattern.test(station.name))?.id
 }
 
-function fivePointsOverrides(zoneId: string): {
-  normal: number
-  delay: number
-  lost: boolean
-} | null {
-  const table: Record<string, { normal: number; delay: number; lost: boolean }> = {
-    'west-end': { normal: 28, delay: 17, lost: false },
-    mechanicsville: { normal: 22, delay: 24, lost: false },
-    'adair-park': { normal: 26, delay: 20, lost: false },
-    'east-atlanta': { normal: 32, delay: 15, lost: false },
-    downtown: { normal: 9, delay: 31, lost: true },
-    'vine-city': { normal: 16, delay: 27, lost: true },
-    'capitol-view': { normal: 29, delay: 21, lost: false },
-    peoplestown: { normal: 20, delay: 18, lost: false },
-    'oakland-city': { normal: 31, delay: 22, lost: true },
-    'east-point': { normal: 38, delay: 19, lost: true },
-    'grant-park': { normal: 18, delay: 8, lost: false },
-    'old-fourth-ward': { normal: 17, delay: 11, lost: false },
-    'inman-park': { normal: 21, delay: 6, lost: false },
-    'east-lake': { normal: 34, delay: 4, lost: false },
-    midtown: { normal: 14, delay: 7, lost: false },
-    'virginia-highland': { normal: 19, delay: 5, lost: false },
-    'west-midtown': { normal: 24, delay: 9, lost: false },
-    'grant-park-east': { normal: 15, delay: 10, lost: false },
-  }
-  return table[zoneId] ?? null
+function isHubFailure(station: Station | undefined) {
+  return Boolean(station && /five points/i.test(station.name))
 }
 
-function buildNormalPath(
-  zone: ResidentialZone,
+function isWestEnd(zone: ResidentialZone): boolean {
+  return zone.id === 'west-end' || /west end/i.test(zone.name)
+}
+
+function namedId(list: Station[], pattern: RegExp, fallback: string) {
+  return findStationId(list, pattern) ?? fallback
+}
+
+function westEndTrace(
   poi: PointOfInterest,
-  failedId: string,
-): RoutePath {
-  const viaHub = dependsOnFailed(zone, failedId) && failedId === 'FIVE_POINTS'
-  const nodes: PathNode[] = [zoneNode(zone), stationNode(zone.primaryStationId)]
-  if (viaHub && zone.primaryStationId !== 'FIVE_POINTS') {
-    if (zone.primaryStationId === 'WEST_END') {
-      nodes.push(stationNode('GARNETT'), stationNode('FIVE_POINTS', true))
-    } else if (zone.primaryStationId !== failedId) {
-      nodes.push(stationNode('FIVE_POINTS', true))
-    } else {
-      nodes.push(stationNode('FIVE_POINTS', true))
-    }
-  }
-  if (poi.nearestStationId !== nodes[nodes.length - 1]?.id) {
-    nodes.push(stationNode(poi.nearestStationId))
-  }
-  nodes.push(poiNode(poi))
-  return { nodes, travelMinutes: 0 }
-}
-
-function buildDisruptedPath(
   zone: ResidentialZone,
-  poi: PointOfInterest,
-  failedId: string,
-): RoutePath {
-  const nodes: PathNode[] = [zoneNode(zone)]
-  if (failedId === 'FIVE_POINTS') {
-    if (zone.id === 'west-end') {
-      nodes.push(
-        stationNode('GEORGIA_STATE'),
-        stationNode('KING_MEMORIAL'),
-        poiNode(poi),
-      )
-      return { nodes, travelMinutes: 0 }
-    }
-    const bypass =
-      zone.transferStationIds.find((id) => id !== failedId) ?? poi.nearestStationId
-    if (zone.primaryStationId !== failedId) {
-      nodes.push(stationNode(zone.primaryStationId))
-    }
-    if (bypass !== zone.primaryStationId) {
-      nodes.push(stationNode(bypass))
-    }
-    if (poi.nearestStationId !== bypass) {
-      nodes.push(stationNode(poi.nearestStationId))
-    }
-    nodes.push(poiNode(poi))
-    return { nodes, travelMinutes: 0 }
-  }
-
-  const alternate =
-    zone.transferStationIds.find((id) => id !== failedId) ?? poi.nearestStationId
-  nodes.push(stationNode(alternate))
-  if (poi.nearestStationId !== alternate) {
-    nodes.push(stationNode(poi.nearestStationId))
-  }
-  nodes.push(poiNode(poi))
-  return { nodes, travelMinutes: 0 }
-}
-
-function westEndTrace(poi: PointOfInterest, zone: ResidentialZone): TraceImpact {
+  stations: Map<string, Station>,
+  list: Station[],
+): TraceImpact {
+  const westEnd = namedId(list, /west end/i, 'WEST_END')
+  const fivePoints = namedId(list, /five points/i, 'FIVE_POINTS')
+  const king = namedId(list, /king memorial/i, 'KING_MEMORIAL')
+  const georgiaState = namedId(list, /georgia state/i, 'GEORGIA_STATE')
   const normalPath: RoutePath = {
     travelMinutes: 28,
     nodes: [
       zoneNode(zone),
-      stationNode('WEST_END'),
-      stationNode('FIVE_POINTS', true),
-      stationNode('KING_MEMORIAL'),
+      stationNode(westEnd, stations),
+      stationNode(fivePoints, stations, true),
+      stationNode(king, stations),
       poiNode(poi),
     ],
   }
@@ -186,9 +141,9 @@ function westEndTrace(poi: PointOfInterest, zone: ResidentialZone): TraceImpact 
     travelMinutes: 45,
     nodes: [
       zoneNode(zone),
-      stationNode('WEST_END'),
-      stationNode('GEORGIA_STATE'),
-      stationNode('KING_MEMORIAL'),
+      stationNode(westEnd, stations),
+      stationNode(georgiaState, stations),
+      stationNode(king, stations),
       poiNode(poi),
     ],
   }
@@ -203,9 +158,61 @@ function westEndTrace(poi: PointOfInterest, zone: ResidentialZone): TraceImpact 
   }
 }
 
+function buildPaths(
+  zone: ResidentialZone,
+  poi: PointOfInterest,
+  failedId: string,
+  stationsList: Station[],
+  stations: Map<string, Station>,
+): { normalPath: RoutePath; disruptedPath: RoutePath } {
+  const hubId = findStationId(stationsList, /five points/i)
+  const originId =
+    zone.primaryStationId ??
+    nearestStation(zone.centroid, stationsList)?.id ??
+    hubId ??
+    failedId
+  const destId =
+    poi.nearestStationId ??
+    nearestStation(
+      { latitude: poi.latitude, longitude: poi.longitude },
+      stationsList,
+    )?.id ??
+    originId
+
+  const normalNodes: PathNode[] = [zoneNode(zone), stationNode(originId, stations)]
+  if (hubId && failedId === hubId && originId !== hubId) {
+    normalNodes.push(stationNode(hubId, stations, true))
+  }
+  if (destId !== normalNodes[normalNodes.length - 1]?.id) {
+    normalNodes.push(stationNode(destId, stations))
+  }
+  normalNodes.push(poiNode(poi))
+
+  const disruptedNodes: PathNode[] = [zoneNode(zone)]
+  if (originId !== failedId) {
+    disruptedNodes.push(stationNode(originId, stations))
+  } else if (zone.transferStationIds[0]) {
+    disruptedNodes.push(stationNode(zone.transferStationIds[0], stations))
+  }
+  if (destId !== disruptedNodes[disruptedNodes.length - 1]?.id) {
+    disruptedNodes.push(stationNode(destId, stations))
+  }
+  disruptedNodes.push(poiNode(poi))
+
+  return {
+    normalPath: { nodes: normalNodes, travelMinutes: 0 },
+    disruptedPath: { nodes: disruptedNodes, travelMinutes: 0 },
+  }
+}
+
 export function buildMockSimulation(input: SimulateScenarioRequest): SimulationResult {
-  const failedId = input.closedStations[0] ?? 'FIVE_POINTS'
-  const failedStation = stationById.get(failedId)
+  const stationsList = input.stations?.length ? input.stations : mockStations
+  const zones = input.zones?.length ? input.zones : mockZones
+  const pois = input.pois?.length ? input.pois : mockPois
+  const stations = stationLookup(stationsList)
+  const failedId =
+    input.closedStations[0] ?? namedId(stationsList, /five points/i, 'FIVE_POINTS')
+  const failedStation = stations.get(failedId)
   const categories = input.serviceCategories.length
     ? input.serviceCategories
     : (['hospital'] as PoiCategory[])
@@ -214,21 +221,21 @@ export function buildMockSimulation(input: SimulateScenarioRequest): SimulationR
   const traces: Record<string, TraceImpact> = {}
   const reroutedPaths: RoutePath[] = []
 
-  for (const zone of mockZones) {
-    const poi = pickPoi(categories, zone)
-    const override = failedId === 'FIVE_POINTS' ? fivePointsOverrides(zone.id) : null
-    const failed = stationById.get(failedId)
-    const dist = failed
-      ? haversineKm(zone.centroid, { latitude: failed.latitude, longitude: failed.longitude })
+  for (const zone of zones) {
+    const poi = pickPoi(categories, zone, pois)
+    if (!poi) continue
+    const dist = failedStation
+      ? haversineKm(zone.centroid, {
+          latitude: failedStation.latitude,
+          longitude: failedStation.longitude,
+        })
       : 3
-    const hubPenalty = dependsOnFailed(zone, failedId)
-    const normal = override?.normal ?? Math.round(12 + dist * 6 + (hubPenalty ? 4 : 0))
-    const delay = override
-      ? override.delay
-      : hubPenalty
-        ? Math.round(8 + Math.max(0, 18 - dist * 3) + (zone.primaryStationId === failedId ? 14 : 0))
-        : Math.max(0, Math.round(6 - dist))
-    const lost = override?.lost ?? (delay >= 22 || zone.primaryStationId === failedId)
+    const westEnd = isWestEnd(zone) && isHubFailure(failedStation)
+    const normal = westEnd ? 28 : Math.round(10 + dist * 4.5)
+    const delay = westEnd
+      ? 17
+      : Math.max(0, Math.round(26 - dist * 3.4 + (dist < 1.2 ? 8 : 0)))
+    const lost = delay >= 24 || dist < 0.7
     const disrupted = lost && delay >= 30 ? null : normal + delay
 
     const impact: ZoneImpact = {
@@ -245,33 +252,32 @@ export function buildMockSimulation(input: SimulateScenarioRequest): SimulationR
     }
     zoneImpacts.push(impact)
 
-    const trace: TraceImpact =
-      zone.id === 'west-end' && failedId === 'FIVE_POINTS' && poi.category === 'hospital'
-        ? westEndTrace(poi, zone)
-        : {
-            zoneId: zone.id,
-            poiId: poi.id,
-            normalTravelMinutes: normal,
-            disruptedTravelMinutes: disrupted,
-            delayMinutes: delay,
-            normalPath: {
-              ...buildNormalPath(zone, poi, failedId),
-              travelMinutes: normal,
-            },
-            disruptedPath: {
-              ...buildDisruptedPath(zone, poi, failedId),
-              travelMinutes: disrupted ?? normal + delay,
-            },
-          }
+    const paths = buildPaths(zone, poi, failedId, stationsList, stations)
+    const trace: TraceImpact = westEnd
+      ? westEndTrace(poi, zone, stations, stationsList)
+      : {
+          zoneId: zone.id,
+          poiId: poi.id,
+          normalTravelMinutes: normal,
+          disruptedTravelMinutes: disrupted,
+          delayMinutes: delay,
+          normalPath: { ...paths.normalPath, travelMinutes: normal },
+          disruptedPath: {
+            ...paths.disruptedPath,
+            travelMinutes: disrupted ?? normal + delay,
+          },
+        }
     traces[zone.id] = trace
-    if (delay >= 12) {
+    if (delay >= 12 && reroutedPaths.length < 4) {
       reroutedPaths.push(trace.disruptedPath)
     }
   }
 
+  const westEndIds = new Set(zones.filter(isWestEnd).map((zone) => zone.id))
   zoneImpacts.sort((a, b) => {
-    if (failedId === 'FIVE_POINTS' && a.zoneId === 'west-end') return -1
-    if (failedId === 'FIVE_POINTS' && b.zoneId === 'west-end') return 1
+    if (westEndIds.has(a.zoneId) !== westEndIds.has(b.zoneId)) {
+      return westEndIds.has(a.zoneId) ? -1 : 1
+    }
     return b.delayMinutes - a.delayMinutes
   })
 
@@ -285,21 +291,6 @@ export function buildMockSimulation(input: SimulateScenarioRequest): SimulationR
           affected.reduce((sum, item) => sum + item.delayMinutes, 0) / affected.length,
         )
 
-  const summary =
-    failedId === 'FIVE_POINTS'
-      ? {
-          populationAffected: 28400,
-          averageAddedTravelMinutes: 17,
-          zonesAffected: affected.length,
-          communitiesLosingAccess: 6,
-        }
-      : {
-          populationAffected,
-          averageAddedTravelMinutes,
-          zonesAffected: affected.length,
-          communitiesLosingAccess: lost.length,
-        }
-
   return {
     scenario: {
       id: `scenario_${failedId.toLowerCase()}_${Date.now()}`,
@@ -307,14 +298,15 @@ export function buildMockSimulation(input: SimulateScenarioRequest): SimulationR
       closedStations: [failedId],
       description: `${failedStation?.name ?? failedId} station closure`,
     },
-    summary,
+    summary: {
+      populationAffected,
+      averageAddedTravelMinutes,
+      zonesAffected: affected.length,
+      communitiesLosingAccess: lost.length,
+    },
     zoneImpacts,
     failedStations: [failedId],
-    reroutedPaths: reroutedPaths.slice(0, 4),
+    reroutedPaths,
     traces,
   }
-}
-
-export function getStation(id: string): Station | undefined {
-  return stationById.get(id)
 }

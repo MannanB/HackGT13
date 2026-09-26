@@ -1,6 +1,5 @@
 import { Check, ChevronDown } from 'lucide-react'
-import { useState } from 'react'
-import { SELECTABLE_STATION_IDS } from '@/data/mockStations'
+import { useMemo, useState } from 'react'
 import { useScenarioStore } from '@/store/scenarioStore'
 import { MARTA_LINE_HEX } from '@/utils/constants'
 import { cn } from '@/utils/cn'
@@ -12,8 +11,9 @@ export function StationSelector() {
   const simulationStatus = useScenarioStore((state) => state.simulationStatus)
   const [open, setOpen] = useState(false)
 
-  const selectable = stations.filter((station) =>
-    SELECTABLE_STATION_IDS.includes(station.id as (typeof SELECTABLE_STATION_IDS)[number]),
+  const selectable = useMemo(
+    () => stations.slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [stations],
   )
   const selected = stations.find((station) => station.id === selectedStationId)
   const offline = simulationStatus === 'success'

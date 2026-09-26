@@ -1,18 +1,12 @@
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers'
 import type { Station } from '@/types/network'
 
-const LABEL_IDS = new Set([
-  'AIRPORT',
-  'WEST_END',
-  'FIVE_POINTS',
-  'NORTH_AVENUE',
-  'ARTS_CENTER',
-  'LINDBERGH',
-  'BUCKHEAD',
-  'EAST_LAKE',
-  'OAKLAND_CITY',
-  'KING_MEMORIAL',
-])
+const LABEL_PATTERN =
+  /Airport|West End|Five Points|North Ave|Arts Center|Lindbergh|Buckhead|East Lake|Oakland City|King Memorial|Midtown|Peachtree Center/i
+
+function shouldLabel(station: Station) {
+  return station.lines.length > 2 || LABEL_PATTERN.test(station.name)
+}
 
 export function createStationLayers(
   stations: Station[],
@@ -74,7 +68,7 @@ export function createStationLayers(
 
   const labels = new TextLayer<Station>({
     id: 'station-labels',
-    data: stations.filter((station) => LABEL_IDS.has(station.id)),
+    data: stations.filter(shouldLabel),
     getPosition: (d) => [d.longitude, d.latitude],
     getText: (d) => (failed.has(d.id) ? `${d.name}  ·  Offline` : d.name),
     getSize: 11,

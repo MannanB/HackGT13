@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { getPointsOfInterest, getZones } from '@/services/geoService'
-import { getStations, getTransitEdges } from '@/services/stationService'
+import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
+import { getNetwork } from '@/services/stationService'
 import { getTraceImpact, simulateScenario } from '@/services/simulationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
@@ -39,11 +39,11 @@ interface ScenarioState {
   setBeforeAfterMode: (mode: 'both' | 'normal' | 'disrupted') => void
 }
 
-const defaultCategories: PoiCategory[] = ['hospital', 'grocery', 'pharmacy']
+const defaultCategories: PoiCategory[] = ['government', 'hospital', 'grocery']
 
 export const useScenarioStore = create<ScenarioState>((set, get) => ({
   activeAppMode: 'simulate',
-  selectedStationId: 'FIVE_POINTS',
+  selectedStationId: '',
   selectedServiceCategories: defaultCategories,
   simulationStatus: 'idle',
   simulationError: null,
@@ -81,13 +81,34 @@ export const useScenarioStore = create<ScenarioState>((set, get) => ({
   },
 
   loadNetwork: async () => {
-    const [stations, transitEdges, zones, pois] = await Promise.all([
-      getStations(),
-      getTransitEdges(),
-      getZones(),
-      getPointsOfInterest(),
-    ])
-    set({ stations, transitEdges, zones, pois, networkReady: true })
+    try {
+      const [network, zones, pois, accessEdges] = await Promise.all([
+        getNetwork(),
+        getZones(),
+        getPointsOfInterest(),
+        getAccessEdges(),
+      ])
+      const connected = attachAccess(zones, pois, accessEdges)
+      const fivePoints = network.stations.find((station) => /five points/i.test(station.name))
+      const currentId = get().selectedStationId
+      const stillValid = network.stations.some((station) => station.id === currentId)
+      set({
+        stations: network.stations,
+        transitEdges: network.transitEdges,
+        zones: connected.zones,
+        pois: connected.pois,
+        selectedStationId: stillValid
+          ? currentId
+          : (fivePoints?.id ?? network.stations[0]?.id ?? ''),
+        networkReady: true,
+        simulationError: null,
+      })
+    } catch (error) {
+      set({
+        networkReady: true,
+        simulationError: error instanceof Error ? error.message : 'Failed to load network',
+      })
+    }
   },
 
   runSimulation: async () => {
@@ -103,6 +124,9 @@ export const useScenarioStore = create<ScenarioState>((set, get) => ({
       const simulationResult = await simulateScenario({
         closedStations: [selectedStationId],
         serviceCategories: selectedServiceCategories,
+        zones: get().zones,
+        pois: get().pois,
+        stations: get().stations,
       })
       set({ simulationStatus: 'success', simulationResult })
     } catch (error) {
