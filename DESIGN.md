@@ -32,7 +32,7 @@ HackGT13/
 ├── frontend/                 # React app
 ├── backend/                  # FastAPI app, SQL migrations, experimental JSON
 ├── data/                     # ETL builders (Postgres loaders + JSON artifacts)
-├── design.md                 # this document
+├── DESIGN.md                 # this document
 └── README.md
 ```
 
@@ -61,13 +61,13 @@ HackGT13/
 | Path | Role |
 |------|------|
 | `app/main.py` | FastAPI app, CORS, lifespan |
-| `app/config.py` | Settings (`DATABASE_URL`, Gemini/OpenAI, CORS) |
+| `app/config.py` | Settings (`DATABASE_URL`, Gemini / xAI / OpenAI, CORS) |
 | `app/db.py` | psycopg connection pool |
 | `app/migrate.py` | Applies `sql/001`–`004` |
 | `app/api/` | HTTP routers |
 | `app/repositories/` | SQL |
 | `app/schemas.py` | Pydantic models |
-| `app/gemini.py`, `openai.py`, `events.py` | LLM event interpretation |
+| `app/gemini.py`, `xai.py`, `openai.py`, `events.py` | LLM event interpretation |
 | `app/hospital_choice.py` | Conditional-logit prior |
 | `app/activity_model.py` | Serves Atlanta day-demand JSON |
 | `sql/` | Schema and migrations |
@@ -126,22 +126,7 @@ Basemap: Carto Dark Matter (no labels). Fonts: Geist, Geist Mono, Instrument Ser
 
 PostgreSQL with **PostGIS** (geography) and **TimescaleDB** (hypertable on `travel_times`).
 
-### External services
-
-| Service | Use |
-|---------|-----|
-| MARTA GTFS zip | Rail stations and edges |
-| MARTA realtime arrivals | Live trains |
-| Census ACS 2024 5-year | Demographics |
-| Census TIGER 2024 block groups | Zone polygons |
-| Census LODES (GA) | Commute / workplace jobs |
-| OpenStreetMap / OSMnx / Geofabrik Georgia PBF | POIs, walking routes |
-| CMS Provider / Cost Report / HSA | Hospital beds and Medicare origins |
-| NHTS 2022, CDC NHAMCS 2022, AHRQ MEPS | Hourly demand |
-| Google Gemini (e.g. `gemini-3.5-flash`) | Intelligence events |
-| OpenAI Chat Completions (e.g. `gpt-4o-mini`) | Fallback intelligence |
-| NCES CCD (optional) | School enrollment overlay |
-| National Transit Database | Activity-model boarding calibration |
+Upstream sources, live feeds, and model APIs are listed in section 5.
 
 ---
 
@@ -153,13 +138,14 @@ PostgreSQL with **PostGIS** (geography) and **TimescaleDB** (hypertable on `trav
 |------|--------|
 | **disrupt** | Set stations to `maintenance` (board blocked, trains pass) or `shutdown` (line cut). Map shows delay; impact panel shows communities, POI pressure, forecasts. |
 | **add** | Place or drag new POIs (or CIP-optimal sites). Green indicates ≥ 15 minutes access gain vs baseline, optionally over an active disruption. |
-| **intel** | Natural-language event → Gemini/OpenAI tool call → station impacts + radius → same disruption simulator. |
+| **intel** | Natural-language event → Gemini, then Grok, then OpenAI → station impacts + radius → same disruption simulator. |
+| **build** | Add or remove stations and destinations in the shared database. Unlike the other tabs, these changes are permanent. |
 
 Typical path:
 
 1. App mounts → `AppShell` → `loadNetwork()` fetches network, zones, POIs, access edges, experimental context, street routes, activity model.
 2. Map renders MARTA, zones, and POIs; optional live trains.
-3. Left sidebar: scenario controls. Right: impact or intelligence. Bottom: timeline.
+3. Left sidebar: scenario controls. Right: impact, intelligence, or build. Bottom: timeline.
 4. Station state / added POI / intel event → `buildAccessSimulation` or `buildAdditionSimulation`.
 5. Click a zone → path before/after. Timeline sets failure start and elapsed clock.
 
@@ -173,56 +159,96 @@ Other flows:
 
 ## 5. Data sources
 
-### MARTA GTFS
+Every upstream input is listed once. Derived tables and JSON built from these inputs are at the end of this section.
 
-- Source: `https://itsmarta.com/google_transit_feed/google_transit.zip`
-- Scripts: `data/gtfs/fetch_gtfs.py`, `data/gtfs/load_gtfs.py`
-- Loads: upsert `stations`, replace `transit_edges` (Red, Gold, Blue, Green rail)
+### Static datasets
 
-### Residential zones (TIGER + ACS)
+| # | Source | Publisher | Vintage | Supplies | Lands in | Builder |
+|---|--------|-----------|---------|----------|----------|---------|
+| 1 | MARTA GTFS (`google_transit.zip`) | MARTA | Current feed | Rail stations and directed ride edges (Red, Gold, Blue, Green) | `stations`, `transit_edges` | `data/gtfs/fetch_gtfs.py`, `data/gtfs/load_gtfs.py` |
+| 2 | TIGER/Line block groups (`tl_2024_13_bg.zip`) | U.S. Census Bureau | 2024 | Fulton (`121`) and DeKalb (`089`) block-group polygons and internal points | `residential_zones` | `data/residentials/fetch_block_groups.py`, `load_residential_zones.py` |
+| 3 | American Community Survey 5-year | U.S. Census Bureau | 2024 | Population, income, vehicles, transit commute, poverty, disability, age, limited English | `residential_zones`; also `context.json` | `data/residentials/fetch_acs.py` (`CENSUS_API_KEY` optional) |
+| 4 | LODES 8.4 OD and WAC (Georgia) | U.S. Census Bureau / LEHD | 2023 | Commute flows and workplace jobs | `backend/data/experimental/context.json` | `data/experimental/build_experimental_data.py` |
+| 5 | 2020 Atlanta urban area facts | U.S. Census Bureau | 2020 | Density benchmark, 1,998 people per square mile | Density uplift inside `hourlyDemandProfiles.json` | `data/time_profiles/build_hourly_profiles.py` |
+| 6 | OpenStreetMap POIs | OSM contributors, via OSMnx / Overpass | Live extract | Hospital, clinic, school, university, library, townhall, supermarket | `points_of_interest`; hours and capacity tags in `context.json` | `data/poi/fetch_pois.py`, `data/poi/load_pois.py` |
+| 7 | Georgia OSM PBF | Geofabrik | Latest extract | Walking-route cache | `backend/data/experimental/street_routes.json` | `backend/scripts/download_street_network.py` |
+| 8 | OpenStreetMap streets | OSM contributors, via Overpass | Live extract | Local walking graph for experimentation | `backend/data/experimental/streets.graph.json` (gitignored) | `backend/scripts/download_street_network.py` |
+| 9 | Provider Specific Files | CMS | Latest record | Inpatient, psychiatric, and long-term-care bed counts | `frontend/src/data/hospitalBeds.json` | `data/hospitals/build_hospital_beds.py` |
+| 10 | Hospital Provider Cost Report | CMS | 2023 utilization fields | Inpatient days, bed-days, discharges → occupancy and length of stay | `frontend/src/data/hospitalBeds.json` | `data/hospitals/build_hospital_beds.py` |
+| 11 | Hospital Service Area | CMS | Calendar year 2024 | Atlanta ZIP × CCN Medicare inpatient discharges | `data/hospitals/atlanta_medicare_origins.json` | `data/hospitals/build_hospital_choice.py` |
+| 12 | National Household Travel Survey v2.1 | FHWA | 2022 | Weighted arrival hour by trip purpose | `frontend/src/data/hourlyDemandProfiles.json` | `data/time_profiles/build_hourly_profiles.py` |
+| 13 | National Hospital Ambulatory Medical Care Survey, ED file | CDC / NCHS | 2022 | 24-hour emergency-department arrival profile | `frontend/src/data/hourlyDemandProfiles.json` | `data/time_profiles/build_hourly_profiles.py` |
+| 14 | Medical Expenditure Panel Survey, outpatient visits | AHRQ | 2024 | National outpatient volume; model uses 1 visit per person-year | Hospital demand blend in `hourlyDemandProfiles.json` | `data/time_profiles/build_hourly_profiles.py` |
+| 15 | Common Core of Data, school membership | NCES | 2023–24 | Public-school enrollment, matched by normalized name | `context.json`, only with `--with-nces` | `data/experimental/build_experimental_data.py` |
+| 16 | National Transit Database monthly ridership (`ntd_id` 40022, mode HR) | FTA | 2025 | System weekday boarding total used to scale the day model | `data/activity/atlanta_day_model.json` | `data/activity/train_day_model.py` |
+| 17 | MARTA average weekday station entries | MARTA | 2019 | Station mix; scaled so the system total matches the 2025 NTD weekday | `data/activity/atlanta_day_model.json` | `data/activity/train_day_model.py` |
 
-- TIGER 2024 Georgia block groups (`tl_2024_13_bg.zip`), Fulton (`121`) and DeKalb (`089`)
-- ACS 2024 5-year: population, income, vehicles, transit, poverty, disability, age, LEP, etc.
-- Scripts: `fetch_block_groups.py`, `fetch_acs.py`, `load_residential_zones.py`
-- Load: `residential_zones` near stations (optional `CENSUS_API_KEY`)
+URLs:
 
-### POIs (OpenStreetMap)
+1. `https://itsmarta.com/google_transit_feed/google_transit.zip`
+2. `https://www2.census.gov/geo/tiger/TIGER2024/BG/tl_2024_13_bg.zip`
+3. `https://api.census.gov/data/2024/acs/acs5`
+4. `https://lehd.ces.census.gov/data/lodes/LODES8/ga`
+5. `https://www.census.gov/programs-surveys/geography/guidance/geo-areas/urban-rural/2020-ua-facts.html`
+6. OpenStreetMap via OSMnx (Overpass). Source tag on rows: `openstreetmap`.
+7. `https://download.geofabrik.de/north-america/us/georgia-latest.osm.pbf`
+8. Overpass (`overpass.kumi.systems`, `overpass-api.de`). Street data © OpenStreetMap contributors, ODbL.
+9. `https://pds.mps.cms.gov/fiss/inpatient/export` (inpatient, IPF, and LTCH, latest record only)
+10. `https://data.cms.gov/data-api/v1/dataset/44060663-47d8-4ced-a115-b53b4c270acb/data`
+11. `https://data.cms.gov/sites/default/files/2025-07/8fca1932-adaa-411d-a912-78fb0854a286/Hospital_Service_Area_2024.csv`
+12. `https://nhts.ornl.gov/media/2022/download/csv.zip`
+13. `https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHAMCS/ed2022.zip`
+14. `https://meps.ahrq.gov/data_stats/download_data/pufs/h254f/h254fdoc.shtml`
+15. `https://nces.ed.gov/ccd/Data/zip/ccd_sch_052_2324_l_1a_073124.zip`
+16. `https://data.transportation.gov/resource/8bui-9xvu.json`
+17. Published station table embedded in `data/activity/train_day_model.py` (`ENTRIES_2019`).
 
-- Tags: hospital, clinic, school, university, library, townhall, supermarket
-- Scripts: `data/poi/fetch_pois.py`, `data/poi/load_pois.py` → `points_of_interest`
+Notes on hospitals and demand:
 
-### Access edges
+- CMS beds are a hand-reviewed OSM id → CCN crosswalk. Unmatched OSM hospitals stay without assumed bed counts.
+- Occupancy = reported inpatient days / reported bed-days available. Average length of stay = reported inpatient days / reported discharges. These are annual operating estimates, not live beds.
+- CMS suppresses small ZIP–hospital counts as `*`; those rows are omitted from the origin table. The choice model is not fit to that table yet.
+- Hourly profiles are national proxies. Block groups denser than 1,998 people per square mile get a square-root density uplift capped at 2.5×.
+- NCES is optional. Without `--with-nces`, school capacity is used only where OpenStreetMap publishes a capacity-like tag.
 
-- Script: `data/access_edges/load_access_edges.py`
-- Straight-line walk at 80 m/min; nearest station plus up to two more within 1.5 miles
-- Table: `access_edges` (`zone` or `poi`)
+### Live feeds
 
-### Hourly demand profiles
+| # | Source | Publisher | Supplies | Lands in |
+|---|--------|-----------|----------|----------|
+| 18 | Rail realtime arrivals | MARTA | Train id, position, waiting time | `GET /api/v1/live/trains` proxies the feed; the browser never calls MARTA directly |
 
-- Builder: `data/time_profiles/build_hourly_profiles.py`
-- Artifact: `frontend/src/data/hourlyDemandProfiles.json`
-- NHTS 2022 purpose arrivals, NHAMCS 2022 ED arrivals, MEPS outpatient proxy (~1 visit/person-year)
-- Density uplift vs Atlanta urban density (1,998 people/mi², cap 2.5×)
+URL: `https://developerservices.itsmarta.com:18096/itsmarta/railrealtimearrivals/developerservices/traindata`
 
-### Hospitals (CMS)
+### Model APIs
 
-- `data/hospitals/build_hospital_beds.py` → `frontend/src/data/hospitalBeds.json` (keyed by OSM id)
-- Occupancy = inpatient days / bed-days available; ALOS = inpatient days / discharges
-- `data/hospitals/build_hospital_choice.py` → `data/hospitals/atlanta_medicare_origins.json` (ZIP × CCN discharges for a future choice-model fit)
-- Unmatched OSM hospitals stay without assumed bed counts
+Intelligence tries these in order. Keys stay on the server.
 
-### Experimental overlay (files only)
+| # | Source | Default model | Role | Code |
+|---|--------|---------------|------|------|
+| 19 | Google Gemini | `gemini-3.5-flash` | First interpreter for a natural-language event | `backend/app/gemini.py` |
+| 20 | xAI Grok | `grok-4` | Fallback if Gemini fails | `backend/app/xai.py` |
+| 21 | OpenAI Chat Completions | `gpt-4o-mini` | Fallback if Gemini and Grok both fail | `backend/app/openai.py` |
 
-- Builder: `data/experimental/build_experimental_data.py`
-- Output: `backend/data/experimental/context.json` (gitignored)
-- ACS, LODES commute/jobs, POI hours/capacity; optional NCES enrollment
-- Walking cache: `street_routes.json` from Geofabrik Georgia OSM PBF (`backend/scripts/download_street_network.py`)
-- Not written to PostgreSQL
+Tool schema: `simulate_urban_event` in `backend/app/events.py`. Endpoint: `POST /api/v1/intelligence/events`.
 
-### Activity day model
+### Map tiles
 
-- Trainer: `data/activity/train_day_model.py` → `data/activity/atlanta_day_model.json`
-- Served at `GET /api/v1/activity/model`; used when present to adjust trip rates and walk/transfer constants
+| # | Source | Supplies |
+|---|--------|----------|
+| 22 | Carto Dark Matter, no labels | Basemap style only. Not used in the access model. |
+
+URL: `https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json`
+
+### Derived, not upstream
+
+| Artifact | Built from | Rule |
+|----------|------------|------|
+| `access_edges` | Zones, POIs, stations | Straight-line walk at 80 m/min. Nearest station, plus up to two more within 1.5 miles. Script: `data/access_edges/load_access_edges.py`. |
+| `backend/data/experimental/context.json` | ACS, LODES, OSM, optional NCES | File overlay. Not written to PostgreSQL. Committed copy omits origin–destination flows. |
+| `frontend/src/data/hourlyDemandProfiles.json` | NHTS, NHAMCS, MEPS, Census density | Tracked so the app runs without refreshing the federal ZIPs. |
+| `frontend/src/data/hospitalBeds.json` | CMS PSF + cost report, OSM crosswalk | Tracked so the app runs without a runtime CMS request. |
+| `data/hospitals/atlanta_medicare_origins.json` | CMS Hospital Service Area | Training table for a later conditional-logit fit. |
+| `data/activity/atlanta_day_model.json` | ACS-style zone features, 2019 entries, 2025 NTD | Served at `GET /api/v1/activity/model`. Adjusts trip rates and walk/transfer constants when present. |
 
 ---
 
@@ -232,7 +258,7 @@ Core tables (`backend/sql/001_schema.sql` plus later migrations):
 
 | Table | Contents |
 |-------|----------|
-| `stations` | Rail stops, lines (`Red`/`Gold`/`Blue`/`Green`), geography |
+| `stations` | Rail stops, lines (`Red` / `Gold` / `Blue` / `Green`), geography |
 | `transit_edges` | Directed rail segments, travel and frequency minutes |
 | `residential_zones` | Block-group polygons, centroid, population, income (+ extra ACS via `002`) |
 | `points_of_interest` | Destinations; unique `(source, source_id)` (`003`) |
@@ -320,8 +346,8 @@ On load it parallel-fetches geo payloads, attaches experimental attributes and h
 
 ### Layout
 
-- Left: `ScenarioSidebar` (station / add / intel + `ServiceLayerToggle`)
-- Right: `ImpactPanel` or `IntelligencePanel`
+- Left: `ScenarioSidebar` (station / add / intel / build + `ServiceLayerToggle`)
+- Right: `ImpactPanel`, `IntelligencePanel`, or `BuildPanel`
 - Bottom: `TimeSlider`
 - Trace: `TraceImpactPanel`, `BeforeAfterComparison`, `DependencyChain`
 
@@ -346,11 +372,11 @@ From closure (and optional addition) results: hourly arrivals, delayed trips, pe
 
 ### Hospital choice
 
-Backend prior (`hospital_choice.py`): untrained conditional logit on travel minutes, log beds, and occupancy (`trained: false`). Training table `atlanta_medicare_origins.json` is prepared for a future CE fit. Runtime assignment uses **nearest travel time** plus CMS beds from `hospitalBeds.json`.
+Backend prior (`hospital_choice.py`): untrained conditional logit on travel minutes, log beds, and occupancy (`trained: false`). Training table `atlanta_medicare_origins.json` is prepared for a future cross-entropy fit. Runtime assignment uses **nearest travel time** plus CMS beds from `hospitalBeds.json`.
 
 ### Intelligence
 
-User prompt + station catalog → `POST /api/v1/intelligence/events`. Prefer Gemini; fall back to OpenAI. Tool schema `simulate_urban_event` in `events.py`. `applyIntelEvent` sets station states, focus bounds, and runs the disruption sim.
+User prompt + station catalog → `POST /api/v1/intelligence/events`. Order: Gemini, then Grok, then OpenAI. Tool schema `simulate_urban_event` in `events.py`. `applyIntelEvent` sets station states, focus bounds, and runs the disruption sim.
 
 ---
 
@@ -359,7 +385,7 @@ User prompt + station catalog → `POST /api/v1/intelligence/events`. Prefer Gem
 ```bash
 # API
 cd backend
-# DATABASE_URL (and optional GEMINI / OPENAI keys) in .env
+# DATABASE_URL (and optional GEMINI / XAI / OPENAI keys) in .env
 # apply migrations, then:
 uvicorn app.main:app --reload --port 8000
 
@@ -369,4 +395,4 @@ npm install
 npm run dev   # http://localhost:5173
 ```
 
-ETL scripts under `data/` expect the same `DATABASE_URL` as the API (except experimental/time-profile/hospital builders, which write JSON files).
+ETL scripts under `data/` expect the same `DATABASE_URL` as the API, except the experimental, time-profile, and hospital builders, which write JSON files.

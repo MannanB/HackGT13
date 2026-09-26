@@ -20,7 +20,7 @@ export function TimeSlider({ open, onToggle }: { open: boolean; onToggle: () => 
   const setFailureElapsedMinutes = useScenarioStore((state) => state.setFailureElapsedMinutes)
 
   return (
-    <section className="glass pointer-events-auto absolute bottom-3 left-1/2 z-30 w-[min(760px,calc(100%-32px))] -translate-x-1/2 rounded-2xl px-4 py-2.5">
+    <section className="glass pointer-events-auto absolute bottom-3 left-1/2 z-30 w-[min(760px,calc(100%-22rem))] -translate-x-1/2 rounded-2xl px-4 py-2.5">
       <button
         type="button"
         aria-expanded={open}

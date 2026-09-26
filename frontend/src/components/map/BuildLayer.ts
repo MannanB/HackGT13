@@ -65,7 +65,7 @@ export function createBuildLayers({
       getSize: 12,
       getColor: [238, 242, 247, 255],
       getPixelOffset: [0, 18],
-      fontFamily: 'Geist, sans-serif',
+      fontFamily: 'Inter, sans-serif',
       fontWeight: 600,
       fontSettings: { sdf: true },
       outlineWidth: 3,

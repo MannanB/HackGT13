@@ -171,7 +171,7 @@ export function createLiveTrainLayers(trains: SimTrain[]) {
       getSize: 8,
       sizeUnits: 'pixels',
       getColor: [5, 7, 11, 255],
-      fontFamily: 'Geist, sans-serif',
+      fontFamily: 'Inter, sans-serif',
       fontWeight: 800,
       getTextAnchor: 'middle',
       getAlignmentBaseline: 'center',
