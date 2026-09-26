@@ -1,6 +1,6 @@
 import type { LayersList, PickingInfo } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
-import { Box, Loader2, Square, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Map, useControl, type MapRef } from 'react-map-gl/maplibre'
 import { ADDED_POI_LAYER, createAddedPoiLayers } from '@/components/map/AddedPoiLayer'
@@ -85,7 +85,6 @@ export function CivicMap() {
   const hoverStation = useScenarioStore((state) => state.hoverStation)
   const selectZone = useScenarioStore((state) => state.selectZone)
   const hoverZone = useScenarioStore((state) => state.hoverZone)
-  const setExtruded = useScenarioStore((state) => state.setExtruded)
   const appMode = useScenarioStore((state) => state.appMode)
   const setAppMode = useScenarioStore((state) => state.setAppMode)
   const addedPois = useScenarioStore((state) => state.addedPois)
@@ -167,10 +166,6 @@ export function CivicMap() {
       essential: true,
     })
   }, [focusRequest])
-
-  useEffect(() => {
-    mapRef.current?.easeTo({ pitch: extruded ? 52 : 0, bearing: extruded ? -18 : 0, duration: 900 })
-  }, [extruded])
 
   const layers = useMemo<LayersList>(
     () => [
@@ -341,7 +336,10 @@ export function CivicMap() {
         mapStyle={MAP_STYLE}
         initialViewState={ATLANTA_VIEW}
         attributionControl={{ compact: true }}
-        maxPitch={70}
+        maxPitch={0}
+        dragRotate={false}
+        touchPitch={false}
+        pitchWithRotate={false}
         onLoad={(event) => {
           const map = event.target
           softenBasemapRoads(map)
@@ -443,15 +441,6 @@ export function CivicMap() {
               </div>
             </div>
           )}
-          <Segmented
-            className="glass rounded-xl"
-            value={extruded ? '3d' : '2d'}
-            onChange={(value) => setExtruded(value === '3d')}
-            options={[
-              { value: '2d', label: <><Square className="h-3 w-3" /> Flat</> },
-              { value: '3d', label: <><Box className="h-3 w-3" /> Extrude delay</> },
-            ]}
-          />
         </div>
       )}
 
