@@ -11,7 +11,8 @@ export function AppShell() {
   const loadStatus = useScenarioStore((state) => state.loadStatus)
   const loadError = useScenarioStore((state) => state.loadError)
   const criticalProgress = useScenarioStore((state) => state.poiCriticalProgress)
-  const ready = loadStatus === 'ready' && criticalProgress >= 1
+  const criticalFromCache = useScenarioStore((state) => state.criticalFromCache)
+  const ready = loadStatus === 'ready' && (criticalProgress >= 1 || criticalFromCache)
   const overall = loadStatus === 'ready' ? 0.1 + criticalProgress * 0.9 : 0.05
 
   useEffect(() => {

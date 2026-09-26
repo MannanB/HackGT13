@@ -24,14 +24,20 @@ export function networkFingerprint(input: {
   zones: ResidentialZone[]
   pois: PointOfInterest[]
 }): string {
-  const stations = input.stations
+  const stations = [...input.stations]
+    .sort((a, b) => a.id.localeCompare(b.id))
     .map((station) => `${station.id}:${station.latitude.toFixed(5)}:${station.longitude.toFixed(5)}`)
     .join('|')
-  const edges = input.transitEdges
+  const edges = [...input.transitEdges]
+    .sort((a, b) => a.id.localeCompare(b.id))
     .map((edge) => `${edge.fromStation}>${edge.toStation}:${edge.line}:${edge.travelMinutes}`)
     .join('|')
-  const zones = input.zones.map((zone) => `${zone.id}:${zone.population}`).join('|')
-  const pois = input.pois
+  const zones = [...input.zones]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((zone) => `${zone.id}:${zone.population}`)
+    .join('|')
+  const pois = [...input.pois]
+    .sort((a, b) => a.id.localeCompare(b.id))
     .map((poi) => `${poi.id}:${poi.category}:${poi.latitude.toFixed(5)}:${poi.longitude.toFixed(5)}`)
     .join('|')
   return fnv1a(`${stations}\n${edges}\n${zones}\n${pois}`)
@@ -48,6 +54,17 @@ export function readCriticalCache(
     return record.snapshot
   } catch {
     return null
+  }
+}
+
+export function hasCriticalCache(): boolean {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return false
+    const record = JSON.parse(raw) as CacheRecord
+    return Boolean(record.fingerprint && record.snapshot)
+  } catch {
+    return false
   }
 }
 

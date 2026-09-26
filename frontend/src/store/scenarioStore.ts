@@ -6,6 +6,7 @@ import {
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
 import {
+  hasCriticalCache,
   networkFingerprint,
   readCriticalCache,
   writeCriticalCache,
@@ -53,6 +54,7 @@ interface ScenarioState {
   poiCriticalById: Record<string, PoiCriticalStation>
   /** Fraction of stations already tested for the per-facility critical index. */
   poiCriticalProgress: number
+  criticalFromCache: boolean
 
   setAppMode: (mode: AppMode) => void
   setMapCenter: (longitude: number, latitude: number) => void
@@ -197,7 +199,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     appMode: 'disrupt',
     addedPois: [],
     mapCenter: { longitude: -84.39, latitude: 33.755 },
-    loadStatus: 'loading',
+    loadStatus: hasCriticalCache() ? 'ready' : 'loading',
     loadError: null,
     stations: [],
     transitEdges: [],
@@ -220,11 +222,16 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     extruded: false,
     focusRequest: null,
     poiCriticalById: {},
-    poiCriticalProgress: 0,
+    poiCriticalProgress: hasCriticalCache() ? 1 : 0,
+    criticalFromCache: hasCriticalCache(),
 
     loadNetwork: async () => {
       criticalGeneration += 1
-      set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0 })
+      const alreadyShowingMap = get().stations.length > 0
+      const diskCache = hasCriticalCache()
+      if (!alreadyShowingMap && !diskCache) {
+        set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0, criticalFromCache: false })
+      }
       try {
         const [network, zones, pois, accessEdges] = await Promise.all([
           getNetwork(),
@@ -252,6 +259,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           loadStatus: 'ready',
           poiCriticalById: cached ?? {},
           poiCriticalProgress: cached ? 1 : 0,
+          criticalFromCache: Boolean(cached),
         })
         if (!cached) {
           const generation = ++criticalGeneration
