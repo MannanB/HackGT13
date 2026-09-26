@@ -9,56 +9,21 @@ import {
 } from 'lucide-react'
 import { useScenarioStore } from '@/store/scenarioStore'
 import { cn } from '@/utils/cn'
+import { categoryWeight } from '@/utils/categoryWeights'
 import type { PoiCategory } from '@/types/geography'
 
 const services: {
   category: PoiCategory
   label: string
-  description: string
   icon: typeof Cross
 }[] = [
-  {
-    category: 'hospital',
-    label: 'Hospital',
-    description: 'Emergency and inpatient care',
-    icon: Cross,
-  },
-  {
-    category: 'clinic',
-    label: 'Clinic',
-    description: 'Clinics and outpatient care',
-    icon: Stethoscope,
-  },
-  {
-    category: 'grocery',
-    label: 'Grocery',
-    description: 'Supermarkets and food stores',
-    icon: UtensilsCrossed,
-  },
-  {
-    category: 'government',
-    label: 'Government',
-    description: 'Civic buildings and services',
-    icon: Landmark,
-  },
-  {
-    category: 'school',
-    label: 'School',
-    description: 'K–12 schools',
-    icon: GraduationCap,
-  },
-  {
-    category: 'university',
-    label: 'University',
-    description: 'Colleges and universities',
-    icon: Building2,
-  },
-  {
-    category: 'library',
-    label: 'Library',
-    description: 'Public libraries',
-    icon: BookOpen,
-  },
+  { category: 'hospital', label: 'Hospital', icon: Cross },
+  { category: 'clinic', label: 'Clinic', icon: Stethoscope },
+  { category: 'school', label: 'School', icon: GraduationCap },
+  { category: 'government', label: 'Government', icon: Landmark },
+  { category: 'university', label: 'University', icon: Building2 },
+  { category: 'grocery', label: 'Grocery', icon: UtensilsCrossed },
+  { category: 'library', label: 'Library', icon: BookOpen },
 ]
 
 const ICON_TONE: Partial<Record<PoiCategory, string>> = {
@@ -73,63 +38,86 @@ const ICON_TONE: Partial<Record<PoiCategory, string>> = {
 
 export function ServiceLayerToggle() {
   const selected = useScenarioStore((state) => state.selectedServiceCategories)
+  const weights = useScenarioStore((state) => state.categoryWeights)
   const toggle = useScenarioStore((state) => state.toggleServiceCategory)
+  const setCategoryWeight = useScenarioStore((state) => state.setCategoryWeight)
   const pois = useScenarioStore((state) => state.pois)
 
   return (
-    <div className="space-y-1.5">
-      {services.map((service) => {
-        const Icon = service.icon
-        const checked = selected.includes(service.category)
-        const count = pois.filter((poi) => poi.category === service.category).length
-        return (
-          <label
-            key={service.category}
-            className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 hover:bg-ink-800"
-          >
-            <input
-              type="checkbox"
-              className="peer sr-only"
-              checked={checked}
-              onChange={() => toggle(service.category)}
-            />
-            <span
-              className={cn(
-                'flex h-4 w-4 items-center justify-center rounded border',
-                checked ? 'border-signal bg-signal text-white' : 'border-ink-500 bg-ink-850',
-              )}
-            >
-              {checked && (
-                <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">
-                  <path
-                    d="M2.5 6.2 4.8 8.5 9.5 3.5"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
+    <table className="w-full border-separate border-spacing-y-1 text-left">
+      <thead>
+        <tr className="text-[10px] font-medium uppercase tracking-[0.12em] text-fog-400">
+          <th className="px-2 pb-1 font-medium">Category</th>
+          <th className="w-16 px-1 pb-1 text-right font-medium">Weight</th>
+        </tr>
+      </thead>
+      <tbody>
+        {services.map((service) => {
+          const Icon = service.icon
+          const checked = selected.includes(service.category)
+          const weight = categoryWeight(weights, service.category)
+          const count = pois.filter((poi) => poi.category === service.category).length
+          return (
+            <tr key={service.category} className="align-middle">
+              <td className="rounded-l-lg bg-ink-850/80 px-2 py-1.5">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={checked}
+                    onChange={() => toggle(service.category)}
                   />
-                </svg>
-              )}
-            </span>
-            <span
-              className={cn(
-                'flex h-8 w-8 items-center justify-center rounded-lg',
-                ICON_TONE[service.category] ?? 'bg-ink-700 text-fog-400',
-              )}
-            >
-              <Icon className="h-4 w-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center justify-between gap-2">
-                <span className="text-sm text-fog-100">{service.label}</span>
-                {count > 0 && (
-                  <span className="text-[11px] tabular-nums text-fog-400">{count}</span>
-                )}
-              </span>
-              <span className="block text-[11px] text-fog-400">{service.description}</span>
-            </span>
-          </label>
-        )
-      })}
-    </div>
+                  <span
+                    className={cn(
+                      'flex h-3.5 w-3.5 items-center justify-center rounded border',
+                      checked ? 'border-signal bg-signal text-white' : 'border-ink-500 bg-ink-900',
+                    )}
+                  >
+                    {checked && (
+                      <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none">
+                        <path
+                          d="M2.5 6.2 4.8 8.5 9.5 3.5"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    )}
+                  </span>
+                  <span
+                    className={cn(
+                      'flex h-6 w-6 items-center justify-center rounded-md',
+                      ICON_TONE[service.category] ?? 'bg-ink-700 text-fog-400',
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className={cn('text-sm', checked ? 'text-fog-100' : 'text-fog-400')}>
+                    {service.label}
+                  </span>
+                  {count > 0 && (
+                    <span className="text-[10px] tabular-nums text-fog-400">{count}</span>
+                  )}
+                </label>
+              </td>
+              <td className="rounded-r-lg bg-ink-850/80 px-2 py-1.5 text-right">
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  aria-label={`${service.label} weight`}
+                  value={weight}
+                  onChange={(event) => {
+                    const next = Number(event.target.value)
+                    if (Number.isFinite(next)) setCategoryWeight(service.category, next)
+                  }}
+                  className="w-12 rounded-md border border-ink-600 bg-ink-900 px-1.5 py-1 text-right text-sm tabular-nums text-fog-100 outline-none focus:border-signal"
+                />
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }

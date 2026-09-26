@@ -83,6 +83,7 @@ export interface SimulateScenarioRequest {
   maintenanceStations: string[]
   shutdownStations: string[]
   serviceCategories: PoiCategory[]
+  categoryWeights?: Partial<Record<PoiCategory, number>>
   zones?: ResidentialZone[]
   pois?: PointOfInterest[]
   stations?: Station[]

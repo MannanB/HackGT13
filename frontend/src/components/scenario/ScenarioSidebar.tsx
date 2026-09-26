@@ -51,8 +51,8 @@ export function ScenarioSidebar() {
         </section>
 
         <section>
-          <Step n={3} title="Essential services">
-            Affected communities update as soon as a station state or service changes.
+          <Step n={3} title="Category weights">
+            Higher weights count more. A hospital delay outweighs the same delay to a grocery store.
           </Step>
           <div className="mt-3">
             <ServiceLayerToggle />

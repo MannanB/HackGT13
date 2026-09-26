@@ -3,6 +3,7 @@ import { buildAccessSimulation } from '@/services/accessSimulator'
 import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
+import { DEFAULT_CATEGORY_WEIGHTS, categoryWeight } from '@/utils/categoryWeights'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
 import type {
   AppMode,
@@ -16,6 +17,7 @@ interface ScenarioState {
   selectedStationId: string
   stationStates: Record<string, StationOperatingState>
   selectedServiceCategories: PoiCategory[]
+  categoryWeights: Record<PoiCategory, number>
   simulationStatus: SimulationStatus
   simulationError: string | null
   simulationResult: SimulationResult | null
@@ -36,6 +38,7 @@ interface ScenarioState {
   setStationState: (id: string, status: StationOperatingState) => void
   resetStationStates: () => void
   toggleServiceCategory: (category: PoiCategory) => void
+  setCategoryWeight: (category: PoiCategory, weight: number) => void
   loadNetwork: () => Promise<void>
   selectZone: (zoneId: string | null) => void
   setBeforeAfterMode: (mode: 'both' | 'normal' | 'disrupted') => void
@@ -73,6 +76,7 @@ function impactsFrom(
   snapshot: Pick<
     ScenarioState,
     | 'selectedServiceCategories'
+    | 'categoryWeights'
     | 'zones'
     | 'pois'
     | 'stations'
@@ -88,6 +92,7 @@ function impactsFrom(
       maintenanceStations,
       shutdownStations,
       serviceCategories: snapshot.selectedServiceCategories,
+      categoryWeights: snapshot.categoryWeights,
       zones: snapshot.zones,
       pois: snapshot.pois,
       stations: snapshot.stations,
@@ -141,6 +146,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     selectedStationId: '',
     stationStates: {},
     selectedServiceCategories: defaultCategories,
+    categoryWeights: { ...DEFAULT_CATEGORY_WEIGHTS },
     simulationStatus: 'idle',
     simulationError: null,
     simulationResult: null,
@@ -181,6 +187,12 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         : [...current, category]
       if (next.length === 0) return
       set({ selectedServiceCategories: next })
+      publishImpacts(get().stationStates)
+    },
+
+    setCategoryWeight: (category, weight) => {
+      const next = categoryWeight({ [category]: weight }, category)
+      set({ categoryWeights: { ...get().categoryWeights, [category]: next } })
       publishImpacts(get().stationStates)
     },
 

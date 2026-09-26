@@ -1,3 +1,4 @@
+import { categoryWeight } from '@/utils/categoryWeights'
 import { haversineKm } from '@/utils/geo'
 import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
@@ -276,21 +277,36 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     const after = bestByCategory(zone, grouped, stations, disruptedGraph, blocked, unboardable)
     if (before.size === 0 || after.size === 0) continue
 
-    let beforeBest: Trip | null = null
-    let afterBest: Trip | null = null
+    let weightSum = 0
+    let weightedDelay = 0
+    let focusBaseline: Trip | null = null
+    let focusDisrupted: Trip | null = null
+    let focusScore = -1
+    let focusWeight = -1
     for (const [category, baseline] of before) {
       const disrupted = after.get(category)
       if (!disrupted) continue
+      const weight = categoryWeight(request.categoryWeights, category)
+      const delay = Math.max(0, disrupted.minutes - baseline.minutes)
+      weightSum += weight
+      weightedDelay += delay * weight
       beforeCount.set(baseline.poi.id, (beforeCount.get(baseline.poi.id) ?? 0) + 1)
       afterCount.set(disrupted.poi.id, (afterCount.get(disrupted.poi.id) ?? 0) + 1)
-      if (!beforeBest || baseline.minutes < beforeBest.minutes) beforeBest = baseline
-      if (!afterBest || disrupted.minutes < afterBest.minutes) afterBest = disrupted
+      const score = delay * weight
+      if (score > focusScore || (score === focusScore && weight > focusWeight)) {
+        focusScore = score
+        focusWeight = weight
+        focusBaseline = baseline
+        focusDisrupted = disrupted
+      }
     }
-    if (!beforeBest || !afterBest) continue
+    if (!focusBaseline || !focusDisrupted || weightSum === 0) continue
 
+    const beforeBest = focusBaseline
+    const afterBest = focusDisrupted
     const normalTravelMinutes = Math.round(beforeBest.minutes)
     const disruptedTravelMinutes = Math.round(afterBest.minutes)
-    const delayMinutes = Math.max(0, disruptedTravelMinutes - normalTravelMinutes)
+    const delayMinutes = Math.round(weightedDelay / weightSum)
     impacts.push({
       zoneId: zone.id,
       zoneName: zone.name,
@@ -308,7 +324,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       poiId: afterBest.poi.id,
       normalTravelMinutes,
       disruptedTravelMinutes,
-      delayMinutes,
+      delayMinutes: Math.max(0, disruptedTravelMinutes - normalTravelMinutes),
       normalPath: buildPath(zone, beforeBest, stationById, blocked),
       disruptedPath: buildPath(zone, afterBest, stationById, blocked),
     }
@@ -337,7 +353,11 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       addedPopulation: addedRegions,
     })
   }
-  poiPressure.sort((a, b) => b.addedPopulation - a.addedPopulation)
+  poiPressure.sort((a, b) => {
+    const scoreA = a.addedPopulation * categoryWeight(request.categoryWeights, a.category)
+    const scoreB = b.addedPopulation * categoryWeight(request.categoryWeights, b.category)
+    return scoreB - scoreA || b.addedPopulation - a.addedPopulation
+  })
 
   const scenarioKey = [...shutdownStations].sort().join(',') + '|' + [...maintenanceStations].sort().join(',')
   return {
