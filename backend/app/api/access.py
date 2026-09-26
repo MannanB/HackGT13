@@ -1,6 +1,7 @@
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
+from app.api.common import PageLimit, PageOffset, page
 from app.deps import get_db
 from app.repositories import access as access_repo
 from app.repositories import places as place_repo
@@ -15,8 +16,8 @@ def list_access_edges(
     location_type: LocationType | None = None,
     location_id: str | None = None,
     station_id: str | None = None,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict:
     """Walking links from a zone or POI to one or more stations."""
@@ -28,7 +29,7 @@ def list_access_edges(
         limit=limit,
         offset=offset,
     )
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return page(items, total, limit, offset)
 
 
 @router.post("", response_model=AccessEdge, status_code=201)

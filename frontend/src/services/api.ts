@@ -46,6 +46,22 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
   return response.json() as Promise<T>
 }
 
+export async function readRequired<T>(
+  load: () => Promise<T>,
+  isEmpty: (value: T) => boolean,
+  emptyMessage: string,
+  failureMessage: string,
+): Promise<T> {
+  try {
+    const value = await load()
+    if (isEmpty(value)) throw new Error(emptyMessage)
+    return value
+  } catch (error) {
+    if (error instanceof Error && error.message === emptyMessage) throw error
+    throw new Error(failureMessage)
+  }
+}
+
 export async function fetchAllPages<T>(path: string, pageSize = 200): Promise<T[]> {
   const items: T[] = []
   let offset = 0

@@ -5,8 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
-from app.gemini import gemini_is_exhausted
-from app.gemini import interpret_event as interpret_with_gemini
+from app.gemini import gemini_is_exhausted, interpret_event as interpret_with_gemini
 from app.openai import interpret_event as interpret_with_openai
 
 logger = logging.getLogger(__name__)

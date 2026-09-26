@@ -2,7 +2,7 @@ import type { LayersList, PickingInfo } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { Loader2, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Map, useControl, type MapRef } from 'react-map-gl/maplibre'
+import { Map as MapView, useControl, type MapRef } from 'react-map-gl/maplibre'
 import { ADDED_POI_LAYER, createAddedPoiLayers } from '@/components/map/AddedPoiLayer'
 import { createEventRadiusLayer } from '@/components/map/EventRadiusLayer'
 import { createPassengerFlowLayers } from '@/components/map/FlowMapLayer'
@@ -116,7 +116,7 @@ export function CivicMap() {
     return disruptionResult?.hospitalCapacity ?? []
   }, [result, disruptionResult])
   const hospitalLoadById = useMemo(() => {
-    const loads = new globalThis.Map<string, HospitalCapacity>()
+    const loads = new Map<string, HospitalCapacity>()
     for (const item of hospitalCapacity) loads.set(item.poiId, item)
     return loads
   }, [hospitalCapacity])
@@ -331,7 +331,7 @@ export function CivicMap() {
         hoverStation(null)
       }}
     >
-      <Map
+      <MapView
         ref={mapRef}
         mapStyle={MAP_STYLE}
         initialViewState={ATLANTA_VIEW}
@@ -358,7 +358,7 @@ export function CivicMap() {
           onHover={onHover}
           onClick={onClick}
         />
-      </Map>
+      </MapView>
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgb(5_7_11/0.55))]" />
 

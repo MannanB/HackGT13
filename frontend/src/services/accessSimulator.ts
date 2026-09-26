@@ -151,14 +151,20 @@ function buildGraph(stations: Station[], edges: TransitEdge[], blocked: Set<stri
   }
 
   for (let mid = 0; mid < size; mid += 1) {
+    const midRow = dist[mid]
     for (let start = 0; start < size; start += 1) {
       const startToMid = dist[start][mid]
       if (!Number.isFinite(startToMid)) continue
+      const row = dist[start]
+      const nextRow = next[start]
+      const firstHop = nextRow[mid]
       for (let end = 0; end < size; end += 1) {
-        const through = startToMid + dist[mid][end]
-        if (through < dist[start][end]) {
-          dist[start][end] = through
-          next[start][end] = next[start][mid]
+        const midToEnd = midRow[end]
+        if (!Number.isFinite(midToEnd)) continue
+        const through = startToMid + midToEnd
+        if (through < row[end]) {
+          row[end] = through
+          nextRow[end] = firstHop
         }
       }
     }
@@ -329,14 +335,21 @@ function hospitalCapacityReport(
     if (capacity != null && rate != null) baselineOccupied.set(hospital.id, capacity * rate)
   }
 
+  const redirected: { hospitalId: string; admissions: number[] }[] = []
+  for (const zone of zones) {
+    const baselineId = beforeByZone.get(zone.id)?.get('hospital')?.poi.id
+    const disruptedId = ranked.get(zone.id)?.[0]?.poi.id
+    if (!baselineId || !disruptedId || baselineId === disruptedId) continue
+    redirected.push({
+      hospitalId: disruptedId,
+      admissions: Array.from({ length: 24 }, (_, hour) => hourlyHospitalAdmissionDemand(zone, hour * 60)),
+    })
+  }
+
   const admissionsForHour = (hour: number) => {
     const incoming = new Map<string, number>()
-    for (const zone of zones) {
-      const baselineId = beforeByZone.get(zone.id)?.get('hospital')?.poi.id
-      const disruptedId = ranked.get(zone.id)?.[0]?.poi.id
-      if (!baselineId || !disruptedId || baselineId === disruptedId) continue
-      const admissions = hourlyHospitalAdmissionDemand(zone, hour * 60)
-      incoming.set(disruptedId, (incoming.get(disruptedId) ?? 0) + admissions)
+    for (const item of redirected) {
+      incoming.set(item.hospitalId, (incoming.get(item.hospitalId) ?? 0) + item.admissions[hour])
     }
     return incoming
   }
@@ -467,9 +480,10 @@ function baselineKey(request: SimulateScenarioRequest): string {
 }
 
 function groupByCategory(pois: PointOfInterest[], categories: PoiCategory[]) {
+  const allowed = new Set(categories)
   const grouped = new Map<PoiCategory, PointOfInterest[]>()
   for (const poi of pois) {
-    if (!categories.includes(poi.category)) continue
+    if (!allowed.has(poi.category)) continue
     const list = grouped.get(poi.category) ?? []
     list.push(poi)
     grouped.set(poi.category, list)
@@ -596,19 +610,7 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
   const categories = [...new Set([...request.serviceCategories, ...addedPois.map((poi) => poi.category)])]
   const scoped = { ...request, serviceCategories: categories }
   const grouped = groupByCategory(request.pois, categories)
-  const blocked = new Set(request.shutdownStations)
-  const unboardable = new Set([...request.maintenanceStations, ...request.shutdownStations])
-  const disrupted = unboardable.size > 0
-  const cached = disrupted ? null : baseline(scoped, grouped)
-  const graph = disrupted
-    ? buildGraph(request.stations, request.transitEdges, blocked)
-    : cached!.graph
-  const nearest = disrupted
-    ? nearestFinder(request.stations, unboardable)
-    : cached!.nearest
-  const beforeByZone = disrupted
-    ? new Map(request.zones.map((zone) => [zone.id, bestByCategory(zone, grouped, nearest, graph, blocked)]))
-    : cached!.beforeByZone
+  const { beforeByZone, graph, nearest, blocked } = solveAccess(scoped, grouped)
   const stationById = new Map(request.stations.map((station) => [station.id, station]))
 
   const impacts: ZoneImpact[] = []
@@ -1109,12 +1111,7 @@ export function createPoiCriticalIndex(request: {
   transitEdges: TransitEdge[]
 }) {
   const { zones, pois, stations, transitEdges: edges } = request
-  const grouped = new Map<PoiCategory, PointOfInterest[]>()
-  for (const poi of pois) {
-    const list = grouped.get(poi.category) ?? []
-    list.push(poi)
-    grouped.set(poi.category, list)
-  }
+  const grouped = groupByCategory(pois, [...new Set(pois.map((poi) => poi.category))])
 
   const openGraph = buildGraph(stations, edges, new Set())
   const openNearest = nearestFinder(stations, new Set())

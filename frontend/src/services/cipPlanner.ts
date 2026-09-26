@@ -5,8 +5,9 @@ import type { Station, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation } from '@/types/simulation'
 import { categorySingular } from '@/utils/categories'
 import { categoryWeight } from '@/utils/categoryWeights'
-import { categoriesForSector, facilityCost, formatUsd, sectorMeta, type CipSector } from '@/utils/facilityCosts'
+import { facilityCost, formatUsd, sectorMeta, type CipSector } from '@/utils/facilityCosts'
 import { haversineKm } from '@/utils/geo'
+import { dailyZoneDemand } from '@/utils/hourlyDemand'
 
 const MAX_PROJECTS = 6
 const MAX_PER_CATEGORY = 2
@@ -25,18 +26,6 @@ function equityMultiplier(zone: ResidentialZone) {
     if (zone.povertyPopulation / zone.povertyUniverse >= 0.22) multiplier += 0.25
   }
   return multiplier
-}
-
-function demand(zone: ResidentialZone, category: PoiCategory) {
-  if (category === 'employment' && zone.commuteJobs != null) return zone.commuteJobs
-  const noVehicleResidents =
-    zone.households && zone.noVehicleHouseholds != null
-      ? (zone.noVehicleHouseholds / zone.households) * zone.population
-      : 0
-  if (zone.transitCommuters != null || zone.noVehicleHouseholds != null) {
-    return Math.max(0, Math.round(Math.max(zone.transitCommuters ?? 0, noVehicleResidents)))
-  }
-  return zone.population
 }
 
 function nearestStation(point: { latitude: number; longitude: number }, stations: Station[]) {
@@ -99,7 +88,7 @@ function collectGaps(input: {
       const extra = stressed ? Math.max(0, stressed.minutes - access.minutes) : 0
       const critical = input.poiCriticalById[access.poiId]
       const fragile = critical?.access[0] ?? critical?.pressure[0] ?? null
-      const people = demand(zone, category)
+      const people = dailyZoneDemand(zone, category)
       const score =
         (access.minutes * people * categoryWeight(category) + extra * people * categoryWeight(category) * 1.6) *
         equityMultiplier(zone)

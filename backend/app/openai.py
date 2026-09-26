@@ -8,7 +8,8 @@ from typing import Any
 from fastapi import HTTPException
 
 from app.config import get_settings
-from app.gemini import SIMULATE_EVENT_TOOL, SSL_CONTEXT, SYSTEM_PROMPT, _normalize_event
+from app.events import SIMULATE_EVENT_TOOL, SYSTEM_PROMPT, event_user_text, normalize_event
+from app.net import SSL_CONTEXT
 
 OPENAI_TOOLS = [
     {
@@ -77,16 +78,7 @@ def _text_from_message(message: dict[str, Any]) -> str:
 
 
 def interpret_event(event: str, stations: list[dict[str, Any]]) -> dict[str, Any]:
-    catalog_lines = [
-        f"- {row['id']} | {row['name']} | {','.join(row.get('lines') or [])} | {row['latitude']:.4f},{row['longitude']:.4f}"
-        for row in stations
-    ]
-    user_text = (
-        "MARTA station catalog (id | name | lines | lat,lng):\n"
-        + "\n".join(catalog_lines)
-        + "\n\nEvent description:\n"
-        + event.strip()
-    )
+    user_text = event_user_text(event, stations)
     first = _openai_post(
         {
             "messages": [
@@ -104,7 +96,7 @@ def interpret_event(event: str, stations: list[dict[str, Any]]) -> dict[str, Any
     args = (call.get("function") or {}).get("arguments") or {}
     if isinstance(args, str):
         args = json.loads(args)
-    event_model = _normalize_event(args, stations)
+    event_model = normalize_event(args, stations)
     second = _openai_post(
         {
             "messages": [

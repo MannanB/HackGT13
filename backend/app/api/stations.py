@@ -1,6 +1,7 @@
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
+from app.api.common import PageLimit, PageOffset, page
 from app.deps import get_db
 from app.repositories import stations as station_repo
 from app.schemas import (
@@ -19,8 +20,8 @@ router = APIRouter(prefix="/api/v1/stations", tags=["stations"])
 def list_stations(
     line: MartaLine | None = None,
     is_active: bool | None = None,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict:
     total, items = station_repo.list_stations(
@@ -30,7 +31,7 @@ def list_stations(
         limit=limit,
         offset=offset,
     )
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return page(items, total, limit, offset)
 
 
 @router.get("/nearby", response_model=NearbyStations)

@@ -125,6 +125,14 @@ export function hourlyHospitalAdmissionDemand(
     EMERGENCY_ADMISSION_SHARE
 }
 
+function blendedHospitalShare(emergencyShare: number, outpatientShare: number): number {
+  const totalAnnualRate = EMERGENCY_VISITS_PER_PERSON_YEAR + OUTPATIENT_VISITS_PER_PERSON_YEAR
+  return (
+    EMERGENCY_VISITS_PER_PERSON_YEAR * emergencyShare +
+    OUTPATIENT_VISITS_PER_PERSON_YEAR * outpatientShare
+  ) / totalAnnualRate
+}
+
 /** Modeled transit-dependent arrivals during the selected clock hour. */
 export function hourlyZoneDemand(
   zone: ResidentialZone,
@@ -132,13 +140,10 @@ export function hourlyZoneDemand(
   minuteOfDay: number,
 ): number {
   if (category === 'hospital') {
-    const dailyPatients = hospitalDailyPatientDemand(zone)
-    const totalAnnualRate = EMERGENCY_VISITS_PER_PERSON_YEAR + OUTPATIENT_VISITS_PER_PERSON_YEAR
-    const blendedHourlyShare =
-      (EMERGENCY_VISITS_PER_PERSON_YEAR * hourlyShare('hospital', minuteOfDay) +
-        OUTPATIENT_VISITS_PER_PERSON_YEAR * hourlyShare('clinic', minuteOfDay)) /
-      totalAnnualRate
-    return dailyPatients * blendedHourlyShare
+    return hospitalDailyPatientDemand(zone) * blendedHospitalShare(
+      hourlyShare('hospital', minuteOfDay),
+      hourlyShare('clinic', minuteOfDay),
+    )
   }
   return dailyZoneDemand(zone, category) * hourlyShare(category, minuteOfDay)
 }
@@ -169,13 +174,10 @@ export function aggregateZoneDemand(
   elapsedMinutes: number,
 ): number {
   if (category === 'hospital') {
-    const dailyPatients = hospitalDailyPatientDemand(zone)
-    const totalAnnualRate = EMERGENCY_VISITS_PER_PERSON_YEAR + OUTPATIENT_VISITS_PER_PERSON_YEAR
-    const blendedShare =
-      (EMERGENCY_VISITS_PER_PERSON_YEAR * elapsedShare('hospital', startMinute, elapsedMinutes) +
-        OUTPATIENT_VISITS_PER_PERSON_YEAR * elapsedShare('clinic', startMinute, elapsedMinutes)) /
-      totalAnnualRate
-    return dailyPatients * blendedShare
+    return hospitalDailyPatientDemand(zone) * blendedHospitalShare(
+      elapsedShare('hospital', startMinute, elapsedMinutes),
+      elapsedShare('clinic', startMinute, elapsedMinutes),
+    )
   }
   return dailyZoneDemand(zone, category) * elapsedShare(category, startMinute, elapsedMinutes)
 }

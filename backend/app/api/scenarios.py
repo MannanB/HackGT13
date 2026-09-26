@@ -1,31 +1,22 @@
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
+from app.api.common import PageLimit, PageOffset, page, require_known_stations
 from app.deps import get_db
 from app.repositories import simulations as simulation_repo
-from app.repositories import stations as station_repo
 from app.schemas import ImpactReport, Page, Scenario, ScenarioCreate, ScenarioUpdate
 
 router = APIRouter(prefix="/api/v1/scenarios", tags=["scenarios"])
 
 
-def _require_closed_stations(conn: psycopg.Connection, station_ids: list[str]) -> None:
-    missing = station_repo.missing_ids(conn, station_ids)
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown stations: {', '.join(missing)}",
-        )
-
-
 @router.get("", response_model=Page[Scenario])
 def list_scenarios(
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict:
     total, items = simulation_repo.list_scenarios(conn, limit=limit, offset=offset)
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return page(items, total, limit, offset)
 
 
 @router.post("", response_model=Scenario, status_code=201)
@@ -33,7 +24,7 @@ def create_scenario(
     payload: ScenarioCreate,
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict:
-    _require_closed_stations(conn, payload.closed_stations)
+    require_known_stations(conn, payload.closed_stations)
     return simulation_repo.create_scenario(conn, payload.model_dump(mode="json"))
 
 
@@ -53,7 +44,7 @@ def update_scenario(
 ) -> dict:
     changes = payload.model_dump(mode="json", exclude_unset=True)
     if "closed_stations" in changes:
-        _require_closed_stations(conn, changes["closed_stations"])
+        require_known_stations(conn, changes["closed_stations"])
     row = simulation_repo.update_scenario(conn, scenario_id, changes)
     if row is None:
         raise HTTPException(status_code=404, detail="Scenario not found")

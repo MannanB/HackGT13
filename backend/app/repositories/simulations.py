@@ -192,7 +192,8 @@ def insert_travel_times(
     conn: psycopg.Connection,
     rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    inserted: list[dict[str, Any]] = []
+    if not rows:
+        return []
     query = sql.SQL(
         """
         INSERT INTO travel_times (
@@ -209,8 +210,11 @@ def insert_travel_times(
         RETURNING {columns}
         """
     ).format(columns=sql.SQL(TRAVEL_COLUMNS))
-    for row in rows:
-        inserted_row = conn.execute(query, row).fetchone()
+    cursor = conn.cursor()
+    cursor.executemany(query, rows, returning=True)
+    inserted: list[dict[str, Any]] = []
+    for result in cursor.results():
+        inserted_row = result.fetchone()
         assert inserted_row is not None
         inserted.append(inserted_row)
     return inserted

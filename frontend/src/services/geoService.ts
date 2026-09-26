@@ -1,4 +1,4 @@
-import { apiGet, endpoints, fetchAllPages } from '@/services/api'
+import { apiGet, endpoints, fetchAllPages, readRequired } from '@/services/api'
 import hospitalBedData from '@/data/hospitalBeds.json'
 import type { PointOfInterest, PoiCategory, ResidentialZone, StreetRouteMap } from '@/types/geography'
 import type { AccessEdge } from '@/types/network'
@@ -95,25 +95,21 @@ function mapPoi(row: ApiPoi): PointOfInterest {
 }
 
 export async function getZones(): Promise<ResidentialZone[]> {
-  try {
-    const rows = await fetchAllPages<ApiZone>(endpoints.zones)
-    if (rows.length === 0) throw new Error('Residential zones are empty')
-    return rows.map(mapZone)
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Residential zones are empty') throw error
-    throw new Error('Could not load residential zones from the API')
-  }
+  return readRequired(
+    async () => (await fetchAllPages<ApiZone>(endpoints.zones)).map(mapZone),
+    (items) => items.length === 0,
+    'Residential zones are empty',
+    'Could not load residential zones from the API',
+  )
 }
 
 export async function getPointsOfInterest(): Promise<PointOfInterest[]> {
-  try {
-    const rows = await fetchAllPages<ApiPoi>(endpoints.pois)
-    if (rows.length === 0) throw new Error('Points of interest are empty')
-    return rows.map(mapPoi)
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Points of interest are empty') throw error
-    throw new Error('Could not load points of interest from the API')
-  }
+  return readRequired(
+    async () => (await fetchAllPages<ApiPoi>(endpoints.pois)).map(mapPoi),
+    (items) => items.length === 0,
+    'Points of interest are empty',
+    'Could not load points of interest from the API',
+  )
 }
 
 interface ApiAccessEdge {
@@ -154,32 +150,30 @@ export function attachAccess(
     bucket.set(edge.locationId, current)
   }
 
+  const accessFrom = (links: AccessEdge[]) =>
+    links.map((link) => ({
+      stationId: link.stationId,
+      walkingMinutes: link.walkingMinutes,
+    }))
+  const linksFor = (bucket: Map<string, AccessEdge[]>, id: string) =>
+    (bucket.get(id) ?? []).slice().sort((a, b) => a.walkingMinutes - b.walkingMinutes)
+
   const nextZones = zones.map((zone) => {
-    const links = (zoneLinks.get(zone.id) ?? []).slice().sort(
-      (a, b) => a.walkingMinutes - b.walkingMinutes,
-    )
+    const links = linksFor(zoneLinks, zone.id)
     return {
       ...zone,
       primaryStationId: links[0]?.stationId ?? zone.primaryStationId,
       transferStationIds: links.slice(1, 4).map((link) => link.stationId),
-      stationAccess: links.map((link) => ({
-        stationId: link.stationId,
-        walkingMinutes: link.walkingMinutes,
-      })),
+      stationAccess: accessFrom(links),
     }
   })
 
   const nextPois = pois.map((poi) => {
-    const links = (poiLinks.get(poi.id) ?? []).slice().sort(
-      (a, b) => a.walkingMinutes - b.walkingMinutes,
-    )
+    const links = linksFor(poiLinks, poi.id)
     return {
       ...poi,
       nearestStationId: links[0]?.stationId ?? poi.nearestStationId,
-      stationAccess: links.map((link) => ({
-        stationId: link.stationId,
-        walkingMinutes: link.walkingMinutes,
-      })),
+      stationAccess: accessFrom(links),
     }
   })
 

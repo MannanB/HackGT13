@@ -1,6 +1,7 @@
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
+from app.api.common import PageLimit, PageOffset, page
 from app.deps import get_db
 from app.repositories import places as place_repo
 from app.schemas import Page, Zone, ZoneCreate
@@ -10,12 +11,12 @@ router = APIRouter(prefix="/api/v1/zones", tags=["zones"])
 
 @router.get("", response_model=Page[Zone])
 def list_zones(
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    limit: PageLimit = 50,
+    offset: PageOffset = 0,
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict:
     total, items = place_repo.list_zones(conn, limit=limit, offset=offset)
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return page(items, total, limit, offset)
 
 
 @router.get("/{zone_id}", response_model=Zone)

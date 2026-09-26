@@ -1,4 +1,4 @@
-import { apiGet, endpoints } from '@/services/api'
+import { apiGet, endpoints, readRequired } from '@/services/api'
 import { mapMartaLine, type Station, type TransitEdge } from '@/types/network'
 
 interface LonLat {
@@ -53,18 +53,18 @@ export function mapTransitEdge(row: ApiTransitEdge): TransitEdge | null {
 }
 
 export async function getNetwork(): Promise<{ stations: Station[]; transitEdges: TransitEdge[] }> {
-  try {
-    const data = await apiGet<ApiNetwork>(endpoints.network)
-    const stations = data.stations.map(mapStation)
-    const transitEdges = data.transit_edges
-      .map(mapTransitEdge)
-      .filter((edge): edge is TransitEdge => edge !== null)
-    if (stations.length === 0) {
-      throw new Error('Station network is empty')
-    }
-    return { stations, transitEdges }
-  } catch (error) {
-    if (error instanceof Error && error.message === 'Station network is empty') throw error
-    throw new Error('Could not load the MARTA network from the API')
-  }
+  return readRequired(
+    async () => {
+      const data = await apiGet<ApiNetwork>(endpoints.network)
+      return {
+        stations: data.stations.map(mapStation),
+        transitEdges: data.transit_edges
+          .map(mapTransitEdge)
+          .filter((edge): edge is TransitEdge => edge !== null),
+      }
+    },
+    (network) => network.stations.length === 0,
+    'Station network is empty',
+    'Could not load the MARTA network from the API',
+  )
 }

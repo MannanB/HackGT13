@@ -1,6 +1,7 @@
 import psycopg
 from fastapi import APIRouter, Body, Depends, Query
 
+from app.api.common import PageOffset, page
 from app.deps import get_db
 from app.repositories import simulations as simulation_repo
 from app.schemas import Page, TravelTime, TravelTimeCreate
@@ -15,7 +16,7 @@ def list_travel_times(
     poi_id: str | None = None,
     is_disrupted: bool | None = None,
     limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    offset: PageOffset = 0,
     conn: psycopg.Connection = Depends(get_db),
 ) -> dict:
     total, items = simulation_repo.list_travel_times(
@@ -27,7 +28,7 @@ def list_travel_times(
         limit=limit,
         offset=offset,
     )
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+    return page(items, total, limit, offset)
 
 
 @router.post("", response_model=list[TravelTime], status_code=201)

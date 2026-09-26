@@ -78,22 +78,23 @@ def get_zone(conn: psycopg.Connection, zone_id: str) -> dict[str, Any] | None:
 
 
 def create_zone(conn: psycopg.Connection, payload: dict[str, Any]) -> dict[str, Any]:
-    geometry = json.dumps(payload["geometry"])
     conn.execute(
         """
         INSERT INTO residential_zones (id, name, geometry, centroid, population)
-        VALUES (
+        SELECT
             %(id)s,
             %(name)s,
-            ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(%(geometry)s), 4326)),
-            ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON(%(geometry)s), 4326))::geography,
+            ST_Multi(geom),
+            ST_Centroid(geom)::geography,
             %(population)s
-        )
+        FROM (
+            SELECT ST_SetSRID(ST_GeomFromGeoJSON(%(geometry)s), 4326) AS geom
+        ) AS parsed
         """,
         {
             "id": payload["id"],
             "name": payload["name"],
-            "geometry": geometry,
+            "geometry": json.dumps(payload["geometry"]),
             "population": payload["population"],
         },
     )

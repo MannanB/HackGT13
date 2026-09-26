@@ -204,7 +204,12 @@ function buildRoutes(key: object, journeys: PassengerJourney[], streetRoutes: St
 function positionAlong(path: StagePath, progress: number): [number, number] {
   const distance = progress * path.totalLength
   let index = 1
-  while (index < path.cumulative.length - 1 && path.cumulative[index] < distance) index += 1
+  let hi = path.cumulative.length - 1
+  while (index < hi) {
+    const mid = (index + hi) >> 1
+    if (path.cumulative[mid] < distance) index = mid + 1
+    else hi = mid
+  }
   const startDistance = path.cumulative[index - 1]
   const endDistance = path.cumulative[index]
   const mix = (distance - startDistance) / Math.max(1e-9, endDistance - startDistance)
