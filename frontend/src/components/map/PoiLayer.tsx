@@ -9,6 +9,8 @@ export function createPoiLayers({
   categories,
   pressure,
   maxCapacityIds,
+  closedIds,
+  destroyedIds,
   tracePoiId,
   zoom,
   gain,
@@ -17,6 +19,8 @@ export function createPoiLayers({
   categories: PoiCategory[]
   pressure: PoiPressure[]
   maxCapacityIds: ReadonlySet<string>
+  closedIds: ReadonlySet<string>
+  destroyedIds: ReadonlySet<string>
   tracePoiId: string | null
   zoom: number
   gain: boolean
@@ -26,14 +30,34 @@ export function createPoiLayers({
   const topStressed = new Set(pressure.slice(0, 5).map((item) => item.poiId))
   const stressed = visible.filter((poi) => added.has(poi.id) && !maxCapacityIds.has(poi.id))
   const maxed = visible.filter((poi) => maxCapacityIds.has(poi.id))
+  const closed = visible.filter((poi) => closedIds.has(poi.id))
   const labeled = new Set([
     ...(tracePoiId ? [tracePoiId] : []),
     ...maxed.map((poi) => poi.id),
+    ...closed.map((poi) => poi.id),
     ...pressure.slice(0, zoom >= 12.5 ? 5 : 3).map((item) => item.poiId),
   ])
-  const triggers = [pressure, tracePoiId, zoom, [...maxCapacityIds].join('|')]
+  const triggers = [
+    pressure,
+    tracePoiId,
+    zoom,
+    [...maxCapacityIds].join('|'),
+    [...closedIds].join('|'),
+    [...destroyedIds].join('|'),
+  ]
 
   return [
+    new ScatterplotLayer<PointOfInterest>({
+      id: 'poi-closed-ring',
+      data: closed,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getRadius: 11,
+      radiusUnits: 'pixels',
+      getFillColor: [...SURGE_RGB, 30],
+      getLineColor: [...SURGE_RGB, 230],
+      stroked: true,
+      lineWidthMinPixels: 2,
+    }),
     new ScatterplotLayer<PointOfInterest>({
       id: 'poi-pressure-ring',
       data: stressed,
@@ -85,10 +109,11 @@ export function createPoiLayers({
       id: 'pois',
       data: visible,
       getPosition: (d) => [d.longitude, d.latitude],
-      getRadius: (d) => (maxCapacityIds.has(d.id) ? 6 : d.id === tracePoiId ? 5 : topStressed.has(d.id) ? 3.5 : 2.5),
+      getRadius: (d) =>
+        closedIds.has(d.id) ? 5 : maxCapacityIds.has(d.id) ? 6 : d.id === tracePoiId ? 5 : topStressed.has(d.id) ? 3.5 : 2.5,
       radiusUnits: 'pixels',
       getFillColor: (d): RGBA =>
-        maxCapacityIds.has(d.id)
+        closedIds.has(d.id) ? [110, 116, 128, 255] : maxCapacityIds.has(d.id)
           ? [...MAX_CAPACITY_RGB, 255]
           : [...categoryRgb(d.category), topStressed.has(d.id) || d.id === tracePoiId ? 255 : 190],
       getLineColor: (d): RGBA =>
@@ -103,13 +128,17 @@ export function createPoiLayers({
       data: visible.filter((poi) => labeled.has(poi.id)),
       getPosition: (d) => [d.longitude, d.latitude],
       getText: (d) => {
+        if (destroyedIds.has(d.id)) return `${d.name}  destroyed`
+        if (closedIds.has(d.id)) return `${d.name}  shut down`
         if (maxCapacityIds.has(d.id)) return `${d.name}  projected overload`
         const extra = added.get(d.id)
         return extra ? `${d.name}  +${formatVisitorRate(extra)} visitors` : d.name
       },
       getSize: 11,
       getColor: (d) =>
-        maxCapacityIds.has(d.id) ? [...MAX_CAPACITY_RING_RGB, 255] : [...categoryRgb(d.category), 255],
+        closedIds.has(d.id)
+          ? [...SURGE_RGB, 255]
+          : maxCapacityIds.has(d.id) ? [...MAX_CAPACITY_RING_RGB, 255] : [...categoryRgb(d.category), 255],
       getPixelOffset: [0, 12],
       fontFamily: 'Geist, sans-serif',
       fontWeight: 500,

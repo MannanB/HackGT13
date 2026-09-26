@@ -16,6 +16,7 @@ import {
 import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
 import type {
+  EvacuationZone,
   HospitalCapacity,
   PathNode,
   PassengerJourney,
@@ -222,14 +223,63 @@ function nearestFinder(stations: Station[], unboardable: Set<string>): NearestFi
   }
 }
 
+interface Congestion {
+  walkFactor: (point: LatLng) => number
+  boardingPenalty: (stationId: string) => number
+}
+
+const EVACUATION_PERIMETER_PEAK = 1.15
+const EVACUATION_PERIMETER_WIDTH = 0.7
+const EVACUATION_CORE_DEBRIS = 0.35
+const EVACUATION_MAX_WALK_SLOWDOWN = 1.5
+const EVACUATION_MAX_BOARDING_MINUTES = 20
+export const EVACUATION_SURGE_HOURS = 6
+const EVACUATION_INJURY_RATE_PER_SEVERITY = 0.004
+const EVACUATION_ADMISSION_SHARE = 0.3
+
+function kmFromEpicenter(evacuation: EvacuationZone, point: LatLng) {
+  return haversineKm(point, { latitude: evacuation.latitude, longitude: evacuation.longitude })
+}
+
+/** 0–1 crowding: peaks just outside the edge where evacuees pile up, lighter debris inside. */
+export function evacuationCrowding(evacuation: EvacuationZone, point: LatLng) {
+  const ratio = kmFromEpicenter(evacuation, point) / evacuation.radiusKm
+  const perimeter = Math.max(0, 1 - Math.abs(ratio - EVACUATION_PERIMETER_PEAK) / EVACUATION_PERIMETER_WIDTH)
+  const core = ratio < 1 ? EVACUATION_CORE_DEBRIS * (1 - ratio) : 0
+  return Math.max(perimeter, core)
+}
+
+function evacuationCongestion(evacuation: EvacuationZone, stations: Map<string, Station>): Congestion {
+  const intensity = Math.max(1, Math.min(5, evacuation.severity)) / 5
+  return {
+    walkFactor: (point) => 1 + EVACUATION_MAX_WALK_SLOWDOWN * intensity * evacuationCrowding(evacuation, point),
+    boardingPenalty: (stationId) => {
+      const station = stations.get(stationId)
+      return station
+        ? EVACUATION_MAX_BOARDING_MINUTES * intensity * evacuationCrowding(evacuation, station)
+        : 0
+    },
+  }
+}
+
+function evacuationInjuries(evacuation: EvacuationZone, zone: ResidentialZone) {
+  const ratio = kmFromEpicenter(evacuation, zone.centroid) / evacuation.radiusKm
+  if (ratio >= 1) return 0
+  const severity = Math.max(1, Math.min(5, evacuation.severity))
+  return zone.population * EVACUATION_INJURY_RATE_PER_SEVERITY * severity * (1 - ratio)
+}
+
 function optimalTrip(
   zone: ResidentialZone,
   poi: PointOfInterest,
   nearest: NearestFinder,
   graph: RailGraph,
   blocked: Set<string>,
+  congestion?: Congestion,
 ): Trip {
-  const direct = walkMinutes(zone.centroid, poiPoint(poi))
+  const originFactor = congestion?.walkFactor(zone.centroid) ?? 1
+  const destinationFactor = congestion?.walkFactor(poiPoint(poi)) ?? 1
+  const direct = walkMinutes(zone.centroid, poiPoint(poi)) * Math.max(originFactor, destinationFactor)
   const boards = nearest(zone, zone.centroid)
   const alights = nearest(poi, poiPoint(poi))
   let best: Trip = { minutes: direct, poi, stationIds: [] }
@@ -237,7 +287,11 @@ function optimalTrip(
     for (const alight of alights) {
       const stationIds = railStationIds(graph, board.station.id, alight.station.id)
       if (stationIds.length < 2 || stationIds.some((id) => blocked.has(id))) continue
-      const transit = board.walkingMinutes + railMinutes(graph, stationIds) + alight.walkingMinutes
+      const transit =
+        board.walkingMinutes * originFactor +
+        (congestion?.boardingPenalty(board.station.id) ?? 0) +
+        railMinutes(graph, stationIds) +
+        alight.walkingMinutes * destinationFactor
       if (transit < best.minutes) best = { minutes: transit, poi, stationIds }
     }
   }
@@ -251,18 +305,19 @@ function bestByCategory(
   graph: RailGraph,
   blocked: Set<string>,
   skip?: ReadonlySet<PoiCategory>,
+  congestion?: Congestion,
 ): Map<PoiCategory, Trip> {
   const chosen = new Map<PoiCategory, Trip>()
   for (const [category, pois] of grouped) {
     if (skip?.has(category)) continue
     if (isAnchoredCategory(category)) {
       const assigned = geographicallyClosest(zone, pois)
-      if (assigned) chosen.set(category, optimalTrip(zone, assigned, nearest, graph, blocked))
+      if (assigned) chosen.set(category, optimalTrip(zone, assigned, nearest, graph, blocked, congestion))
       continue
     }
     let best: Trip | null = null
     for (const poi of pois) {
-      const trip = optimalTrip(zone, poi, nearest, graph, blocked)
+      const trip = optimalTrip(zone, poi, nearest, graph, blocked, congestion)
       if (!best || trip.minutes < best.minutes) best = trip
     }
     if (best) chosen.set(category, best)
@@ -276,11 +331,12 @@ function rankHospitals(
   nearest: NearestFinder,
   graph: RailGraph,
   blocked: Set<string>,
+  congestion?: Congestion,
 ): Map<string, Trip[]> {
   const ranked = new Map<string, Trip[]>()
   for (const zone of zones) {
     const trips = hospitals
-      .map((poi) => optimalTrip(zone, poi, nearest, graph, blocked))
+      .map((poi) => optimalTrip(zone, poi, nearest, graph, blocked, congestion))
       .sort((a, b) => a.minutes - b.minutes || a.poi.id.localeCompare(b.poi.id))
     if (trips.length > 0) ranked.set(zone.id, trips)
   }
@@ -330,6 +386,8 @@ function hospitalCapacityReport(
   minuteOfDay: number,
   failureStartMinute = DEFAULT_TIME_MINUTE,
   failureElapsedMinutes = minuteOfDay,
+  closedHospitals: PointOfInterest[] = [],
+  evacuation: EvacuationZone | null = null,
 ): HospitalCapacity[] {
   const baselineOccupied = new Map<string, number>()
   const surgeOccupied = new Map<string, number>()
@@ -337,6 +395,25 @@ function hospitalCapacityReport(
     const capacity = beds.get(hospital.id)
     const rate = hospital.baselineOccupancyRate
     if (capacity != null && rate != null) baselineOccupied.set(hospital.id, capacity * rate)
+  }
+
+  // Inpatients at a shut-down hospital transfer to wherever its catchment now goes.
+  for (const closed of closedHospitals) {
+    const inpatients = (closed.capacity ?? 0) * (closed.baselineOccupancyRate ?? 0.75)
+    if (inpatients <= 0) continue
+    const shares = new Map<string, number>()
+    let total = 0
+    for (const zone of zones) {
+      if (beforeByZone.get(zone.id)?.get('hospital')?.poi.id !== closed.id) continue
+      const destination = ranked.get(zone.id)?.[0]?.poi.id
+      if (!destination) continue
+      const weight = Math.max(1, zone.population)
+      shares.set(destination, (shares.get(destination) ?? 0) + weight)
+      total += weight
+    }
+    for (const [destination, weight] of shares) {
+      surgeOccupied.set(destination, (surgeOccupied.get(destination) ?? 0) + (inpatients * weight) / total)
+    }
   }
 
   const redirected: { hospitalId: string; admissions: number[] }[] = []
@@ -350,8 +427,22 @@ function hospitalCapacityReport(
     })
   }
 
-  const admissionsForHour = (hour: number) => {
+  const injured: { hospitalId: string; perHour: number }[] = []
+  if (evacuation) {
+    for (const zone of zones) {
+      const hospitalId = ranked.get(zone.id)?.[0]?.poi.id
+      const beds = evacuationInjuries(evacuation, zone) * EVACUATION_ADMISSION_SHARE
+      if (hospitalId && beds > 0) injured.push({ hospitalId, perHour: beds / EVACUATION_SURGE_HOURS })
+    }
+  }
+
+  const admissionsForHour = (hour: number, hourOffset: number) => {
     const incoming = new Map<string, number>()
+    if (hourOffset < EVACUATION_SURGE_HOURS) {
+      for (const item of injured) {
+        incoming.set(item.hospitalId, (incoming.get(item.hospitalId) ?? 0) + item.perHour)
+      }
+    }
     for (const item of redirected) {
       incoming.set(item.hospitalId, (incoming.get(item.hospitalId) ?? 0) + item.admissions[hour])
     }
@@ -362,7 +453,7 @@ function hospitalCapacityReport(
   const fullHours = Math.floor(elapsedHours)
   const startHour = Math.floor((((failureStartMinute % 1440) + 1440) % 1440) / 60)
   for (let offset = 0; offset < fullHours; offset += 1) {
-    const incoming = admissionsForHour((startHour + offset) % 24)
+    const incoming = admissionsForHour((startHour + offset) % 24, offset)
     for (const hospital of hospitals) {
       const stayHours = Math.max(1, (hospital.averageLengthOfStayDays ?? 5) * 24)
       const retained = (surgeOccupied.get(hospital.id) ?? 0) * Math.exp(-1 / stayHours)
@@ -371,7 +462,7 @@ function hospitalCapacityReport(
   }
   const partialHour = elapsedHours - fullHours
   if (partialHour > 0 && fullHours < 24) {
-    const incoming = admissionsForHour((startHour + fullHours) % 24)
+    const incoming = admissionsForHour((startHour + fullHours) % 24, fullHours)
     for (const hospital of hospitals) {
       const stayHours = Math.max(1, (hospital.averageLengthOfStayDays ?? 5) * 24)
       const retained = (surgeOccupied.get(hospital.id) ?? 0) * Math.exp(-partialHour / stayHours)
@@ -380,7 +471,7 @@ function hospitalCapacityReport(
   }
 
   const selectedHour = Math.min(23, Math.floor(minuteOfDay / 60))
-  const incomingNow = admissionsForHour(selectedHour)
+  const incomingNow = admissionsForHour(selectedHour, fullHours)
   return hospitals
     .map((poi) => {
       const capacity = beds.get(poi.id) ?? null
@@ -851,8 +942,10 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   const minuteOfDay = request.timeMinute ?? DEFAULT_TIME_MINUTE
   const failureStartMinute = request.failureStartMinute ?? DEFAULT_TIME_MINUTE
   const failureElapsedMinutes = request.failureElapsedMinutes ?? minuteOfDay
-  if (maintenanceStations.length + shutdownStations.length === 0) {
-    throw new Error('Set a station to maintenance or shut down')
+  const closedPoiIds = new Set(request.closedPoiIds ?? [])
+  const evacuation = request.evacuation ?? null
+  if (maintenanceStations.length + shutdownStations.length + closedPoiIds.size === 0 && !evacuation) {
+    throw new Error('Set a station or destination to maintenance or shut down')
   }
   if (stations.length === 0) throw new Error('Station network is not loaded')
 
@@ -860,10 +953,12 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   if (candidates.length === 0) {
     throw new Error('None of the selected services have destinations on the map')
   }
+  const openCandidates = candidates.filter((poi) => !closedPoiIds.has(poi.id))
 
   const blocked = new Set(shutdownStations)
   const unboardable = new Set([...maintenanceStations, ...shutdownStations])
   const grouped = groupByCategory(candidates, categories)
+  const openGrouped = closedPoiIds.size ? groupByCategory(openCandidates, categories) : grouped
   const categoryCounts = new Map(
     [...grouped].map(([category, categoryPois]) => [category, categoryPois.length]),
   )
@@ -883,9 +978,10 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
 
   const disruptedGraph = buildGraph(stations, edges, blocked)
   const disruptedNearest = nearestFinder(stations, unboardable)
-  const hospitals = grouped.get('hospital') ?? []
+  const congestion = evacuation ? evacuationCongestion(evacuation, stationById) : undefined
+  const hospitals = openGrouped.get('hospital') ?? []
   const hospitalRanks = hospitals.length
-    ? rankHospitals(zones, hospitals, disruptedNearest, disruptedGraph, blocked)
+    ? rankHospitals(zones, hospitals, disruptedNearest, disruptedGraph, blocked, congestion)
     : null
   const hospitalBedsById = hospitalRanks ? hospitalBeds(hospitals) : null
   const hospitalAssignment =
@@ -902,7 +998,15 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   for (const zone of zones) {
     const before = beforeByZone.get(zone.id)
     if (!before) continue
-    const after = bestByCategory(zone, grouped, disruptedNearest, disruptedGraph, blocked, skipHospital)
+    const after = bestByCategory(
+      zone,
+      openGrouped,
+      disruptedNearest,
+      disruptedGraph,
+      blocked,
+      skipHospital,
+      congestion,
+    )
     const hospitalAllocations = hospitalAssignment?.get(zone.id) ?? []
     if (before.size === 0 || (after.size === 0 && hospitalAllocations.length === 0)) continue
 
@@ -1032,10 +1136,10 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   }
 
 
-  for (const poi of candidates) {
+  for (const poi of openCandidates) {
     const zone = nearestProducer(poi, zones)
     if (!zone) continue
-    const trip = optimalTrip(zone, poi, disruptedNearest, disruptedGraph, blocked)
+    const trip = optimalTrip(zone, poi, disruptedNearest, disruptedGraph, blocked, congestion)
     flowJourneys.push({
       id: `poi:${poi.id}`,
       path: buildPath(zone, trip, stationById, blocked),
@@ -1064,6 +1168,8 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
           minuteOfDay,
           failureStartMinute,
           failureElapsedMinutes,
+          (grouped.get('hospital') ?? []).filter((poi) => closedPoiIds.has(poi.id)),
+          evacuation,
         )
       : []
 
@@ -1111,6 +1217,19 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     hospitalCapacity,
     traces,
     flowJourneys,
+    evacuation: evacuation
+      ? {
+          evacuatingResidents: zones.reduce(
+            (sum, zone) =>
+              kmFromEpicenter(evacuation, zone.centroid) < evacuation.radiusKm ? sum + zone.population : sum,
+            0,
+          ),
+          surgeAdmissions: zones.reduce(
+            (sum, zone) => sum + evacuationInjuries(evacuation, zone) * EVACUATION_ADMISSION_SHARE,
+            0,
+          ),
+        }
+      : undefined,
   }
 }
 

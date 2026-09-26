@@ -11,6 +11,9 @@ export interface IntelEvent {
   centerLatitude: number
   centerLongitude: number
   radiusKm: number
+  evacuation?: boolean
+  structuralDamage?: boolean
+  severity?: number
   stationImpacts: StationImpact[]
   cascades: string[]
   recommendedRepairs: { stationId: string; stationName: string; why: string }[]

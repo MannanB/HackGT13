@@ -5,12 +5,14 @@ import type { IntelInterpretation } from '@/types/intelligence'
 export async function interpretEvent(
   event: string,
   stations: Station[],
+  context = '',
 ): Promise<IntelInterpretation> {
   const response = await fetch(`${API_BASE}/api/v1/intelligence/events`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       event,
+      context,
       stations: stations.map((station) => ({
         id: station.id,
         name: station.name,

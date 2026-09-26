@@ -31,6 +31,24 @@ SIMULATE_EVENT_TOOL = {
                 "type": "number",
                 "description": "Impact radius in kilometers around the epicenter.",
             },
+            "evacuation_required": {
+                "type": "boolean",
+                "description": (
+                    "True when residents inside the radius must evacuate outward "
+                    "(earthquake, flood, fire, explosion, hurricane, chemical spill)."
+                ),
+            },
+            "structural_damage": {
+                "type": "boolean",
+                "description": (
+                    "True when buildings such as hospitals, clinics, schools and stores inside the "
+                    "radius are likely destroyed or unusable (earthquake, explosion, tornado, major fire)."
+                ),
+            },
+            "severity": {
+                "type": "integer",
+                "description": "1 = minor disruption, 5 = catastrophic with mass casualties.",
+            },
             "station_impacts": {
                 "type": "array",
                 "description": "MARTA stations damaged, overcrowded, or cut off. Use station_id from the catalog.",
@@ -103,9 +121,18 @@ SIMULATE_EVENT_TOOL = {
 SYSTEM_PROMPT = """You interpret shocks to Atlanta for Civic Stacktrace, a MARTA access simulator.
 
 Use only the station catalog in the user message. Pick station_id values from that catalog.
+The user message may start with "Current simulator state": the disruptions active right now, including
+changes the user made by hand. Treat the user message as a follow-up to that state. Your station_impacts
+must describe the complete resulting state: keep still-active disruptions unless the user asks to restore
+or reopen them, and do not re-add stations the state shows as restored. If the message only adjusts the
+current scenario (e.g. "reopen Five Points", "make it worse"), keep the same epicenter and radius.
 Place the epicenter in metro Atlanta. Radius should match event severity (festival ~1-3 km, earthquake ~3-12 km).
 Shutdown stations that would lose power, collapse, flood, or be structurally unsafe.
 Use maintenance for crowding, debris, or temporary no-boarding where trains could still pass.
+Set evacuation_required for disasters that injure or displace residents (earthquakes, floods, fires,
+explosions, severe storms); leave it false for festivals, games, or routine outages.
+Set structural_damage when buildings inside the radius would be destroyed (earthquakes, explosions,
+tornadoes, major fires). Set severity 1-5.
 Always call simulate_urban_event. Do not answer with plain text instead of the tool.
 """
 
@@ -160,6 +187,12 @@ def normalize_event(raw: dict[str, Any], catalog: list[dict[str, Any]]) -> dict[
     lat = float(raw.get("center_latitude") or raw.get("centerLatitude") or 33.780)
     lon = float(raw.get("center_longitude") or raw.get("centerLongitude") or -84.386)
     radius = max(0.4, min(20.0, float(raw.get("radius_km") or raw.get("radiusKm") or 3)))
+    try:
+        severity = max(1, min(5, int(raw.get("severity") or 3)))
+    except (TypeError, ValueError):
+        severity = 3
+    evacuation = bool(raw.get("evacuation_required", raw.get("evacuationRequired", False)))
+    structural = bool(raw.get("structural_damage", raw.get("structuralDamage", False)))
     impacts: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in raw.get("station_impacts") or raw.get("stationImpacts") or []:
@@ -216,6 +249,9 @@ def normalize_event(raw: dict[str, Any], catalog: list[dict[str, Any]]) -> dict[
         "centerLatitude": lat,
         "centerLongitude": lon,
         "radiusKm": radius,
+        "evacuation": evacuation or structural,
+        "structuralDamage": structural,
+        "severity": severity,
         "stationImpacts": impacts,
         "cascades": [str(item) for item in (raw.get("cascades") or []) if str(item).strip()],
         "recommendedRepairs": repairs,

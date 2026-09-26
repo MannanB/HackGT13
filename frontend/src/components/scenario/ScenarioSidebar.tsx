@@ -10,7 +10,12 @@ export function ScenarioSidebar() {
   const resetStationStates = useScenarioStore((state) => state.resetStationStates)
   const appMode = useScenarioStore((state) => state.appMode)
   const addedPois = useScenarioStore((state) => state.addedPois)
+  const closedCount = useScenarioStore((state) => Object.keys(state.closedPoiIds).length)
+  const destroyedCount = useScenarioStore((state) => Object.keys(state.destroyedPoiIds).length)
+  const evacuation = useScenarioStore((state) => state.evacuation)
+  const intelEvent = useScenarioStore((state) => state.intelEvent)
   const disrupted = Object.values(stationStates).some((status) => status !== 'normal')
+  const simulated = disrupted || closedCount > 0 || destroyedCount > 0 || evacuation != null || intelEvent != null
 
   return (
     <aside className="glass scroll-thin pointer-events-auto flex max-h-full w-[320px] flex-col overflow-y-auto rounded-2xl">
@@ -33,7 +38,7 @@ export function ScenarioSidebar() {
           <h2 className="eyebrow">Station</h2>
           <StationSelector />
           {selectedStationId && <StationStateControl stationId={selectedStationId} compact />}
-          {disrupted && (
+          {simulated && (
             <button
               type="button"
               onClick={resetStationStates}

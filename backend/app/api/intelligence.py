@@ -24,6 +24,7 @@ class InterpretRequest(BaseModel):
     event: str = Field(min_length=3, max_length=4000)
     stations: list[StationCatalogItem]
     provider: Literal["gemini", "openai"] = "gemini"
+    context: str = Field(default="", max_length=8000)
 
 
 @router.post("/events")
@@ -31,6 +32,9 @@ def interpret_urban_event(payload: InterpretRequest) -> dict:
     if not payload.stations:
         raise HTTPException(status_code=400, detail="Station catalog is required")
     stations = [item.model_dump() for item in payload.stations]
+    event = payload.event
+    if payload.context.strip():
+        event = f"Current simulator state:\n{payload.context.strip()}\n\nUser message:\n{payload.event}"
     settings = get_settings()
     if not settings.openai_api_key:
         get_settings.cache_clear()
@@ -41,11 +45,11 @@ def interpret_urban_event(payload: InterpretRequest) -> dict:
         or not settings.gemini_api_key
     )
     if use_openai:
-        return interpret_with_openai(payload.event, stations)
+        return interpret_with_openai(event, stations)
     try:
-        return interpret_with_gemini(payload.event, stations)
+        return interpret_with_gemini(event, stations)
     except HTTPException as gemini_error:
         if not settings.openai_api_key:
             raise
         logger.warning("Gemini unavailable, falling back to OpenAI: %s", gemini_error.detail)
-        return interpret_with_openai(payload.event, stations)
+        return interpret_with_openai(event, stations)

@@ -1,7 +1,7 @@
 import { Loader2, Sparkles } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { interpretEvent } from '@/services/intelligenceService'
-import { useScenarioStore } from '@/store/scenarioStore'
+import { describeScenario, useScenarioStore } from '@/store/scenarioStore'
 
 export function IntelligencePanel() {
   const stations = useScenarioStore((state) => state.stations)
@@ -9,20 +9,35 @@ export function IntelligencePanel() {
   const narrative = useScenarioStore((state) => state.intelNarrative)
   const applyIntelEvent = useScenarioStore((state) => state.applyIntelEvent)
   const computing = useScenarioStore((state) => state.computing)
+  const clearIntelEvent = useScenarioStore((state) => state.clearIntelEvent)
+  const evacuation = useScenarioStore((state) => state.evacuation)
+  const destroyedPoiIds = useScenarioStore((state) => state.destroyedPoiIds)
+  const pois = useScenarioStore((state) => state.pois)
+  const disruptionResult = useScenarioStore((state) => state.disruptionResult)
+  const evacuationSummary = disruptionResult?.evacuation
+  const fullHospitals = (disruptionResult?.hospitalCapacity ?? []).filter(
+    (item) => item.loadRatio != null && item.loadRatio >= 1,
+  ).length
+  const destroyedNames = useMemo(
+    () => pois.filter((poi) => destroyedPoiIds[poi.id]),
+    [pois, destroyedPoiIds],
+  )
   const [prompt, setPrompt] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lastPrompt, setLastPrompt] = useState<string | null>(null)
-
+  const [history, setHistory] = useState<string[]>([])
+  const setStationState = useScenarioStore((state) => state.setStationState)
+  const togglePoiClosed = useScenarioStore((state) => state.togglePoiClosed)
   const generate = async (form: FormEvent) => {
     form.preventDefault()
     const next = prompt.trim()
     if (!next || busy) return
     setBusy(true)
     setError(null)
-    setLastPrompt(next)
+    setHistory((items) => [...items, next])
+    setPrompt('')
     try {
-      const result = await interpretEvent(next, stations)
+      const result = await interpretEvent(next, stations, describeScenario(useScenarioStore.getState()))
       applyIntelEvent(result.event, result.narrative)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not interpret the event')
@@ -48,9 +63,16 @@ export function IntelligencePanel() {
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Reading the event…
           </div>
         )}
-        {lastPrompt && (
-          <div className="mb-3 rounded-xl bg-white/[0.04] px-3 py-2 text-[13px] text-fog-100">{lastPrompt}</div>
-        )}
+        {history.map((item, index) => (
+          <div
+            key={`${index}-${item}`}
+            className={`mb-2 rounded-xl bg-white/[0.04] px-3 py-2 text-[13px] ${
+              index === history.length - 1 ? 'text-fog-100' : 'text-fog-500'
+            }`}
+          >
+            {item}
+          </div>
+        ))}
         {event ? (
           <div className="space-y-3 text-fog-300">
             <div>
@@ -59,12 +81,88 @@ export function IntelligencePanel() {
               <p className="mt-2 font-mono text-[11px] text-fog-500">
                 {event.radiusKm.toFixed(1)} km radius · {event.stationImpacts.length} stations
               </p>
+              <p className="mt-1 text-[11px] text-fog-500">
+                Synced with the Disrupt tab. Follow-ups like “reopen Five Points” or “make it worse” build on the
+                current state.
+              </p>
             </div>
+            {(evacuation || destroyedNames.length > 0) && (
+              <div className="rounded-xl bg-line-red/10 px-3 py-2 ring-1 ring-line-red/30">
+                <div className="flex items-center justify-between">
+                  <div className="eyebrow text-line-red">
+                    {evacuation ? `Evacuation · severity ${evacuation.severity}/5` : 'Structural damage'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearIntelEvent}
+                    className="rounded-md px-2 py-0.5 text-[11px] text-fog-300 ring-1 ring-white/10 hover:text-fog-100"
+                  >
+                    End
+                  </button>
+                </div>
+                <ul className="mt-1.5 space-y-1 text-[12px]">
+                  {evacuationSummary && (
+                    <>
+                      <li>
+                        <span className="text-fog-100">
+                          {Math.round(evacuationSummary.evacuatingResidents).toLocaleString()}
+                        </span>{' '}
+                        residents evacuating toward the outskirts; roads and stations on the zone edge are congested.
+                      </li>
+                      <li>
+                        <span className="text-fog-100">
+                          {Math.round(evacuationSummary.surgeAdmissions).toLocaleString()}
+                        </span>{' '}
+                        injured need hospital beds over the first 6 hours.
+                      </li>
+                    </>
+                  )}
+                  {fullHospitals > 0 && (
+                    <li>
+                      <span className="text-fog-100">{fullHospitals}</span> hospitals projected over capacity.
+                    </li>
+                  )}
+                  {destroyedNames.length > 0 && (
+                    <li>
+                      <span className="text-fog-100">{destroyedNames.length}</span> destinations destroyed:
+                      <ul className="mt-1 space-y-0.5">
+                        {destroyedNames.slice(0, 8).map((poi) => (
+                          <li key={poi.id} className="flex items-center justify-between gap-2 text-fog-500">
+                            <span className="truncate">{poi.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => togglePoiClosed(poi.id)}
+                              className="shrink-0 rounded-md px-1.5 py-0.5 text-[10.5px] text-fog-400 ring-1 ring-white/10 hover:text-fog-100"
+                            >
+                              Rebuild
+                            </button>
+                          </li>
+                        ))}
+                        {destroyedNames.length > 8 && (
+                          <li className="text-fog-500">+{destroyedNames.length - 8} more</li>
+                        )}
+                      </ul>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
             <ul className="space-y-1.5">
               {event.stationImpacts.map((impact) => (
                 <li key={impact.stationId}>
-                  <span className="text-fog-100">{impact.stationName}</span>
-                  <span className="text-fog-500"> · {impact.effect}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>
+                      <span className="text-fog-100">{impact.stationName}</span>
+                      <span className="text-fog-500"> · {impact.effect}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setStationState(impact.stationId, 'normal')}
+                      className="rounded-md px-1.5 py-0.5 text-[10.5px] text-fog-400 ring-1 ring-white/10 hover:text-fog-100"
+                    >
+                      Restore
+                    </button>
+                  </div>
                   <div className="text-[11.5px] text-fog-500">{impact.reason}</div>
                 </li>
               ))}

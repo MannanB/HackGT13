@@ -27,7 +27,14 @@ import {
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone, StreetRouteMap } from '@/types/geography'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
-import type { PoiCriticalStation, RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
+import type {
+  EvacuationZone,
+  PoiCriticalStation,
+  RouteView,
+  SimulationResult,
+  TraceImpact,
+} from '@/types/simulation'
+import { haversineKm } from '@/utils/geo'
 import type { IntelEvent } from '@/types/intelligence'
 import { DEFAULT_TIME_MINUTE, DEFAULT_FAILURE_ELAPSED_MINUTES } from '@/utils/hourlyDemand'
 
@@ -52,6 +59,11 @@ interface ScenarioState {
   streetRoutes: StreetRouteMap
 
   stationStates: Record<string, StationOperatingState>
+  /** Destinations that are shut down. */
+  closedPoiIds: Record<string, true>
+  /** Destinations destroyed by an intelligence disaster event. */
+  destroyedPoiIds: Record<string, true>
+  evacuation: EvacuationZone | null
   selectedStationId: string | null
   hoveredStationId: string | null
   selectedServiceCategories: PoiCategory[]
@@ -96,6 +108,7 @@ interface ScenarioState {
   hoverStation: (id: string | null) => void
   setStationState: (id: string, status: StationOperatingState) => void
   resetStationStates: () => void
+  togglePoiClosed: (id: string) => void
   toggleServiceCategory: (category: PoiCategory) => void
   setFailureStartMinute: (minute: number) => void
   setFailureElapsedMinutes: (minute: number) => void
@@ -111,12 +124,59 @@ interface ScenarioState {
 const DEFAULT_CATEGORIES: PoiCategory[] = ['government', 'hospital', 'grocery']
 const CRITICAL_PUBLISH_EVERY = 4
 
+/** Deterministic 0–1 value so the same event always destroys the same facilities. */
+function stableUnit(key: string) {
+  let hash = 2166136261
+  for (let i = 0; i < key.length; i += 1) {
+    hash ^= key.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0) / 4294967296
+}
+
 function allDestinations(state: Pick<ScenarioState, 'pois' | 'addedPois' | 'selectedServiceCategories'>) {
   const pois = [...state.pois, ...state.addedPois]
   const serviceCategories = [
     ...new Set([...state.selectedServiceCategories, ...state.addedPois.map((poi) => poi.category)]),
   ]
   return { pois, serviceCategories }
+}
+
+/** Plain-language snapshot of the live scenario, sent to the AI so follow-ups build on it. */
+export function describeScenario(state: ScenarioState): string {
+  const names = new Map(state.stations.map((station) => [station.id, station.name]))
+  const poiNames = new Map([...state.pois, ...state.addedPois].map((poi) => [poi.id, poi.name]))
+  const lines: string[] = []
+  const event = state.intelEvent
+  if (event) {
+    lines.push(
+      `Active event: ${event.title} at ${event.centerLatitude.toFixed(4)},${event.centerLongitude.toFixed(4)}, radius ${event.radiusKm.toFixed(1)} km.`,
+    )
+  }
+  const stationLines = Object.entries(state.stationStates)
+    .filter(([, status]) => status !== 'normal')
+    .map(([id, status]) => `- ${id} | ${names.get(id) ?? id} | ${status}`)
+  lines.push(
+    stationLines.length
+      ? `Disrupted stations (id | name | state):\n${stationLines.join('\n')}`
+      : 'All stations are operating normally.',
+  )
+  const closed = Object.keys(state.closedPoiIds).map((id) => poiNames.get(id) ?? id)
+  if (closed.length) lines.push(`Destinations shut down by the user: ${closed.join(', ')}.`)
+  const destroyed = Object.keys(state.destroyedPoiIds).map((id) => poiNames.get(id) ?? id)
+  if (destroyed.length) lines.push(`Destinations destroyed: ${destroyed.join(', ')}.`)
+  if (state.evacuation) lines.push(`Evacuation in effect, severity ${state.evacuation.severity}/5.`)
+  const summary = state.disruptionResult?.summary
+  if (summary) {
+    lines.push(
+      `Current impact: ${Math.round(summary.populationAffected).toLocaleString()} residents affected, +${summary.averageAddedTravelMinutes.toFixed(1)} min average travel.`,
+    )
+  }
+  const full = (state.disruptionResult?.hospitalCapacity ?? [])
+    .filter((item) => item.loadRatio != null && item.loadRatio >= 1)
+    .map((item) => item.poiName)
+  if (full.length) lines.push(`Hospitals over capacity: ${full.join(', ')}.`)
+  return lines.join('\n')
 }
 
 export function selectTrace(state: ScenarioState): TraceImpact | null {
@@ -154,9 +214,49 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     })
   }
 
+  const hasDisruption = () => {
+    const { stationStates, closedPoiIds, destroyedPoiIds, evacuation } = get()
+    return (
+      Object.keys(stationStates).length + Object.keys(closedPoiIds).length + Object.keys(destroyedPoiIds).length >
+        0 || evacuation != null
+    )
+  }
+
+  /** Keeps the active intelligence event in step with manual edits made elsewhere in the app. */
+  const syncIntelEvent = () => {
+    const { intelEvent, stationStates, stations, destroyedPoiIds, evacuation } = get()
+    if (!intelEvent) return
+    const previous = new Map(intelEvent.stationImpacts.map((impact) => [impact.stationId, impact]))
+    const names = new Map(stations.map((station) => [station.id, station.name]))
+    const stationImpacts = Object.entries(stationStates)
+      .filter((entry): entry is [string, 'shutdown' | 'maintenance'] => entry[1] !== 'normal')
+      .map(([stationId, effect]) => {
+        const prior = previous.get(stationId)
+        return {
+          stationId,
+          stationName: prior?.stationName ?? names.get(stationId) ?? stationId,
+          effect,
+          reason: prior && prior.effect === effect ? prior.reason : 'Set manually in the Disrupt tab',
+        }
+      })
+    const nothingLeft =
+      stationImpacts.length === 0 && Object.keys(destroyedPoiIds).length === 0 && !evacuation
+    if (nothingLeft) {
+      set({ intelEvent: null, intelNarrative: null })
+      return
+    }
+    set({
+      intelEvent: {
+        ...intelEvent,
+        stationImpacts,
+        recommendedRepairs: intelEvent.recommendedRepairs.filter((item) => stationStates[item.stationId]),
+      },
+    })
+  }
+
   const runDisruption = () => {
     const { maintenanceStations, shutdownStations } = disruptionLists(get().stationStates)
-    if (maintenanceStations.length + shutdownStations.length === 0) {
+    if (!hasDisruption()) {
       clearImpacts()
       return
     }
@@ -178,6 +278,8 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           timeMinute: state.timeMinute,
           failureStartMinute: state.failureStartMinute,
           failureElapsedMinutes: state.failureElapsedMinutes,
+          closedPoiIds: [...Object.keys(state.closedPoiIds), ...Object.keys(state.destroyedPoiIds)],
+          evacuation: state.evacuation,
         })
         const keepZone = state.selectedZoneId && result.traces[state.selectedZoneId]
         const adding = state.appMode === 'add'
@@ -203,8 +305,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
 
   const recompute = () => {
     if (get().appMode === 'add') {
-      const { maintenanceStations, shutdownStations } = disruptionLists(get().stationStates)
-      if (maintenanceStations.length + shutdownStations.length > 0) {
+      if (hasDisruption()) {
         runDisruption()
         return
       }
@@ -273,6 +374,9 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     streetRoutes: {},
 
     stationStates: {},
+    closedPoiIds: {},
+    destroyedPoiIds: {},
+    evacuation: null,
     selectedStationId: null,
     hoveredStationId: null,
     selectedServiceCategories: DEFAULT_CATEGORIES,
@@ -531,12 +635,36 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       if (status === 'normal') delete stationStates[id]
       else stationStates[id] = status
       set({ stationStates, selectedStationId: id })
+      syncIntelEvent()
       recompute()
     },
 
     resetStationStates: () => {
-      set({ stationStates: {} })
+      set({
+        stationStates: {},
+        closedPoiIds: {},
+        destroyedPoiIds: {},
+        evacuation: null,
+        intelEvent: null,
+        intelNarrative: null,
+      })
       clearImpacts()
+    },
+
+    togglePoiClosed: (id) => {
+      const { closedPoiIds: current, destroyedPoiIds } = get()
+      if (destroyedPoiIds[id]) {
+        const next = { ...destroyedPoiIds }
+        delete next[id]
+        set({ destroyedPoiIds: next })
+      } else {
+        const closedPoiIds = { ...current }
+        if (closedPoiIds[id]) delete closedPoiIds[id]
+        else closedPoiIds[id] = true
+        set({ closedPoiIds })
+      }
+      syncIntelEvent()
+      recompute()
     },
 
     toggleServiceCategory: (category) => {
@@ -618,8 +746,29 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       const lng = event.centerLongitude
       const dLat = event.radiusKm / 111
       const dLng = event.radiusKm / (111 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)))
+      const severity = Math.max(1, Math.min(5, Math.round(event.severity ?? 3)))
+      const center = { latitude: lat, longitude: lng }
+      const previous = get().intelEvent
+      const followUp =
+        previous != null &&
+        haversineKm(center, { latitude: previous.centerLatitude, longitude: previous.centerLongitude }) < 0.5
+      let destroyedPoiIds: Record<string, true> = {}
+      if (followUp && event.structuralDamage) {
+        destroyedPoiIds = { ...get().destroyedPoiIds }
+      } else if (event.structuralDamage) {
+        for (const poi of allDestinations(get()).pois) {
+          const ratio = haversineKm(center, { latitude: poi.latitude, longitude: poi.longitude }) / event.radiusKm
+          if (ratio >= 1) continue
+          const chance = (0.15 + 0.15 * severity) * (1 - 0.6 * ratio)
+          if (stableUnit(`${event.title}:${poi.id}`) < chance) destroyedPoiIds[poi.id] = true
+        }
+      }
       set({
         stationStates,
+        destroyedPoiIds,
+        evacuation: event.evacuation
+          ? { latitude: lat, longitude: lng, radiusKm: event.radiusKm, severity }
+          : null,
         selectedStationId: event.stationImpacts[0]?.stationId ?? get().selectedStationId,
         intelEvent: event,
         intelNarrative: narrative,
@@ -636,8 +785,14 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     },
 
     clearIntelEvent: () => {
-      set({ intelEvent: null, intelNarrative: null, stationStates: {} })
-      clearImpacts()
+      set({
+        intelEvent: null,
+        intelNarrative: null,
+        stationStates: {},
+        destroyedPoiIds: {},
+        evacuation: null,
+      })
+      runDisruption()
     },
   }
 })

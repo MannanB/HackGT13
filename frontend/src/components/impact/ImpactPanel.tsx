@@ -36,7 +36,11 @@ export function ImpactPanel() {
     result?.hospitalCapacity?.length
       ? result.hospitalCapacity
       : (disruptionResult?.hospitalCapacity ?? [])
-  const anyShutdown = disrupted.some((item) => item.operating === 'shutdown')
+  const closedPoiIds = useScenarioStore((state) => state.closedPoiIds)
+  const allPois = useScenarioStore((state) => state.pois)
+  const togglePoiClosed = useScenarioStore((state) => state.togglePoiClosed)
+  const closedPois = allPois.filter((poi) => closedPoiIds[poi.id])
+  const anyShutdown = disrupted.some((item) => item.operating === 'shutdown') || closedPois.length > 0
 
   return (
     <aside className="glass scroll-thin pointer-events-auto flex max-h-full w-[340px] flex-col overflow-y-auto rounded-2xl">
@@ -121,10 +125,28 @@ export function ImpactPanel() {
                   </li>
                 ))}
               </ul>
+              {closedPois.length > 0 && (
+                <ul className="mt-1 space-y-1">
+                  {closedPois.map((poi) => (
+                    <li key={poi.id} className="flex items-center justify-between gap-2 px-1 py-1">
+                      <span className="truncate text-sm font-medium text-fog-100">{poi.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => togglePoiClosed(poi.id)}
+                        className="shrink-0 rounded-md px-2 py-0.5 text-[10.5px] text-fog-300 ring-1 ring-white/15 hover:bg-white/5"
+                      >
+                        Restore
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="mt-2 text-[12px] leading-relaxed text-fog-300">
-                {anyShutdown
-                  ? 'Shut-down stations cut the line; trains cannot pass through.'
-                  : 'Trains still pass through, but riders cannot board there.'}{' '}
+                {disrupted.length === 0
+                  ? 'Shut-down destinations are gone; residents go to the next-closest one.'
+                  : anyShutdown
+                    ? 'Shut-down stations cut the line; trains cannot pass through.'
+                    : 'Trains still pass through, but riders cannot board there.'}{' '}
                 Each area keeps the faster of walking or riding.
               </p>
             </div>

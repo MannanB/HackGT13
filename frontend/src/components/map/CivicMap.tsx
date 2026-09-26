@@ -29,6 +29,7 @@ import {
   MARTA_LINE_HEX,
   delayHex,
   formatPopulation,
+  formatVisitorRate,
   gainHex,
   hex,
 } from '@/utils/constants'
@@ -98,6 +99,13 @@ export function CivicMap() {
   const gain = appMode === 'add'
   const motionActive = stations.length > 0
 
+  const closedPoiIds = useScenarioStore((state) => state.closedPoiIds)
+  const destroyedPoiIds = useScenarioStore((state) => state.destroyedPoiIds)
+  const destroyedPoiIdSet = useMemo(() => new Set(Object.keys(destroyedPoiIds)), [destroyedPoiIds])
+  const closedPoiIdSet = useMemo(
+    () => new Set([...Object.keys(closedPoiIds), ...destroyedPoiIdSet]),
+    [closedPoiIds, destroyedPoiIdSet],
+  )
   const shutdownIds = useMemo(
     () => new Set(Object.keys(stationStates).filter((id) => stationStates[id] === 'shutdown')),
     [stationStates],
@@ -190,6 +198,8 @@ export function CivicMap() {
         categories,
         pressure: result?.poiPressure ?? [],
         maxCapacityIds,
+        closedIds: closedPoiIdSet,
+        destroyedIds: destroyedPoiIdSet,
         tracePoiId: trace?.poiId ?? null,
         zoom: mapZoom,
         gain,
@@ -211,7 +221,7 @@ export function CivicMap() {
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
       shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
       hoveredStationId, gain, addedPois, draggingId, intelEvent, motionTime, trains,
-      baselineJourneys, streetRoutes, mapZoom, disruptionResult, maxCapacityIds,
+      baselineJourneys, streetRoutes, mapZoom, disruptionResult, maxCapacityIds, closedPoiIdSet, destroyedPoiIdSet,
     ],
   )
 
@@ -588,6 +598,11 @@ function PoiPopover({
   const appMode = useScenarioStore((state) => state.appMode)
   const setAppMode = useScenarioStore((state) => state.setAppMode)
   const setStationState = useScenarioStore((state) => state.setStationState)
+  const closed = useScenarioStore((state) => Boolean(state.closedPoiIds[poi.id]))
+  const togglePoiClosed = useScenarioStore((state) => state.togglePoiClosed)
+  const incoming = useScenarioStore((state) =>
+    (state.result ?? state.disruptionResult)?.poiPressure.find((item) => item.poiId === poi.id),
+  )
   const meta = categoryMeta(poi.category)
   const analyzing = progress < 1
   const pressure = critical?.pressure ?? []
@@ -620,6 +635,18 @@ function PoiPopover({
             </div>
           )}
           <HospitalStatus poiId={poi.id} />
+          {closed ? (
+            <div className="mt-1 text-[11.5px] text-shut">
+              Shut down: residents who used it now go to the next-closest one.
+            </div>
+          ) : (
+            incoming && (
+              <div className="mt-1 text-[11.5px] text-[#ffd6a0]">
+                Under pressure: {incoming.addedRegions} more {incoming.addedRegions === 1 ? 'area' : 'areas'} now
+                come here (+{formatVisitorRate(incoming.addedDemand)} visitors)
+              </div>
+            )
+          )}
         </div>
         <button
           type="button"
@@ -630,6 +657,22 @@ function PoiPopover({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      <button
+        type="button"
+        aria-pressed={closed}
+        onClick={() => {
+          if (!closed && appMode === 'intel') setAppMode('disrupt')
+          togglePoiClosed(poi.id)
+        }}
+        className={
+          closed
+            ? 'mb-3 w-full rounded-lg bg-shut/20 px-2 py-1.5 text-[11.5px] text-fog-100 ring-1 ring-shut/60 hover:bg-shut/10'
+            : 'mb-3 w-full rounded-lg px-2 py-1.5 text-[11.5px] text-shut ring-1 ring-shut/40 hover:bg-shut/10'
+        }
+      >
+        {closed ? `Restore ${poi.name}` : `Shut down ${poi.name}`}
+      </button>
 
       <div className="eyebrow mb-1.5">Station failures that add pressure here</div>
       {pressure.length > 0 ? (

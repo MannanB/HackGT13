@@ -119,6 +119,7 @@ export interface TraceImpact {
 
 export interface SimulationResult {
   summary: ImpactSummary
+  evacuation?: EvacuationSummary
   zoneImpacts: ZoneImpact[]
   poiPressure: PoiPressure[]
   hospitalCapacity: HospitalCapacity[]
@@ -137,4 +138,21 @@ export interface SimulateScenarioRequest {
   timeMinute?: number
   failureStartMinute?: number
   failureElapsedMinutes?: number
+  /** Destinations that are shut down; residents must go to the next-closest one. */
+  closedPoiIds?: string[]
+  evacuation?: EvacuationZone | null
+}
+
+export interface EvacuationZone {
+  latitude: number
+  longitude: number
+  radiusKm: number
+  /** 1 (minor) to 5 (catastrophic). */
+  severity: number
+}
+
+export interface EvacuationSummary {
+  evacuatingResidents: number
+  /** Injured residents needing a hospital bed during the first hours. */
+  surgeAdmissions: number
 }
