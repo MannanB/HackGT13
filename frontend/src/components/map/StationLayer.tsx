@@ -78,7 +78,7 @@ export function createStationLayers({
       getSize: (d) => (stateOf(d) === 'shutdown' ? 11 : 13),
       getColor: [255, 255, 255, 255],
       getPixelOffset: [0, 1],
-      fontFamily: 'Geist, ui-sans-serif, system-ui, sans-serif',
+      fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
       fontWeight: 800,
       fontSettings: { sdf: true },
       outlineWidth: 2,
@@ -101,7 +101,7 @@ export function createStationLayers({
         return [180, 189, 202, 210]
       },
       getPixelOffset: [0, -18],
-      fontFamily: 'Geist, sans-serif',
+      fontFamily: 'Inter, sans-serif',
       fontWeight: 500,
       fontSettings: { sdf: true },
       outlineWidth: 3,

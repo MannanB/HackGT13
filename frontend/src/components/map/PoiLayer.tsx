@@ -156,7 +156,7 @@ export function createPoiLayers({
           ? [...SURGE_RGB, 255]
           : maxCapacityIds.has(d.id) ? [...MAX_CAPACITY_RING_RGB, 255] : [...categoryRgb(d.category), 255],
       getPixelOffset: [0, 12],
-      fontFamily: 'Geist, sans-serif',
+      fontFamily: 'Inter, sans-serif',
       fontWeight: 500,
       fontSettings: { sdf: true },
       outlineWidth: 3,

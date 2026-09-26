@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
-  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink-950: #05070b;
-  --color-ink-900: #0a0d13;
-  --color-ink-850: #0f131b;
-  --color-ink-800: #141924;
-  --color-ink-700: #1c2330;
-  --color-ink-600: #283142;
+  --color-ink-950: #080b11;
+  --color-ink-900: #0e131b;
+  --color-ink-850: #141a24;
+  --color-ink-800: #19202d;
+  --color-ink-700: #222b3a;
+  --color-ink-600: #2e394c;
   --color-ink-500: #3a4558;
   --color-fog-500: #6b778a;
   --color-fog-400: #8a96a8;
@@ -64,7 +64,6 @@ body,
   color: var(--color-fog-100);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  font-feature-settings: "ss01", "cv11";
 }
 
 body {
@@ -99,12 +98,12 @@ body {
 }
 
 @utility glass {
-  background: color-mix(in oklab, var(--color-ink-900) 78%, transparent);
+  background: color-mix(in oklab, var(--color-ink-850) 85%, transparent);
   backdrop-filter: blur(18px) saturate(1.3);
-  border: 1px solid color-mix(in oklab, white 7%, transparent);
+  border: 1px solid color-mix(in oklab, white 11%, transparent);
   box-shadow:
-    0 1px 0 0 color-mix(in oklab, white 5%, transparent) inset,
-    0 24px 48px -16px rgb(0 0 0 / 0.6);
+    0 1px 0 0 color-mix(in oklab, white 8%, transparent) inset,
+    0 24px 48px -16px rgb(0 0 0 / 0.58);
 }
 
 @utility eyebrow {
