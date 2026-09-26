@@ -13,7 +13,7 @@ import pandas as pd
 from shapely.geometry import Point
 
 # West, south, east, north. Covers the rail system past Atlanta city limits.
-BBOX = (-84.58, 33.60, -84.05, 34.02)
+BBOX = (-84.470401, 33.634744, -84.229593, 33.946)
 BUFFER_MILES = 2
 BUFFER_METERS = BUFFER_MILES * 1609.344
 METRIC_CRS = "EPSG:32616"
