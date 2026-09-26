@@ -42,6 +42,23 @@ export function delayHex(minutes: number): string {
   return hex(delayRgb(minutes))
 }
 
+export const GAIN_BREAKS: typeof IMPACT_BREAKS = [
+  { min: 0, max: 2, label: '< 2', color: [190, 245, 170] },
+  { min: 2, max: 5, label: '2 – 5', color: [120, 230, 130] },
+  { min: 5, max: 10, label: '5 – 10', color: [60, 205, 110] },
+  { min: 10, max: 20, label: '10 – 20', color: [30, 170, 95] },
+  { min: 20, max: Infinity, label: '> 20', color: [15, 135, 80] },
+]
+
+export function gainRgb(minutes: number): RGB {
+  const bucket = GAIN_BREAKS.find((item) => minutes >= item.min && minutes < item.max)
+  return (bucket ?? GAIN_BREAKS[GAIN_BREAKS.length - 1]).color
+}
+
+export function gainHex(minutes: number): string {
+  return hex(gainRgb(minutes))
+}
+
 export const ATLANTA_VIEW = {
   longitude: -84.4,
   latitude: 33.765,

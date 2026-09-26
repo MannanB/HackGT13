@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { buildAccessSimulation } from '@/services/accessSimulator'
+import { buildAccessSimulation, buildAdditionSimulation } from '@/services/accessSimulator'
 import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
@@ -8,6 +8,7 @@ import type { RouteView, SimulationResult, TraceImpact } from '@/types/simulatio
 import { DEFAULT_CATEGORY_WEIGHTS, categoryWeight } from '@/utils/categoryWeights'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
+export type AppMode = 'disrupt' | 'add'
 
 interface FocusRequest {
   bounds: [[number, number], [number, number]]
@@ -15,6 +16,9 @@ interface FocusRequest {
 }
 
 interface ScenarioState {
+  appMode: AppMode
+  addedPois: PointOfInterest[]
+  mapCenter: { longitude: number; latitude: number }
   loadStatus: LoadStatus
   loadError: string | null
   stations: Station[]
@@ -39,6 +43,11 @@ interface ScenarioState {
   extruded: boolean
   focusRequest: FocusRequest | null
 
+  setAppMode: (mode: AppMode) => void
+  setMapCenter: (longitude: number, latitude: number) => void
+  addPoi: (category: PoiCategory, label: string) => void
+  movePoi: (id: string, longitude: number, latitude: number) => void
+  removePoi: (id: string) => void
   loadNetwork: () => Promise<void>
   selectStation: (id: string | null) => void
   hoverStation: (id: string | null) => void
@@ -85,6 +94,10 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
   }
 
   const recompute = () => {
+    if (get().appMode === 'add') {
+      recomputeAddition()
+      return
+    }
     const { maintenanceStations, shutdownStations } = disruptionLists(get().stationStates)
     if (maintenanceStations.length + shutdownStations.length === 0) {
       clearImpacts()
@@ -125,7 +138,45 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     }, 16)
   }
 
+  const recomputeAddition = () => {
+    if (get().addedPois.length === 0) {
+      clearImpacts()
+      return
+    }
+    const generation = ++impactGeneration
+    set({ computing: true })
+    window.requestAnimationFrame(() => {
+      if (generation !== impactGeneration) return
+      const state = get()
+      try {
+        const result = buildAdditionSimulation({
+          addedPois: state.addedPois,
+          serviceCategories: state.selectedServiceCategories,
+          categoryWeights: state.categoryWeights,
+          zones: state.zones,
+          pois: state.pois,
+          stations: state.stations,
+          transitEdges: state.transitEdges,
+        })
+        const keepZone = state.selectedZoneId && result.traces[state.selectedZoneId]
+        set({ computing: false, result, simulationError: null, selectedZoneId: keepZone ? state.selectedZoneId : null })
+      } catch (error) {
+        set({
+          computing: false,
+          result: null,
+          selectedZoneId: null,
+          simulationError: error instanceof Error ? error.message : 'Simulation failed',
+        })
+      }
+    })
+  }
+
+  let poiSequence = 0
+
   return {
+    appMode: 'disrupt',
+    addedPois: [],
+    mapCenter: { longitude: -84.39, latitude: 33.755 },
     loadStatus: 'loading',
     loadError: null,
     stations: [],
@@ -178,6 +229,41 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           loadError: error instanceof Error ? error.message : 'Failed to load network',
         })
       }
+    },
+
+    setAppMode: (appMode) => {
+      if (get().appMode === appMode) return
+      set({ appMode, result: null, selectedZoneId: null })
+      recompute()
+    },
+
+    setMapCenter: (longitude, latitude) => set({ mapCenter: { longitude, latitude } }),
+
+    addPoi: (category, label) => {
+      poiSequence += 1
+      const { mapCenter, addedPois } = get()
+      const jitter = () => (Math.random() - 0.5) * 0.01
+      const poi: PointOfInterest = {
+        id: `new-${poiSequence}`,
+        name: `New ${label} ${poiSequence}`,
+        category,
+        longitude: mapCenter.longitude + jitter(),
+        latitude: mapCenter.latitude + jitter(),
+      }
+      set({ addedPois: [...addedPois, poi] })
+      recompute()
+    },
+
+    movePoi: (id, longitude, latitude) => {
+      set({
+        addedPois: get().addedPois.map((poi) => (poi.id === id ? { ...poi, longitude, latitude } : poi)),
+      })
+      recompute()
+    },
+
+    removePoi: (id) => {
+      set({ addedPois: get().addedPois.filter((poi) => poi.id !== id) })
+      recompute()
     },
 
     selectStation: (id) => set({ selectedStationId: id }),

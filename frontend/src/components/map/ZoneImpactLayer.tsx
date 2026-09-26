@@ -2,7 +2,7 @@ import { GeoJsonLayer } from '@deck.gl/layers'
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import type { ResidentialZone } from '@/types/geography'
 import type { ZoneImpact } from '@/types/simulation'
-import { delayRgb, type RGBA } from '@/utils/constants'
+import { delayRgb, gainRgb, type RGBA } from '@/utils/constants'
 
 export interface ZoneProps {
   zone: ResidentialZone
@@ -32,12 +32,14 @@ export function createZoneImpactLayer({
   hoveredZoneId,
   delayRange,
   extruded,
+  gain,
 }: {
   data: FeatureCollection<Polygon | MultiPolygon, ZoneProps>
   selectedZoneId: string | null
   hoveredZoneId: string | null
   delayRange: [number, number] | null
   extruded: boolean
+  gain: boolean
 }) {
   const delayOf = (feature: ZoneFeature) => feature.properties.impact?.delayMinutes ?? 0
   const inRange = (delay: number) =>
@@ -58,10 +60,10 @@ export function createZoneImpactLayer({
       if (delay <= 0) {
         return id === selectedZoneId ? [124, 196, 255, 60] : [48, 78, 108, 40]
       }
-      const [r, g, b] = delayRgb(delay)
+      const [r, g, b] = gain ? gainRgb(delay) : delayRgb(delay)
       const focused = id === selectedZoneId || id === hoveredZoneId
-      const severity = Math.min(1, delay / 45)
-      const alpha = !inRange(delay) ? 22 : focused ? 225 : extruded ? 230 : 130 + Math.round(severity * 50)
+      const severity = Math.min(1, delay / (gain ? 20 : 45))
+      const alpha = !inRange(delay) ? 22 : focused ? 225 : extruded ? 230 : (gain ? 165 : 130) + Math.round(severity * 50)
       return [r, g, b, alpha]
     },
     getLineColor: (feature): RGBA => {
@@ -83,7 +85,7 @@ export function createZoneImpactLayer({
       getElevation: { duration: 700, easing: (t: number) => 1 - (1 - t) ** 3 },
     },
     updateTriggers: {
-      getFillColor: [selectedZoneId, hoveredZoneId, delayRange, extruded],
+      getFillColor: [selectedZoneId, hoveredZoneId, delayRange, extruded, gain],
       getLineColor: [selectedZoneId, hoveredZoneId],
       getLineWidth: [selectedZoneId, hoveredZoneId],
     },

@@ -3,6 +3,7 @@ import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { Box, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Map, useControl, type MapRef } from 'react-map-gl/maplibre'
+import { ADDED_POI_LAYER, createAddedPoiLayers } from '@/components/map/AddedPoiLayer'
 import { createMartaNetworkLayers } from '@/components/map/MartaNetworkLayer'
 import { createPoiLayers } from '@/components/map/PoiLayer'
 import { createRouteLayers } from '@/components/map/RouteLayer'
@@ -14,7 +15,17 @@ import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
 import type { PointOfInterest } from '@/types/geography'
 import type { Station } from '@/types/network'
 import { categoryMeta, categoryRgb } from '@/utils/categories'
-import { ATLANTA_VIEW, IMPACT_BREAKS, MAP_STYLE, MARTA_LINE_HEX, delayHex, formatPopulation, hex } from '@/utils/constants'
+import {
+  ATLANTA_VIEW,
+  GAIN_BREAKS,
+  IMPACT_BREAKS,
+  MAP_STYLE,
+  MARTA_LINE_HEX,
+  delayHex,
+  formatPopulation,
+  gainHex,
+  hex,
+} from '@/utils/constants'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 const PANEL_PADDING = { top: 40, bottom: 40, left: 380, right: 400 }
@@ -63,6 +74,13 @@ export function CivicMap() {
   const selectZone = useScenarioStore((state) => state.selectZone)
   const hoverZone = useScenarioStore((state) => state.hoverZone)
   const setExtruded = useScenarioStore((state) => state.setExtruded)
+  const appMode = useScenarioStore((state) => state.appMode)
+  const setAppMode = useScenarioStore((state) => state.setAppMode)
+  const addedPois = useScenarioStore((state) => state.addedPois)
+  const movePoi = useScenarioStore((state) => state.movePoi)
+  const setMapCenter = useScenarioStore((state) => state.setMapCenter)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const gain = appMode === 'add'
 
   const shutdownIds = useMemo(
     () => new Set(Object.keys(stationStates).filter((id) => stationStates[id] === 'shutdown')),
@@ -86,7 +104,7 @@ export function CivicMap() {
 
   const layers = useMemo<LayersList>(
     () => [
-      createZoneImpactLayer({ data: zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded }),
+      createZoneImpactLayer({ data: zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, gain }),
       ...createMartaNetworkLayers(transitEdges, stations, shutdownIds),
       ...createPoiLayers({
         pois,
@@ -104,11 +122,12 @@ export function CivicMap() {
         selectedId: selectedStationId,
         hoveredId: hoveredStationId,
       }),
+      ...(gain ? createAddedPoiLayers(addedPois, draggingId) : []),
     ],
     [
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
       shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
-      hoveredStationId,
+      hoveredStationId, gain, addedPois, draggingId,
     ],
   )
 
@@ -124,8 +143,44 @@ export function CivicMap() {
 
   const activePopover = popover?.item === selectedStationId ? popover : null
 
+  const markerUnderPointer = useRef<string | null>(null)
+
+  const startMarkerDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const id = markerUnderPointer.current
+    if (!id || event.button !== 0) return
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDraggingId(id)
+    setHover(null)
+  }
+
+  const moveMarker = (event: React.PointerEvent<HTMLDivElement>) => {
+    const map = mapRef.current
+    if (!draggingId || !map) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const { lng, lat } = map.unproject([event.clientX - rect.left, event.clientY - rect.top])
+    movePoi(draggingId, lng, lat)
+  }
+
+  const endMarkerDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggingId) return
+    event.currentTarget.releasePointerCapture(event.pointerId)
+    setDraggingId(null)
+  }
+
   const onHover = (info: PickingInfo) => {
     const id = info.layer?.id
+    if (draggingId) return
+    const overMarker = id === ADDED_POI_LAYER && Boolean(info.object)
+    markerUnderPointer.current = overMarker ? (info.object as PointOfInterest).id : null
+    const dragPan = mapRef.current?.getMap().dragPan
+    if (overMarker) dragPan?.disable()
+    else dragPan?.enable()
+    if (overMarker) {
+      hoverZone(null)
+      setHover(place({ kind: 'poi', poi: info.object as PointOfInterest }, info, 240, 60))
+      return
+    }
     if (id === 'stations' && info.object) {
       const station = info.object as Station
       hoverStation(station.id)
@@ -172,7 +227,12 @@ export function CivicMap() {
     <div
       ref={frameRef}
       className="absolute inset-0"
+      onPointerDownCapture={startMarkerDrag}
+      onPointerMove={moveMarker}
+      onPointerUp={endMarkerDrag}
+      onPointerCancel={endMarkerDrag}
       onPointerLeave={() => {
+        if (!draggingId) mapRef.current?.getMap().dragPan.enable()
         setHover(null)
         hoverZone(null)
         hoverStation(null)
@@ -184,6 +244,7 @@ export function CivicMap() {
         initialViewState={ATLANTA_VIEW}
         attributionControl={{ compact: true }}
         maxPitch={70}
+        onMoveEnd={(event) => setMapCenter(event.viewState.longitude, event.viewState.latitude)}
         reuseMaps
         style={{ width: '100%', height: '100%' }}
       >
@@ -199,12 +260,24 @@ export function CivicMap() {
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_55%,rgb(5_7_11/0.55))]" />
 
+      <div className="pointer-events-auto absolute top-3 left-1/2 z-20 -translate-x-1/2">
+        <Segmented
+          className="glass rounded-xl"
+          value={appMode}
+          onChange={setAppMode}
+          options={[
+            { value: 'disrupt', label: 'Disrupt' },
+            { value: 'add', label: 'Add new', activeClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/40' },
+          ]}
+        />
+      </div>
+
       {hover && !activePopover && (
         <div
           className="glass pointer-events-none absolute z-30 max-w-[260px] rounded-xl px-3 py-2"
           style={{ left: hover.left, top: hover.top }}
         >
-          <TooltipBody hover={hover.item} stationStates={stationStates} />
+          <TooltipBody hover={hover.item} stationStates={stationStates} gain={gain} />
         </div>
       )}
 
@@ -219,9 +292,9 @@ export function CivicMap() {
       {result && (
         <div className="pointer-events-auto absolute bottom-5 left-1/2 z-20 flex -translate-x-1/2 items-end gap-2">
           <div className="glass rounded-xl px-3 py-2">
-            <div className="eyebrow mb-1.5">Added travel time (min)</div>
+            <div className="eyebrow mb-1.5">{gain ? 'Travel time saved (min)' : 'Added travel time (min)'}</div>
             <div className="flex gap-1">
-              {IMPACT_BREAKS.map((bucket) => (
+              {(gain ? GAIN_BREAKS : IMPACT_BREAKS).map((bucket) => (
                 <div key={bucket.label} className="flex flex-col items-center gap-1">
                   <span className="h-1.5 w-12 rounded-sm" style={{ background: hex(bucket.color) }} />
                   <span className="font-mono text-[9.5px] text-fog-400">{bucket.label}</span>
@@ -247,9 +320,11 @@ export function CivicMap() {
 function TooltipBody({
   hover,
   stationStates,
+  gain,
 }: {
   hover: Hover
   stationStates: Record<string, string>
+  gain: boolean
 }) {
   if (hover.kind === 'station') {
     const { station } = hover
@@ -291,8 +366,12 @@ function TooltipBody({
           <span className="text-fog-400">{impact.normalTravelMinutes}</span>
           <span className="text-fog-500">→</span>
           <span className="text-fog-100">{impact.disruptedTravelMinutes} min</span>
-          <span className="ml-auto" style={{ color: delayHex(impact.delayMinutes) }}>
-            +{impact.delayMinutes}
+          <span
+            className="ml-auto"
+            style={{ color: gain ? gainHex(impact.delayMinutes) : delayHex(impact.delayMinutes) }}
+          >
+            {gain ? '−' : '+'}
+            {impact.delayMinutes}
           </span>
         </div>
       ) : impact ? (

@@ -1,4 +1,4 @@
-import { TriangleAlert, Wrench } from 'lucide-react'
+import { Sprout, TriangleAlert, Wrench } from 'lucide-react'
 import { AffectedCommunities } from '@/components/impact/AffectedCommunities'
 import { ImpactSummary } from '@/components/impact/ImpactSummary'
 import { PoiPressureList } from '@/components/impact/PoiPressureList'
@@ -24,6 +24,8 @@ export function ImpactPanel() {
     })
     .sort((a, b) => a.station.name.localeCompare(b.station.name))
 
+  const gain = useScenarioStore((state) => state.appMode === 'add')
+  const addedCount = useScenarioStore((state) => state.addedPois.length)
   const anyShutdown = disrupted.some((item) => item.operating === 'shutdown')
 
   return (
@@ -32,11 +34,15 @@ export function ImpactPanel() {
         {!result && !error && !impactPending && (
           <div className="rounded-2xl border border-dashed border-ink-600 bg-ink-850/60 px-4 py-8 text-center">
             <p className="text-sm leading-relaxed text-fog-300">
-              Set a station to maintenance or shut down. Affected communities update immediately.
+              {gain
+                ? 'Add a hospital, grocery or other service and drag it around. Areas that gain faster access turn green.'
+                : 'Set a station to maintenance or shut down. Affected communities update immediately.'}
             </p>
-            <p className="mt-3 text-[12px] text-fog-400">
-              Maintenance keeps trains moving through. Shut down blocks the line.
-            </p>
+            {!gain && (
+              <p className="mt-3 text-[12px] text-fog-400">
+                Maintenance keeps trains moving through. Shut down blocks the line.
+              </p>
+            )}
           </div>
         )}
 
@@ -54,6 +60,18 @@ export function ImpactPanel() {
 
         {result && (
           <div className="space-y-5">
+            {gain ? (
+              <div className="rounded-2xl border border-emerald-400/35 bg-gradient-to-br from-emerald-500/15 to-ink-850 px-4 py-3">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-emerald-400">
+                  <Sprout className="h-3.5 w-3.5" />
+                  {impactPending ? 'Updating benefit' : 'Live benefit'}
+                </div>
+                <p className="mt-2 text-[12px] leading-relaxed text-fog-300">
+                  {addedCount} new {addedCount === 1 ? 'site' : 'sites'} placed. Each area switches to a new
+                  site only if it beats its current best trip.
+                </p>
+              </div>
+            ) : (
             <div
               className={cn(
                 'rounded-2xl border bg-gradient-to-br px-4 py-3',
@@ -98,9 +116,10 @@ export function ImpactPanel() {
                 Each area keeps the faster of walking or riding.
               </p>
             </div>
+            )}
 
-            <ImpactSummary summary={result.summary} />
-            <PoiPressureList pressure={result.poiPressure} />
+            <ImpactSummary summary={result.summary} gain={gain} />
+            <PoiPressureList pressure={result.poiPressure} gain={gain} />
             <AffectedCommunities impacts={result.zoneImpacts} />
             {selectedZoneId && <TraceImpactPanel />}
           </div>
