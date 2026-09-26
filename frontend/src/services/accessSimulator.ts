@@ -7,6 +7,7 @@ import type {
   PathNode,
   PoiCriticalStation,
   PoiPressure,
+  PoiStationPressure,
   RoutePath,
   SimulateScenarioRequest,
   SimulationResult,
@@ -541,12 +542,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   }
 }
 
-interface CriticalScore {
-  stationId: string
-  stationName: string
-  surge: number
-  access: number
-}
+const CRITICAL_LIST_LENGTH = 5
 
 export function createPoiCriticalIndex(request: {
   zones: ResidentialZone[]
@@ -569,7 +565,7 @@ export function createPoiCriticalIndex(request: {
     beforeByZone.set(zone.id, bestByCategory(zone, grouped, openNearest, openGraph, new Set()))
   }
 
-  const best = new Map<string, CriticalScore>()
+  const scoresByPoi = new Map<string, PoiStationPressure[]>()
 
   return {
     stations,
@@ -599,29 +595,39 @@ export function createPoiCriticalIndex(request: {
       }
 
       for (const poi of pois) {
-        const surgeScore = surge.get(poi.id) ?? 0
-        const accessScore = access.get(poi.id) ?? 0
-        if (surgeScore === 0 && accessScore === 0) continue
-        const current = best.get(poi.id)
-        const next = {
+        const redirectedResidents = surge.get(poi.id) ?? 0
+        const delayedResidentMinutes = access.get(poi.id) ?? 0
+        if (redirectedResidents === 0 && delayedResidentMinutes === 0) continue
+        const list = scoresByPoi.get(poi.id) ?? []
+        list.push({
           stationId: station.id,
           stationName: station.name,
-          surge: surgeScore,
-          access: accessScore,
-        }
-        if (
-          !current ||
-          next.surge > current.surge ||
-          (next.surge === current.surge && next.access > current.access)
-        ) {
-          best.set(poi.id, next)
-        }
+          redirectedResidents,
+          delayedResidentMinutes,
+        })
+        scoresByPoi.set(poi.id, list)
       }
     },
     snapshot(): Record<string, PoiCriticalStation> {
       const result: Record<string, PoiCriticalStation> = {}
-      for (const [poiId, score] of best) {
-        result[poiId] = { stationId: score.stationId, stationName: score.stationName }
+      for (const [poiId, scores] of scoresByPoi) {
+        const byPressure = scores
+          .filter((score) => score.redirectedResidents > 0)
+          .sort(
+            (a, b) =>
+              b.redirectedResidents - a.redirectedResidents ||
+              b.delayedResidentMinutes - a.delayedResidentMinutes,
+          )
+        const byAccess = scores
+          .filter((score) => score.delayedResidentMinutes > 0)
+          .sort((a, b) => b.delayedResidentMinutes - a.delayedResidentMinutes)
+        const top = byPressure[0] ?? byAccess[0]
+        result[poiId] = {
+          stationId: top.stationId,
+          stationName: top.stationName,
+          pressure: byPressure.slice(0, CRITICAL_LIST_LENGTH),
+          access: byAccess.slice(0, CRITICAL_LIST_LENGTH),
+        }
       }
       return result
     },

@@ -46,6 +46,8 @@ interface ScenarioState {
   extruded: boolean
   focusRequest: FocusRequest | null
   poiCriticalById: Record<string, PoiCriticalStation>
+  /** Fraction of stations already tested for the per-facility critical index. */
+  poiCriticalProgress: number
 
   setAppMode: (mode: AppMode) => void
   setMapCenter: (longitude: number, latitude: number) => void
@@ -212,10 +214,11 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     extruded: false,
     focusRequest: null,
     poiCriticalById: {},
+    poiCriticalProgress: 0,
 
     loadNetwork: async () => {
       criticalGeneration += 1
-      set({ loadStatus: 'loading', loadError: null, poiCriticalById: {} })
+      set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0 })
       try {
         const [network, zones, pois, accessEdges] = await Promise.all([
           getNetwork(),
@@ -253,7 +256,10 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
               index.absorb(index.stations[cursor])
               cursor += 1
             }
-            set({ poiCriticalById: index.snapshot() })
+            set({
+              poiCriticalById: index.snapshot(),
+              poiCriticalProgress: index.stations.length ? cursor / index.stations.length : 1,
+            })
             if (cursor < index.stations.length) window.setTimeout(step, 0)
           }
           step()

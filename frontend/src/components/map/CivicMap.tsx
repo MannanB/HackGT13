@@ -1,6 +1,6 @@
 import type { LayersList, PickingInfo } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
-import { Box, Square, X } from 'lucide-react'
+import { Box, Loader2, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Map, useControl, type MapRef } from 'react-map-gl/maplibre'
 import { ADDED_POI_LAYER, createAddedPoiLayers } from '@/components/map/AddedPoiLayer'
@@ -14,7 +14,7 @@ import { Segmented } from '@/components/ui/Segmented'
 import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
 import type { PointOfInterest } from '@/types/geography'
 import type { Station } from '@/types/network'
-import type { PoiCriticalStation } from '@/types/simulation'
+import type { PoiStationPressure } from '@/types/simulation'
 import { categoryMeta, categoryRgb } from '@/utils/categories'
 import {
   ATLANTA_VIEW,
@@ -53,6 +53,7 @@ export function CivicMap() {
   const frameRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<Placed<Hover> | null>(null)
   const [popover, setPopover] = useState<Placed<string> | null>(null)
+  const [poiPopover, setPoiPopover] = useState<Placed<PointOfInterest> | null>(null)
 
   const stations = useScenarioStore((state) => state.stations)
   const transitEdges = useScenarioStore((state) => state.transitEdges)
@@ -75,7 +76,6 @@ export function CivicMap() {
   const selectZone = useScenarioStore((state) => state.selectZone)
   const hoverZone = useScenarioStore((state) => state.hoverZone)
   const setExtruded = useScenarioStore((state) => state.setExtruded)
-  const poiCriticalById = useScenarioStore((state) => state.poiCriticalById)
   const appMode = useScenarioStore((state) => state.appMode)
   const setAppMode = useScenarioStore((state) => state.setAppMode)
   const addedPois = useScenarioStore((state) => state.addedPois)
@@ -200,7 +200,7 @@ export function CivicMap() {
     hoverStation(null)
     if (id === 'pois' && info.object) {
       hoverZone(null)
-      setHover(place({ kind: 'poi', poi: info.object as PointOfInterest }, info, 260, 96))
+      setHover(place({ kind: 'poi', poi: info.object as PointOfInterest }, info, 240, 60))
       return
     }
     if (id === 'zone-impacts' && info.object) {
@@ -218,10 +218,17 @@ export function CivicMap() {
     if (id === 'stations' && info.object) {
       const station = info.object as Station
       selectStation(station.id)
+      setPoiPopover(null)
       setPopover(place(station.id, info, 300, 130))
       return
     }
     setPopover(null)
+    if (id === 'pois' && info.object) {
+      setHover(null)
+      setPoiPopover(place(info.object as PointOfInterest, info, 320, 300))
+      return
+    }
+    setPoiPopover(null)
     if (id === 'zone-impacts' && info.object) {
       const feature = info.object as ZoneFeature
       if (result?.traces[feature.properties.zone.id]) {
@@ -260,7 +267,7 @@ export function CivicMap() {
         <DeckOverlay
           layers={layers}
           interleaved={false}
-          pickingRadius={6}
+          pickingRadius={8}
           getCursor={({ isHovering, isDragging }) => (isDragging ? 'grabbing' : isHovering ? 'pointer' : 'grab')}
           onHover={onHover}
           onClick={onClick}
@@ -281,7 +288,7 @@ export function CivicMap() {
         />
       </div>
 
-      {hover && !activePopover && (
+      {hover && !activePopover && !poiPopover && (
         <div
           className="glass pointer-events-none absolute z-30 max-w-[260px] rounded-xl px-3 py-2"
           style={{ left: hover.left, top: hover.top }}
@@ -290,7 +297,6 @@ export function CivicMap() {
             hover={hover.item}
             stationStates={stationStates}
             gain={gain}
-            criticalStation={hover.item.kind === 'poi' ? poiCriticalById[hover.item.poi.id] : undefined}
           />
         </div>
       )}
@@ -300,6 +306,14 @@ export function CivicMap() {
           id={activePopover.item}
           position={{ left: activePopover.left, top: activePopover.top }}
           onClose={() => setPopover(null)}
+        />
+      )}
+
+      {poiPopover && (
+        <PoiPopover
+          poi={poiPopover.item}
+          position={{ left: poiPopover.left, top: poiPopover.top }}
+          onClose={() => setPoiPopover(null)}
         />
       )}
 
@@ -335,12 +349,10 @@ function TooltipBody({
   hover,
   stationStates,
   gain,
-  criticalStation,
 }: {
   hover: Hover
   stationStates: Record<string, string>
   gain: boolean
-  criticalStation?: PoiCriticalStation
 }) {
   if (hover.kind === 'station') {
     const { station } = hover
@@ -369,12 +381,6 @@ function TooltipBody({
         <div className="text-[11px]" style={{ color: hex(categoryRgb(hover.poi.category)) }}>
           {meta?.label ?? hover.poi.category}
         </div>
-        {criticalStation && (
-          <div className="mt-1.5 text-[11px] leading-snug text-fog-400">
-            {criticalStation.stationName} failing would cause the most increased stress to this
-            facility
-          </div>
-        )}
       </>
     )
   }
@@ -400,6 +406,141 @@ function TooltipBody({
         <div className="mt-1 text-[11px] text-fog-500">Unaffected</div>
       ) : null}
     </>
+  )
+}
+
+function PoiPopover({
+  poi,
+  position,
+  onClose,
+}: {
+  poi: PointOfInterest
+  position: { left: number; top: number }
+  onClose: () => void
+}) {
+  const critical = useScenarioStore((state) => state.poiCriticalById[poi.id])
+  const progress = useScenarioStore((state) => state.poiCriticalProgress)
+  const stationStates = useScenarioStore((state) => state.stationStates)
+  const appMode = useScenarioStore((state) => state.appMode)
+  const setAppMode = useScenarioStore((state) => state.setAppMode)
+  const setStationState = useScenarioStore((state) => state.setStationState)
+  const meta = categoryMeta(poi.category)
+  const analyzing = progress < 1
+  const pressure = critical?.pressure ?? []
+  const access = critical?.access ?? []
+
+  const simulate = (stationId: string) => {
+    if (stationStates[stationId] === 'shutdown') {
+      setStationState(stationId, 'normal')
+      return
+    }
+    if (appMode !== 'disrupt') setAppMode('disrupt')
+    setStationState(stationId, 'shutdown')
+  }
+
+  return (
+    <div
+      className="glass absolute z-30 w-[320px] animate-rise rounded-2xl p-3"
+      style={position}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div>
+          <div className="text-[13px] font-medium">{poi.name}</div>
+          <div className="text-[11px]" style={{ color: hex(categoryRgb(poi.category)) }}>
+            {meta?.label ?? poi.category}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md p-1 text-fog-500 hover:bg-white/5 hover:text-fog-100"
+          aria-label="Close"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="eyebrow mb-1.5">Station failures that add pressure here</div>
+      {pressure.length > 0 ? (
+        <StationImpactList
+          items={pressure}
+          stationStates={stationStates}
+          onSimulate={simulate}
+          describe={(item) => `+${formatPopulation(item.redirectedResidents)} residents redirected here`}
+        />
+      ) : (
+        <p className="text-[11.5px] text-fog-500">
+          {analyzing
+            ? 'Still testing stations…'
+            : 'This location is not at risk of failure.'}
+        </p>
+      )}
+
+      {access.length > 0 && (
+        <>
+          <div className="eyebrow mt-3 mb-1.5">Station failures that slow trips here</div>
+          <StationImpactList
+            items={access.slice(0, 3)}
+            stationStates={stationStates}
+            onSimulate={simulate}
+            describe={(item) =>
+              `${formatPopulation(Math.round(item.delayedResidentMinutes))} added resident-minutes`
+            }
+          />
+        </>
+      )}
+
+      {analyzing && (
+        <div className="mt-2.5 flex items-center gap-1.5 text-[10.5px] text-fog-500">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Testing station closures · {Math.round(progress * 100)}%
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StationImpactList({
+  items,
+  stationStates,
+  onSimulate,
+  describe,
+}: {
+  items: PoiStationPressure[]
+  stationStates: Record<string, string>
+  onSimulate: (stationId: string) => void
+  describe: (item: PoiStationPressure) => string
+}) {
+  return (
+    <ul className="flex flex-col gap-1">
+      {items.map((item) => {
+        const shut = stationStates[item.stationId] === 'shutdown'
+        return (
+          <li
+            key={item.stationId}
+            className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-2 py-1.5"
+          >
+            <div className="min-w-0">
+              <div className="truncate text-[12px] text-fog-100">{item.stationName}</div>
+              <div className="font-mono text-[10.5px] text-fog-500">{describe(item)}</div>
+            </div>
+            <button
+              type="button"
+              aria-pressed={shut}
+              onClick={() => onSimulate(item.stationId)}
+              className={
+                shut
+                  ? 'shrink-0 rounded-md bg-shut/20 px-2 py-1 text-[10.5px] text-fog-100 ring-1 ring-shut/60 hover:bg-shut/10'
+                  : 'shrink-0 rounded-md px-2 py-1 text-[10.5px] text-shut ring-1 ring-shut/40 hover:bg-shut/10'
+              }
+            >
+              {shut ? 'Restore' : 'Simulate'}
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 

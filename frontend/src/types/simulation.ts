@@ -24,9 +24,22 @@ export interface PoiPressure {
   addedRegions: number
 }
 
+export interface PoiStationPressure {
+  stationId: string
+  stationName: string
+  /** Residents whose best option for this category switches to this facility. */
+  redirectedResidents: number
+  /** Added minutes × residents for people who already used this facility. */
+  delayedResidentMinutes: number
+}
+
 export interface PoiCriticalStation {
   stationId: string
   stationName: string
+  /** Stations whose closure sends extra residents here, most first. */
+  pressure: PoiStationPressure[]
+  /** Stations whose closure slows existing trips here, most first. */
+  access: PoiStationPressure[]
 }
 
 export interface ImpactSummary {
