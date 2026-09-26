@@ -1,5 +1,6 @@
 import logging
-from typing import Literal
+from collections.abc import Callable
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.gemini import gemini_is_exhausted, interpret_event as interpret_with_gemini
 from app.openai import interpret_event as interpret_with_openai
+from app.xai import interpret_event as interpret_with_xai
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/intelligence", tags=["intelligence"])
@@ -36,20 +38,24 @@ def interpret_urban_event(payload: InterpretRequest) -> dict:
     if payload.context.strip():
         event = f"Current simulator state:\n{payload.context.strip()}\n\nUser message:\n{payload.event}"
     settings = get_settings()
-    if not settings.openai_api_key:
+    if not (settings.openai_api_key and settings.xai_api_key):
         get_settings.cache_clear()
         settings = get_settings()
-    use_openai = (
-        payload.provider == "openai"
-        or gemini_is_exhausted()
-        or not settings.gemini_api_key
-    )
-    if use_openai:
-        return interpret_with_openai(event, stations)
-    try:
-        return interpret_with_gemini(event, stations)
-    except HTTPException as gemini_error:
-        if not settings.openai_api_key:
-            raise
-        logger.warning("Gemini unavailable, falling back to OpenAI: %s", gemini_error.detail)
-        return interpret_with_openai(event, stations)
+    attempts: list[tuple[str, Callable[[str, list[dict[str, Any]]], dict[str, Any]]]] = []
+    if settings.gemini_api_key and not gemini_is_exhausted():
+        attempts.append(("Gemini", interpret_with_gemini))
+    if settings.xai_api_key:
+        attempts.append(("Grok", interpret_with_xai))
+    if settings.openai_api_key:
+        attempts.append(("ChatGPT", interpret_with_openai))
+    if not attempts:
+        raise HTTPException(status_code=503, detail="No intelligence model is configured")
+    last_error = HTTPException(status_code=502, detail="No intelligence model responded")
+    for index, (name, interpret) in enumerate(attempts):
+        try:
+            return interpret(event, stations)
+        except HTTPException as exc:
+            last_error = exc
+            if index < len(attempts) - 1:
+                logger.warning("%s unavailable, trying the next model: %s", name, exc.detail)
+    raise last_error

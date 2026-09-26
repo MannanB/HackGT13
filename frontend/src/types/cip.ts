@@ -38,6 +38,7 @@ export interface CipPlan {
   generatedAt: string
   sector: CipSector
   sectorLabel: string
+  optimizeForLowIncome: boolean
   disruptionStationNames: string[]
   gaps: ServiceGap[]
   projects: CipProject[]

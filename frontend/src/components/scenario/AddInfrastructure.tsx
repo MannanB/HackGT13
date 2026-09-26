@@ -55,6 +55,8 @@ function CapitalProgram() {
   const setBudget = useScenarioStore((state) => state.setCipBudget)
   const sector = useScenarioStore((state) => state.cipSector)
   const setSector = useScenarioStore((state) => state.setCipSector)
+  const optimizeLowIncome = useScenarioStore((state) => state.cipOptimizeLowIncome)
+  const setOptimizeLowIncome = useScenarioStore((state) => state.setCipOptimizeLowIncome)
   const generate = useScenarioStore((state) => state.generateCipPlan)
   const download = useScenarioStore((state) => state.downloadCip)
   const plan = useScenarioStore((state) => state.cipPlan)
@@ -108,6 +110,19 @@ function CapitalProgram() {
           })}
         </div>
       </div>
+      <button
+        type="button"
+        aria-pressed={optimizeLowIncome}
+        onClick={() => setOptimizeLowIncome(!optimizeLowIncome)}
+        className={cn(
+          'w-full rounded-lg px-2 py-1.5 text-left text-[11px] ring-1 transition-colors',
+          optimizeLowIncome
+            ? 'bg-line-gold/20 text-line-gold ring-line-gold/50'
+            : 'text-fog-400 ring-white/10 hover:bg-white/[0.04] hover:text-fog-100',
+        )}
+      >
+        Optimize for low income?
+      </button>
       <p className="text-[11px] leading-relaxed text-fog-500">
         {focus.brief}. Lowest-cost site in this sector is about {formatUsd(cheapestFacilityCost(sector))}.
       </p>
@@ -133,7 +148,8 @@ function CapitalProgram() {
       </div>
       {plan && plan.projects.length > 0 && (
         <p className="text-[11px] leading-relaxed text-fog-400">
-          {plan.projects.length} site{plan.projects.length === 1 ? '' : 's'} · {plan.sectorLabel} · {formatUsd(plan.spent)} committed ·{' '}
+          {plan.projects.length} site{plan.projects.length === 1 ? '' : 's'} · {plan.sectorLabel}
+          {plan.optimizeForLowIncome ? ' · low-income' : ''} · {formatUsd(plan.spent)} committed ·{' '}
           {formatUsd(plan.leftover)} left
         </p>
       )}

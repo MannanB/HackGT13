@@ -843,6 +843,7 @@ export function findOptimalAdditionSite(request: {
   shutdownStations?: string[]
   underservedLimit?: number
   stationLimit?: number
+  zoneWeight?: (zone: ResidentialZone) => number
 }): OptimalSiteResult | null {
   const categories = [...new Set([...request.serviceCategories, request.category])]
   const scoped: SimulateScenarioRequest = {
@@ -860,10 +861,11 @@ export function findOptimalAdditionSite(request: {
   }
   const { beforeByZone, graph, nearest, blocked } = solveAccess(scoped, grouped)
 
+  const weightOf = request.zoneWeight ?? (() => 1)
   const underserved = request.zones
     .map((zone) => {
       const trip = beforeByZone.get(zone.id)?.get(request.category)
-      return trip ? { zone, minutes: trip.minutes } : null
+      return trip ? { zone, minutes: trip.minutes * weightOf(zone) } : null
     })
     .filter((item): item is { zone: ResidentialZone; minutes: number } => item != null)
     .sort((a, b) => b.minutes - a.minutes)
@@ -919,7 +921,7 @@ export function findOptimalAdditionSite(request: {
       const saved = beforeMinutes - trip.minutes
       if (saved < MIN_ADDITION_GAIN_MINUTES) continue
       regions += 1
-      personMinutes += saved * zoneDemand(zone, request.category)
+      personMinutes += saved * zoneDemand(zone, request.category) * weightOf(zone)
     }
     ranked.push({ point, regions, personMinutes })
   }

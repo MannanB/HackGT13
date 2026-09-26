@@ -257,7 +257,7 @@ export function buildCipPdf(input: {
     date,
     controlNumber(plan.generatedAt),
     `${sector.label} sector capital package to reduce MARTA travel time`,
-    `Scope: ${sector.brief}. Eligible destinations: ${names}.`,
+    `Scope: ${sector.brief}. Eligible destinations: ${names}.${plan.optimizeForLowIncome ? ' Sites are ranked to maximize benefit in lower-income communities.' : ''}`,
   )
 
   doc.section('1.', 'Purpose')
@@ -268,7 +268,11 @@ export function buildCipPdf(input: {
   doc.section('2.', 'Planning constraints')
   doc.subsection('2.1', 'Budget ceiling and sector')
   doc.body(
-    `The package stays within a ${formatBudgetMillions(plan.budget)} capital ceiling, scoped to the ${sector.label.toLowerCase()} sector (${sector.brief.toLowerCase()}). Planning-level construction allowances total ${formatUsd(plan.spent)}. ${formatUsd(plan.leftover)} is left unallocated rather than forcing a weaker extra site that would not clear the travel-time test.`,
+    `The package stays within a ${formatBudgetMillions(plan.budget)} capital ceiling, scoped to the ${sector.label.toLowerCase()} sector (${sector.brief.toLowerCase()}). ${
+      plan.optimizeForLowIncome
+        ? 'Siting and gap ranking give extra weight to lower-income, high-poverty, and no-vehicle neighborhoods so rider-minute gains there count more than the same gains in higher-income areas.'
+        : 'Neighborhoods are ranked by travel time and transit-dependent demand without extra weight for income.'
+    } Planning-level construction allowances total ${formatUsd(plan.spent)}. ${formatUsd(plan.leftover)} is left unallocated rather than forcing a weaker extra site that would not clear the travel-time test.`,
   )
   doc.subsection('2.2', 'Network and assignment rules')
   if (plan.disruptionStationNames.length > 0) {
@@ -292,7 +296,11 @@ export function buildCipPdf(input: {
     doc.body('No outstanding access gaps crossed the planning threshold under the current network.')
   } else {
     doc.body(
-      'Neighborhoods were ranked by long travel times, transit-dependent demand, household income and vehicle access, and extra delay if a key station fails. Leading deficiencies are as follows:',
+      'Neighborhoods were ranked by long travel times, transit-dependent demand, and extra delay if a key station fails' +
+        (plan.optimizeForLowIncome
+          ? ', with extra weight for lower-income and no-vehicle households. '
+          : '. ') +
+        'Leading deficiencies are as follows:',
     )
     doc.spacer(4)
     for (const gap of plan.gaps.slice(0, 8)) {
