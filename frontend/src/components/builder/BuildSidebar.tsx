@@ -226,7 +226,7 @@ export function BuildSidebar() {
 
   return (
     <section className="space-y-2">
-      <h2 className="eyebrow">Build</h2>
+      <h2 className="eyebrow">Report</h2>
       <p className="text-[11.5px] leading-relaxed text-fog-500">
         Click the map to drop a train stop, then drag it into place and connect it to existing stations.
         Saved permanently to the shared database.

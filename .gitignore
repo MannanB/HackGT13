@@ -21,7 +21,5 @@ build/
 # Downloaded source extracts
 data/**/raw/
 /tl_2024_13_bg.zip
-backend/data/experimental/context.json
 backend/data/experimental/streets.graph.json
-backend/data/experimental/street_routes.json
 backend/data/experimental/*.osm.pbf
