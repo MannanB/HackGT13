@@ -5,6 +5,7 @@ export const endpoints = {
   pois: '/api/v1/pois',
   network: '/api/v1/network',
   accessEdges: '/api/v1/access-edges',
+  experimentalContext: '/api/v1/experimental/context',
 } as const
 
 interface Page<T> {

@@ -1,4 +1,4 @@
-import { endpoints, fetchAllPages } from '@/services/api'
+import { apiGet, endpoints, fetchAllPages } from '@/services/api'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { AccessEdge } from '@/types/network'
 import type { MultiPolygon, Polygon } from 'geojson'
@@ -22,6 +22,10 @@ interface ApiPoi {
   name: string
   category: string
   location: LonLat
+  source?: string | null
+  source_id?: string | null
+  jobs_count?: number | null
+  enrollment?: number | null
 }
 
 const CATEGORY_ALIASES: Record<string, PoiCategory> = {
@@ -68,6 +72,7 @@ function mapZone(row: ApiZone): ResidentialZone {
     population: row.population,
     medianIncome: row.median_income,
     transferStationIds: [],
+    stationAccess: [],
   }
 }
 
@@ -78,6 +83,12 @@ function mapPoi(row: ApiPoi): PointOfInterest {
     category: mapCategory(row.category),
     latitude: row.location.lat,
     longitude: row.location.lon,
+    source: row.source,
+    sourceId: row.source_id,
+    jobsCount: row.jobs_count,
+    enrollment: row.enrollment,
+    capacity: row.enrollment ?? row.jobs_count,
+    stationAccess: [],
   }
 }
 
@@ -149,6 +160,10 @@ export function attachAccess(
       ...zone,
       primaryStationId: links[0]?.stationId ?? zone.primaryStationId,
       transferStationIds: links.slice(1, 4).map((link) => link.stationId),
+      stationAccess: links.map((link) => ({
+        stationId: link.stationId,
+        walkingMinutes: link.walkingMinutes,
+      })),
     }
   })
 
@@ -159,8 +174,103 @@ export function attachAccess(
     return {
       ...poi,
       nearestStationId: links[0]?.stationId ?? poi.nearestStationId,
+      stationAccess: links.map((link) => ({
+        stationId: link.stationId,
+        walkingMinutes: link.walkingMinutes,
+      })),
     }
   })
 
   return { zones: nextZones, pois: nextPois }
+}
+
+interface ExperimentalZone {
+  median_income?: number | null
+  households?: number | null
+  no_vehicle_households?: number | null
+  workers?: number | null
+  transit_commuters?: number | null
+  poverty_population?: number | null
+  poverty_universe?: number | null
+  employed_population?: number | null
+  disabled_population?: number | null
+  children?: number | null
+  seniors?: number | null
+  limited_english_households?: number | null
+  limited_english_universe?: number | null
+  commute_jobs?: number | null
+  margins?: Record<string, number | null>
+}
+
+interface ExperimentalPoi {
+  source: string
+  sourceId: string
+  openingHours?: string | null
+  capacity?: number | null
+  enrollment?: number | null
+}
+
+interface ExperimentalContext {
+  available: boolean
+  zones: Record<string, ExperimentalZone>
+  employmentCenters: PointOfInterest[]
+  poiEnrichment: ExperimentalPoi[]
+}
+
+export async function getExperimentalContext(): Promise<ExperimentalContext | null> {
+  try {
+    const context = await apiGet<ExperimentalContext>(endpoints.experimentalContext)
+    return context.available ? context : null
+  } catch (error) {
+    console.warn('Experimental context unavailable', error)
+    return null
+  }
+}
+
+export function attachExperimental(
+  zones: ResidentialZone[],
+  pois: PointOfInterest[],
+  context: ExperimentalContext | null,
+): { zones: ResidentialZone[]; pois: PointOfInterest[] } {
+  if (!context) return { zones, pois }
+  const nextZones = zones.map((zone) => {
+    const row = context.zones[zone.id]
+    if (!row) return zone
+    return {
+      ...zone,
+      medianIncome: row.median_income ?? zone.medianIncome,
+      households: row.households,
+      noVehicleHouseholds: row.no_vehicle_households,
+      workers: row.workers,
+      transitCommuters: row.transit_commuters,
+      povertyPopulation: row.poverty_population,
+      povertyUniverse: row.poverty_universe,
+      employedPopulation: row.employed_population,
+      disabledPopulation: row.disabled_population,
+      children: row.children,
+      seniors: row.seniors,
+      limitedEnglishHouseholds: row.limited_english_households,
+      limitedEnglishUniverse: row.limited_english_universe,
+      commuteJobs: row.commute_jobs,
+      margins: row.margins,
+    }
+  })
+  const enrichment = new Map(
+    context.poiEnrichment.map((row) => [`${row.source}:${row.sourceId}`, row]),
+  )
+  const nextPois = pois.map((poi) => {
+    const row = enrichment.get(`${poi.source}:${poi.sourceId}`)
+    if (!row) return poi
+    return {
+      ...poi,
+      openingHours: row.openingHours,
+      capacity: row.capacity ?? row.enrollment ?? poi.capacity,
+      enrollment: row.enrollment ?? poi.enrollment,
+    }
+  })
+  const existing = new Set(nextPois.map((poi) => poi.id))
+  const employmentCenters = context.employmentCenters
+    .filter((poi) => !existing.has(poi.id))
+    .map((poi) => ({ ...poi, category: mapCategory(poi.category), stationAccess: [] }))
+  return { zones: nextZones, pois: [...nextPois, ...employmentCenters] }
 }

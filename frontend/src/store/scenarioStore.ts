@@ -5,7 +5,14 @@ import {
   createPoiCriticalIndex,
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
-import { attachAccess, getAccessEdges, getPointsOfInterest, getZones } from '@/services/geoService'
+import {
+  attachAccess,
+  attachExperimental,
+  getAccessEdges,
+  getExperimentalContext,
+  getPointsOfInterest,
+  getZones,
+} from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
@@ -217,13 +224,15 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       criticalGeneration += 1
       set({ loadStatus: 'loading', loadError: null, poiCriticalById: {} })
       try {
-        const [network, zones, pois, accessEdges] = await Promise.all([
+        const [network, zones, pois, accessEdges, experimental] = await Promise.all([
           getNetwork(),
           getZones(),
           getPointsOfInterest(),
           getAccessEdges(),
+          getExperimentalContext(),
         ])
-        const connected = attachAccess(zones, pois, accessEdges)
+        const enriched = attachExperimental(zones, pois, experimental)
+        const connected = attachAccess(enriched.zones, enriched.pois, accessEdges)
         set({
           stations: network.stations,
           transitEdges: network.transitEdges,
