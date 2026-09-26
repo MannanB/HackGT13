@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from pathlib import Path
 
@@ -27,6 +28,42 @@ MISSING = {
 
 logger = logging.getLogger(__name__)
 
+# Estimates used by the experimental accessibility overlay.  Every estimate is
+# fetched with its ACS margin of error so the UI can distinguish a measured
+# difference from sampling noise later.  All of these detailed tables are
+# available at block-group geography in the ACS 5-year product.
+DIRECT_VARIABLES = {
+    "population": "B01003_001",
+    "median_income": "B19013_001",
+    "households": "B08201_001",
+    "no_vehicle_households": "B08201_002",
+    "workers": "B08301_001",
+    "transit_commuters": "B08301_010",
+    "poverty_universe": "B17001_001",
+    "poverty_population": "B17001_002",
+    "employed_population": "B23025_004",
+    "children": "C18108_002",
+    "seniors": "C18108_010",
+    "limited_english_universe": "C16002_001",
+}
+
+SUMMED_VARIABLES = {
+    "disabled_population": [
+        "C18108_003",
+        "C18108_004",
+        "C18108_007",
+        "C18108_008",
+        "C18108_011",
+        "C18108_012",
+    ],
+    "limited_english_households": [
+        "C16002_004",
+        "C16002_007",
+        "C16002_010",
+        "C16002_013",
+    ],
+}
+
 
 def census_api_key() -> str:
     load_dotenv(BACKEND_ENV)
@@ -47,6 +84,26 @@ def parse_income(value: object) -> int | None:
     return number if number >= 0 else None
 
 
+def parse_count(value: object) -> int | None:
+    if value is None or str(value).strip() in MISSING:
+        return None
+    number = int(float(str(value)))
+    return number if number >= 0 else None
+
+
+def _sum_estimates(row: dict[str, str], variables: list[str]) -> int | None:
+    values = [parse_count(row.get(f"{variable}E")) for variable in variables]
+    present = [value for value in values if value is not None]
+    return sum(present) if present else None
+
+
+def _combined_moe(row: dict[str, str], variables: list[str]) -> int | None:
+    """ACS guidance combines independent component MOEs by root-sum-square."""
+    values = [parse_count(row.get(f"{variable}M")) for variable in variables]
+    present = [value for value in values if value is not None]
+    return round(math.sqrt(sum(value * value for value in present))) if present else None
+
+
 def _geoid(row: dict[str, str]) -> str:
     return (
         str(row["state"]).zfill(2)
@@ -57,8 +114,16 @@ def _geoid(row: dict[str, str]) -> str:
 
 
 def fetch_county(county: str, api_key: str) -> list[dict[str, object]]:
+    variable_names = [
+        suffix
+        for variable in [
+            *DIRECT_VARIABLES.values(),
+            *(item for group in SUMMED_VARIABLES.values() for item in group),
+        ]
+        for suffix in (f"{variable}E", f"{variable}M")
+    ]
     params: list[tuple[str, str]] = [
-        ("get", "NAME,B01003_001E,B19013_001E"),
+        ("get", ",".join(["NAME", *variable_names])),
         ("for", "block group:*"),
         ("in", "state:13"),
         ("in", f"county:{county}"),
@@ -77,14 +142,18 @@ def fetch_county(county: str, api_key: str) -> list[dict[str, object]]:
     records = []
     for raw in payload[1:]:
         row = dict(zip(header, raw, strict=True))
-        records.append(
-            {
-                "GEOID": _geoid(row),
-                "name": row["NAME"],
-                "population": parse_population(row["B01003_001E"]),
-                "median_income": parse_income(row["B19013_001E"]),
-            }
-        )
+        record: dict[str, object] = {"GEOID": _geoid(row), "name": row["NAME"]}
+        margins: dict[str, int | None] = {}
+        for field, variable in DIRECT_VARIABLES.items():
+            parser = parse_income if field == "median_income" else parse_count
+            value = parser(row.get(f"{variable}E"))
+            record[field] = 0 if field == "population" and value is None else value
+            margins[field] = parse_count(row.get(f"{variable}M"))
+        for field, variables in SUMMED_VARIABLES.items():
+            record[field] = _sum_estimates(row, variables)
+            margins[field] = _combined_moe(row, variables)
+        record["margins"] = margins
+        records.append(record)
     logger.info("Fetched %s ACS block groups for %s", len(records), COUNTIES[county])
     return records
 
