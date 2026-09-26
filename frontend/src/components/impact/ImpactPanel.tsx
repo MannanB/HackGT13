@@ -1,5 +1,6 @@
 import { Sprout, TriangleAlert, Wrench } from 'lucide-react'
 import { AffectedCommunities } from '@/components/impact/AffectedCommunities'
+import { ForecastCharts } from '@/components/impact/ForecastCharts'
 import { ImpactSummary } from '@/components/impact/ImpactSummary'
 import { IncomeEquity } from '@/components/impact/IncomeEquity'
 import { PoiPressureList } from '@/components/impact/PoiPressureList'
@@ -130,6 +131,7 @@ export function ImpactPanel() {
             )}
 
             <ImpactSummary summary={result.summary} gain={gain} />
+            <ForecastCharts />
             <IncomeEquity impacts={result.zoneImpacts} gain={gain} />
             <HospitalCapacityList hospitals={hospitalCapacity} />
             <PoiPressureList pressure={result.poiPressure} gain={gain} />

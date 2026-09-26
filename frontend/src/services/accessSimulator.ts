@@ -1,9 +1,10 @@
+import { activityFingerprint, usesActivityModel } from '@/services/activityModel'
 import { categoryWeight } from '@/utils/categoryWeights'
 import {
   MIN_ADDITION_GAIN_MINUTES,
-  TRANSFER_PENALTY_MINUTES,
+  getTransferPenaltyMinutes,
 } from '@/utils/constants'
-import { haversineKm, walkMinutes } from '@/utils/geo'
+import { haversineKm, walkMinutes, walkMinutesScale } from '@/utils/geo'
 import {
   DEFAULT_TIME_MINUTE,
   dailyZoneDemand,
@@ -112,7 +113,10 @@ function stationChoices(
   const byId = new Map(stations.map((station) => [station.id, station]))
   const linked = (key.stationAccess ?? [])
     .filter((access) => !unboardable.has(access.stationId) && byId.has(access.stationId))
-    .map((access) => ({ station: byId.get(access.stationId)!, walkingMinutes: access.walkingMinutes }))
+    .map((access) => ({
+      station: byId.get(access.stationId)!,
+      walkingMinutes: access.walkingMinutes * walkMinutesScale(),
+    }))
     .sort((a, b) => a.walkingMinutes - b.walkingMinutes)
   if (linked.length > 0) return linked
 
@@ -183,7 +187,7 @@ function railMinutes(graph: RailGraph, stationIds: string[]): number {
     minutes += edge.travelMinutes
     if (previousLine == null) minutes += edge.frequencyMinutes / 2
     else if (edge.line !== previousLine) {
-      minutes += TRANSFER_PENALTY_MINUTES + edge.frequencyMinutes / 2
+      minutes += getTransferPenaltyMinutes() + edge.frequencyMinutes / 2
     }
     previousLine = edge.line
   }
@@ -471,12 +475,12 @@ function baselineKey(request: SimulateScenarioRequest): string {
     .map((zone) => `${zone.id}:${zone.transitCommuters ?? ''}:${zone.noVehicleHouseholds ?? ''}:${zone.stationAccess?.map((item) => `${item.stationId}-${item.walkingMinutes}`).join('.') ?? ''}`)
     .join(',')
   const pois = request.pois
-    .map((poi) => `${poi.id}:${poi.category}:${poi.latitude.toFixed(5)}:${poi.longitude.toFixed(5)}:${poi.stationAccess?.map((item) => `${item.stationId}-${item.walkingMinutes}`).join('.') ?? ''}`)
+    .map((poi) => `${poi.id}:${poi.category}:${poi.latitude.toFixed(5)}:${poi.longitude.toFixed(5)}:${poi.capacity ?? ''}:${poi.baselineOccupancyRate ?? ''}:${poi.stationAccess?.map((item) => `${item.stationId}-${item.walkingMinutes}`).join('.') ?? ''}`)
     .join(',')
   const edges = request.transitEdges
     .map((edge) => `${edge.id}:${edge.travelMinutes}:${edge.frequencyMinutes}`)
     .join(',')
-  return `${categories}|${zones}|${pois}|${request.stations.length}|${edges}|anchored-geo`
+  return `${categories}|${zones}|${pois}|${request.stations.length}|${edges}|anchored-geo|${activityFingerprint()}`
 }
 
 function groupByCategory(pois: PointOfInterest[], categories: PoiCategory[]) {
@@ -644,10 +648,14 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
       const candidate = bestNew.get(category)
       if (!candidate || candidate.minutes >= trip.minutes) continue
       const activity = hourlyShare(category, minuteOfDay)
-      if (activity <= 0) continue
+      if (activity <= 0 && !usesActivityModel()) continue
       const saved = trip.minutes - candidate.minutes
       if (saved < MIN_ADDITION_GAIN_MINUTES) continue
-      const score = saved * categoryWeight(category) * activity
+      const volume = usesActivityModel()
+        ? hourlyZoneDemand(zone, category, minuteOfDay)
+        : categoryWeight(category) * activity
+      if (volume <= 0) continue
+      const score = saved * volume
       if (!focus || score > focus.score) focus = { before: trip, after: candidate, score }
     }
     if (!focus) continue
@@ -910,7 +918,9 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       if (!disrupted) continue
       const demand = hourlyZoneDemand(zone, category, minuteOfDay)
       const total = aggregateZoneDemand(zone, category, failureStartMinute, failureElapsedMinutes)
-      const weight = categoryWeight(category) * hourlyShare(category, minuteOfDay)
+      const weight = usesActivityModel()
+        ? demand
+        : categoryWeight(category) * hourlyShare(category, minuteOfDay)
       if (total > 0) {
         beforeCount.set(baseline.poi.id, (beforeCount.get(baseline.poi.id) ?? 0) + 1)
         afterCount.set(disrupted.poi.id, (afterCount.get(disrupted.poi.id) ?? 0) + 1)
@@ -952,7 +962,9 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     if (hospitalBaseline && hospitalAllocations.length > 0) {
       const demand = hospitalAllocations.reduce((sum, allocation) => sum + allocation.demand, 0)
       if (demand > 0) {
-        const weight = categoryWeight('hospital') * hourlyShare('hospital', minuteOfDay)
+        const weight = usesActivityModel()
+          ? demand
+          : categoryWeight('hospital') * hourlyShare('hospital', minuteOfDay)
         const averageDelay = hospitalAllocations.reduce(
           (sum, allocation) =>
             sum + Math.max(0, allocation.trip.minutes - hospitalBaseline.minutes) * allocation.demand,

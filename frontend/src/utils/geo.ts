@@ -2,6 +2,16 @@ import type { LatLng } from '@/types/geography'
 
 export const WALK_METERS_PER_MINUTE = 80
 
+let walkMetersPerMinute = WALK_METERS_PER_MINUTE
+
+export function setWalkMetersPerMinute(metersPerMinute: number) {
+  if (Number.isFinite(metersPerMinute) && metersPerMinute > 0) walkMetersPerMinute = metersPerMinute
+}
+
+export function walkMinutesScale(): number {
+  return WALK_METERS_PER_MINUTE / walkMetersPerMinute
+}
+
 export function haversineKm(a: LatLng, b: LatLng): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180
   const dLat = toRad(b.latitude - a.latitude)
@@ -15,5 +25,5 @@ export function haversineKm(a: LatLng, b: LatLng): number {
 }
 
 export function walkMinutes(from: LatLng, to: LatLng): number {
-  return (haversineKm(from, to) * 1000) / WALK_METERS_PER_MINUTE
+  return (haversineKm(from, to) * 1000) / walkMetersPerMinute
 }

@@ -1,4 +1,5 @@
 import hourlyData from '@/data/hourlyDemandProfiles.json'
+import { dailyActivityTrips } from '@/services/activityModel'
 import type { PoiCategory, ResidentialZone } from '@/types/geography'
 
 const profiles = hourlyData.profiles as Record<PoiCategory, number[]>
@@ -22,7 +23,7 @@ const MAX_DENSITY_UPLIFT = 2.5
 const densityMultiplierCache = new WeakMap<ResidentialZone, number>()
 
 export const DEFAULT_TIME_MINUTE = 12 * 60
-export const DEFAULT_FAILURE_ELAPSED_MINUTES = 0
+export const DEFAULT_FAILURE_ELAPSED_MINUTES = 24 * 60
 
 export function hourAt(minuteOfDay: number): number {
   return Math.max(0, Math.min(23, Math.floor(minuteOfDay / 60)))
@@ -139,6 +140,8 @@ export function hourlyZoneDemand(
   category: PoiCategory,
   minuteOfDay: number,
 ): number {
+  const modeled = dailyActivityTrips(zone, category)
+  if (modeled != null) return modeled * hourlyShare(category, minuteOfDay)
   if (category === 'hospital') {
     return hospitalDailyPatientDemand(zone) * blendedHospitalShare(
       hourlyShare('hospital', minuteOfDay),
@@ -173,6 +176,8 @@ export function aggregateZoneDemand(
   startMinute: number,
   elapsedMinutes: number,
 ): number {
+  const modeled = dailyActivityTrips(zone, category)
+  if (modeled != null) return modeled * elapsedShare(category, startMinute, elapsedMinutes)
   if (category === 'hospital') {
     return hospitalDailyPatientDemand(zone) * blendedHospitalShare(
       elapsedShare('hospital', startMinute, elapsedMinutes),

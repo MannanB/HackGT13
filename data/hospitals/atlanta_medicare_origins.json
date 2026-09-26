@@ -1,0 +1,4843 @@
+{
+  "source": "CMS Hospital Service Area, calendar year 2024",
+  "sourceUrl": "https://data.cms.gov/sites/default/files/2025-07/8fca1932-adaa-411d-a912-78fb0854a286/Hospital_Service_Area_2024.csv",
+  "features": [
+    "travel_minutes",
+    "log_beds",
+    "occupancy"
+  ],
+  "target": "Share of Medicare inpatient discharges from each Atlanta ZIP across the hospitals already on the map",
+  "loss": "cross_entropy",
+  "notes": [
+    "CMS suppresses small ZIP-hospital counts as '*'; those rows are omitted.",
+    "The choice set is the app's hand-matched hospitals, not every hospital in the file.",
+    "Zones in the simulator are census areas. This table trains ZIP-level shares; inference uses travel time, beds, and occupancy."
+  ],
+  "rows": [
+    {
+      "ccn": "110010",
+      "zip": "30002",
+      "discharges": 58
+    },
+    {
+      "ccn": "110076",
+      "zip": "30002",
+      "discharges": 68
+    },
+    {
+      "ccn": "110079",
+      "zip": "30002",
+      "discharges": 18
+    },
+    {
+      "ccn": "110083",
+      "zip": "30002",
+      "discharges": 15
+    },
+    {
+      "ccn": "110010",
+      "zip": "30004",
+      "discharges": 26
+    },
+    {
+      "ccn": "110078",
+      "zip": "30004",
+      "discharges": 12
+    },
+    {
+      "ccn": "110082",
+      "zip": "30004",
+      "discharges": 74
+    },
+    {
+      "ccn": "110083",
+      "zip": "30004",
+      "discharges": 31
+    },
+    {
+      "ccn": "110161",
+      "zip": "30004",
+      "discharges": 58
+    },
+    {
+      "ccn": "110198",
+      "zip": "30004",
+      "discharges": 425
+    },
+    {
+      "ccn": "110010",
+      "zip": "30005",
+      "discharges": 18
+    },
+    {
+      "ccn": "110078",
+      "zip": "30005",
+      "discharges": 13
+    },
+    {
+      "ccn": "110082",
+      "zip": "30005",
+      "discharges": 39
+    },
+    {
+      "ccn": "110083",
+      "zip": "30005",
+      "discharges": 17
+    },
+    {
+      "ccn": "110161",
+      "zip": "30005",
+      "discharges": 13
+    },
+    {
+      "ccn": "110198",
+      "zip": "30005",
+      "discharges": 136
+    },
+    {
+      "ccn": "110010",
+      "zip": "30008",
+      "discharges": 17
+    },
+    {
+      "ccn": "110079",
+      "zip": "30008",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30008",
+      "discharges": 21
+    },
+    {
+      "ccn": "110083",
+      "zip": "30008",
+      "discharges": 22
+    },
+    {
+      "ccn": "110161",
+      "zip": "30008",
+      "discharges": 16
+    },
+    {
+      "ccn": "110010",
+      "zip": "30009",
+      "discharges": 17
+    },
+    {
+      "ccn": "110082",
+      "zip": "30009",
+      "discharges": 37
+    },
+    {
+      "ccn": "110083",
+      "zip": "30009",
+      "discharges": 15
+    },
+    {
+      "ccn": "110161",
+      "zip": "30009",
+      "discharges": 31
+    },
+    {
+      "ccn": "110198",
+      "zip": "30009",
+      "discharges": 354
+    },
+    {
+      "ccn": "110010",
+      "zip": "30011",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30012",
+      "discharges": 42
+    },
+    {
+      "ccn": "110076",
+      "zip": "30012",
+      "discharges": 28
+    },
+    {
+      "ccn": "110078",
+      "zip": "30012",
+      "discharges": 19
+    },
+    {
+      "ccn": "110079",
+      "zip": "30012",
+      "discharges": 35
+    },
+    {
+      "ccn": "110082",
+      "zip": "30012",
+      "discharges": 14
+    },
+    {
+      "ccn": "110083",
+      "zip": "30012",
+      "discharges": 81
+    },
+    {
+      "ccn": "110226",
+      "zip": "30012",
+      "discharges": 20
+    },
+    {
+      "ccn": "110010",
+      "zip": "30013",
+      "discharges": 77
+    },
+    {
+      "ccn": "110076",
+      "zip": "30013",
+      "discharges": 24
+    },
+    {
+      "ccn": "110078",
+      "zip": "30013",
+      "discharges": 28
+    },
+    {
+      "ccn": "110079",
+      "zip": "30013",
+      "discharges": 28
+    },
+    {
+      "ccn": "110082",
+      "zip": "30013",
+      "discharges": 31
+    },
+    {
+      "ccn": "110083",
+      "zip": "30013",
+      "discharges": 109
+    },
+    {
+      "ccn": "110161",
+      "zip": "30013",
+      "discharges": 21
+    },
+    {
+      "ccn": "110226",
+      "zip": "30013",
+      "discharges": 25
+    },
+    {
+      "ccn": "110010",
+      "zip": "30014",
+      "discharges": 49
+    },
+    {
+      "ccn": "110076",
+      "zip": "30014",
+      "discharges": 12
+    },
+    {
+      "ccn": "110078",
+      "zip": "30014",
+      "discharges": 24
+    },
+    {
+      "ccn": "110079",
+      "zip": "30014",
+      "discharges": 29
+    },
+    {
+      "ccn": "110082",
+      "zip": "30014",
+      "discharges": 13
+    },
+    {
+      "ccn": "110083",
+      "zip": "30014",
+      "discharges": 151
+    },
+    {
+      "ccn": "110161",
+      "zip": "30014",
+      "discharges": 18
+    },
+    {
+      "ccn": "110226",
+      "zip": "30014",
+      "discharges": 21
+    },
+    {
+      "ccn": "110010",
+      "zip": "30016",
+      "discharges": 90
+    },
+    {
+      "ccn": "110076",
+      "zip": "30016",
+      "discharges": 49
+    },
+    {
+      "ccn": "110078",
+      "zip": "30016",
+      "discharges": 24
+    },
+    {
+      "ccn": "110079",
+      "zip": "30016",
+      "discharges": 56
+    },
+    {
+      "ccn": "110082",
+      "zip": "30016",
+      "discharges": 30
+    },
+    {
+      "ccn": "110083",
+      "zip": "30016",
+      "discharges": 192
+    },
+    {
+      "ccn": "110161",
+      "zip": "30016",
+      "discharges": 33
+    },
+    {
+      "ccn": "110226",
+      "zip": "30016",
+      "discharges": 13
+    },
+    {
+      "ccn": "110010",
+      "zip": "30017",
+      "discharges": 45
+    },
+    {
+      "ccn": "110078",
+      "zip": "30017",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30017",
+      "discharges": 16
+    },
+    {
+      "ccn": "110083",
+      "zip": "30017",
+      "discharges": 13
+    },
+    {
+      "ccn": "110252",
+      "zip": "30017",
+      "discharges": 14
+    },
+    {
+      "ccn": "110010",
+      "zip": "30019",
+      "discharges": 20
+    },
+    {
+      "ccn": "110078",
+      "zip": "30019",
+      "discharges": 12
+    },
+    {
+      "ccn": "110079",
+      "zip": "30019",
+      "discharges": 20
+    },
+    {
+      "ccn": "110082",
+      "zip": "30019",
+      "discharges": 25
+    },
+    {
+      "ccn": "110083",
+      "zip": "30019",
+      "discharges": 14
+    },
+    {
+      "ccn": "110161",
+      "zip": "30019",
+      "discharges": 16
+    },
+    {
+      "ccn": "110252",
+      "zip": "30019",
+      "discharges": 22
+    },
+    {
+      "ccn": "110010",
+      "zip": "30021",
+      "discharges": 81
+    },
+    {
+      "ccn": "110076",
+      "zip": "30021",
+      "discharges": 118
+    },
+    {
+      "ccn": "110078",
+      "zip": "30021",
+      "discharges": 19
+    },
+    {
+      "ccn": "110079",
+      "zip": "30021",
+      "discharges": 30
+    },
+    {
+      "ccn": "110082",
+      "zip": "30021",
+      "discharges": 44
+    },
+    {
+      "ccn": "110083",
+      "zip": "30021",
+      "discharges": 12
+    },
+    {
+      "ccn": "110161",
+      "zip": "30021",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30022",
+      "discharges": 38
+    },
+    {
+      "ccn": "110078",
+      "zip": "30022",
+      "discharges": 14
+    },
+    {
+      "ccn": "110082",
+      "zip": "30022",
+      "discharges": 120
+    },
+    {
+      "ccn": "110083",
+      "zip": "30022",
+      "discharges": 35
+    },
+    {
+      "ccn": "110161",
+      "zip": "30022",
+      "discharges": 108
+    },
+    {
+      "ccn": "110198",
+      "zip": "30022",
+      "discharges": 274
+    },
+    {
+      "ccn": "110252",
+      "zip": "30022",
+      "discharges": 35
+    },
+    {
+      "ccn": "110010",
+      "zip": "30024",
+      "discharges": 57
+    },
+    {
+      "ccn": "110078",
+      "zip": "30024",
+      "discharges": 14
+    },
+    {
+      "ccn": "110082",
+      "zip": "30024",
+      "discharges": 51
+    },
+    {
+      "ccn": "110083",
+      "zip": "30024",
+      "discharges": 26
+    },
+    {
+      "ccn": "110161",
+      "zip": "30024",
+      "discharges": 30
+    },
+    {
+      "ccn": "110198",
+      "zip": "30024",
+      "discharges": 22
+    },
+    {
+      "ccn": "110252",
+      "zip": "30024",
+      "discharges": 126
+    },
+    {
+      "ccn": "110010",
+      "zip": "30025",
+      "discharges": 12
+    },
+    {
+      "ccn": "110083",
+      "zip": "30025",
+      "discharges": 26
+    },
+    {
+      "ccn": "110010",
+      "zip": "30028",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30028",
+      "discharges": 31
+    },
+    {
+      "ccn": "110083",
+      "zip": "30028",
+      "discharges": 18
+    },
+    {
+      "ccn": "110161",
+      "zip": "30028",
+      "discharges": 25
+    },
+    {
+      "ccn": "110198",
+      "zip": "30028",
+      "discharges": 20
+    },
+    {
+      "ccn": "110010",
+      "zip": "30030",
+      "discharges": 319
+    },
+    {
+      "ccn": "110076",
+      "zip": "30030",
+      "discharges": 263
+    },
+    {
+      "ccn": "110078",
+      "zip": "30030",
+      "discharges": 42
+    },
+    {
+      "ccn": "110079",
+      "zip": "30030",
+      "discharges": 106
+    },
+    {
+      "ccn": "110082",
+      "zip": "30030",
+      "discharges": 55
+    },
+    {
+      "ccn": "110083",
+      "zip": "30030",
+      "discharges": 57
+    },
+    {
+      "ccn": "110161",
+      "zip": "30030",
+      "discharges": 31
+    },
+    {
+      "ccn": "110076",
+      "zip": "30031",
+      "discharges": 16
+    },
+    {
+      "ccn": "110079",
+      "zip": "30031",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30032",
+      "discharges": 377
+    },
+    {
+      "ccn": "110076",
+      "zip": "30032",
+      "discharges": 583
+    },
+    {
+      "ccn": "110078",
+      "zip": "30032",
+      "discharges": 121
+    },
+    {
+      "ccn": "110079",
+      "zip": "30032",
+      "discharges": 299
+    },
+    {
+      "ccn": "110082",
+      "zip": "30032",
+      "discharges": 92
+    },
+    {
+      "ccn": "110083",
+      "zip": "30032",
+      "discharges": 106
+    },
+    {
+      "ccn": "110161",
+      "zip": "30032",
+      "discharges": 48
+    },
+    {
+      "ccn": "110226",
+      "zip": "30032",
+      "discharges": 115
+    },
+    {
+      "ccn": "110010",
+      "zip": "30033",
+      "discharges": 321
+    },
+    {
+      "ccn": "110076",
+      "zip": "30033",
+      "discharges": 230
+    },
+    {
+      "ccn": "110078",
+      "zip": "30033",
+      "discharges": 36
+    },
+    {
+      "ccn": "110079",
+      "zip": "30033",
+      "discharges": 74
+    },
+    {
+      "ccn": "110082",
+      "zip": "30033",
+      "discharges": 77
+    },
+    {
+      "ccn": "110083",
+      "zip": "30033",
+      "discharges": 111
+    },
+    {
+      "ccn": "110161",
+      "zip": "30033",
+      "discharges": 39
+    },
+    {
+      "ccn": "110010",
+      "zip": "30034",
+      "discharges": 379
+    },
+    {
+      "ccn": "110076",
+      "zip": "30034",
+      "discharges": 481
+    },
+    {
+      "ccn": "110078",
+      "zip": "30034",
+      "discharges": 157
+    },
+    {
+      "ccn": "110079",
+      "zip": "30034",
+      "discharges": 267
+    },
+    {
+      "ccn": "110082",
+      "zip": "30034",
+      "discharges": 87
+    },
+    {
+      "ccn": "110083",
+      "zip": "30034",
+      "discharges": 124
+    },
+    {
+      "ccn": "110161",
+      "zip": "30034",
+      "discharges": 47
+    },
+    {
+      "ccn": "110226",
+      "zip": "30034",
+      "discharges": 243
+    },
+    {
+      "ccn": "110010",
+      "zip": "30035",
+      "discharges": 159
+    },
+    {
+      "ccn": "110076",
+      "zip": "30035",
+      "discharges": 196
+    },
+    {
+      "ccn": "110078",
+      "zip": "30035",
+      "discharges": 58
+    },
+    {
+      "ccn": "110079",
+      "zip": "30035",
+      "discharges": 92
+    },
+    {
+      "ccn": "110082",
+      "zip": "30035",
+      "discharges": 47
+    },
+    {
+      "ccn": "110083",
+      "zip": "30035",
+      "discharges": 29
+    },
+    {
+      "ccn": "110161",
+      "zip": "30035",
+      "discharges": 13
+    },
+    {
+      "ccn": "110226",
+      "zip": "30035",
+      "discharges": 131
+    },
+    {
+      "ccn": "110078",
+      "zip": "30037",
+      "discharges": 12
+    },
+    {
+      "ccn": "110079",
+      "zip": "30037",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30038",
+      "discharges": 214
+    },
+    {
+      "ccn": "110076",
+      "zip": "30038",
+      "discharges": 148
+    },
+    {
+      "ccn": "110078",
+      "zip": "30038",
+      "discharges": 62
+    },
+    {
+      "ccn": "110079",
+      "zip": "30038",
+      "discharges": 105
+    },
+    {
+      "ccn": "110082",
+      "zip": "30038",
+      "discharges": 71
+    },
+    {
+      "ccn": "110083",
+      "zip": "30038",
+      "discharges": 73
+    },
+    {
+      "ccn": "110161",
+      "zip": "30038",
+      "discharges": 43
+    },
+    {
+      "ccn": "110226",
+      "zip": "30038",
+      "discharges": 280
+    },
+    {
+      "ccn": "110010",
+      "zip": "30039",
+      "discharges": 93
+    },
+    {
+      "ccn": "110076",
+      "zip": "30039",
+      "discharges": 60
+    },
+    {
+      "ccn": "110078",
+      "zip": "30039",
+      "discharges": 26
+    },
+    {
+      "ccn": "110079",
+      "zip": "30039",
+      "discharges": 27
+    },
+    {
+      "ccn": "110082",
+      "zip": "30039",
+      "discharges": 48
+    },
+    {
+      "ccn": "110083",
+      "zip": "30039",
+      "discharges": 64
+    },
+    {
+      "ccn": "110161",
+      "zip": "30039",
+      "discharges": 26
+    },
+    {
+      "ccn": "110226",
+      "zip": "30039",
+      "discharges": 14
+    },
+    {
+      "ccn": "110252",
+      "zip": "30039",
+      "discharges": 20
+    },
+    {
+      "ccn": "110010",
+      "zip": "30040",
+      "discharges": 26
+    },
+    {
+      "ccn": "110078",
+      "zip": "30040",
+      "discharges": 14
+    },
+    {
+      "ccn": "110082",
+      "zip": "30040",
+      "discharges": 56
+    },
+    {
+      "ccn": "110083",
+      "zip": "30040",
+      "discharges": 35
+    },
+    {
+      "ccn": "110161",
+      "zip": "30040",
+      "discharges": 53
+    },
+    {
+      "ccn": "110198",
+      "zip": "30040",
+      "discharges": 94
+    },
+    {
+      "ccn": "110010",
+      "zip": "30041",
+      "discharges": 40
+    },
+    {
+      "ccn": "110078",
+      "zip": "30041",
+      "discharges": 13
+    },
+    {
+      "ccn": "110082",
+      "zip": "30041",
+      "discharges": 69
+    },
+    {
+      "ccn": "110083",
+      "zip": "30041",
+      "discharges": 18
+    },
+    {
+      "ccn": "110161",
+      "zip": "30041",
+      "discharges": 50
+    },
+    {
+      "ccn": "110198",
+      "zip": "30041",
+      "discharges": 48
+    },
+    {
+      "ccn": "110010",
+      "zip": "30043",
+      "discharges": 73
+    },
+    {
+      "ccn": "110076",
+      "zip": "30043",
+      "discharges": 12
+    },
+    {
+      "ccn": "110078",
+      "zip": "30043",
+      "discharges": 21
+    },
+    {
+      "ccn": "110082",
+      "zip": "30043",
+      "discharges": 44
+    },
+    {
+      "ccn": "110083",
+      "zip": "30043",
+      "discharges": 38
+    },
+    {
+      "ccn": "110161",
+      "zip": "30043",
+      "discharges": 31
+    },
+    {
+      "ccn": "110198",
+      "zip": "30043",
+      "discharges": 16
+    },
+    {
+      "ccn": "110252",
+      "zip": "30043",
+      "discharges": 81
+    },
+    {
+      "ccn": "110010",
+      "zip": "30044",
+      "discharges": 72
+    },
+    {
+      "ccn": "110076",
+      "zip": "30044",
+      "discharges": 21
+    },
+    {
+      "ccn": "110078",
+      "zip": "30044",
+      "discharges": 14
+    },
+    {
+      "ccn": "110079",
+      "zip": "30044",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30044",
+      "discharges": 100
+    },
+    {
+      "ccn": "110083",
+      "zip": "30044",
+      "discharges": 41
+    },
+    {
+      "ccn": "110161",
+      "zip": "30044",
+      "discharges": 22
+    },
+    {
+      "ccn": "110252",
+      "zip": "30044",
+      "discharges": 132
+    },
+    {
+      "ccn": "110010",
+      "zip": "30045",
+      "discharges": 19
+    },
+    {
+      "ccn": "110078",
+      "zip": "30045",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30045",
+      "discharges": 15
+    },
+    {
+      "ccn": "110083",
+      "zip": "30045",
+      "discharges": 25
+    },
+    {
+      "ccn": "110252",
+      "zip": "30045",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30046",
+      "discharges": 17
+    },
+    {
+      "ccn": "110082",
+      "zip": "30046",
+      "discharges": 32
+    },
+    {
+      "ccn": "110083",
+      "zip": "30046",
+      "discharges": 14
+    },
+    {
+      "ccn": "110161",
+      "zip": "30046",
+      "discharges": 22
+    },
+    {
+      "ccn": "110252",
+      "zip": "30046",
+      "discharges": 31
+    },
+    {
+      "ccn": "110010",
+      "zip": "30047",
+      "discharges": 95
+    },
+    {
+      "ccn": "110076",
+      "zip": "30047",
+      "discharges": 63
+    },
+    {
+      "ccn": "110078",
+      "zip": "30047",
+      "discharges": 32
+    },
+    {
+      "ccn": "110079",
+      "zip": "30047",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30047",
+      "discharges": 73
+    },
+    {
+      "ccn": "110083",
+      "zip": "30047",
+      "discharges": 59
+    },
+    {
+      "ccn": "110161",
+      "zip": "30047",
+      "discharges": 40
+    },
+    {
+      "ccn": "110252",
+      "zip": "30047",
+      "discharges": 117
+    },
+    {
+      "ccn": "110010",
+      "zip": "30052",
+      "discharges": 120
+    },
+    {
+      "ccn": "110076",
+      "zip": "30052",
+      "discharges": 43
+    },
+    {
+      "ccn": "110078",
+      "zip": "30052",
+      "discharges": 62
+    },
+    {
+      "ccn": "110079",
+      "zip": "30052",
+      "discharges": 17
+    },
+    {
+      "ccn": "110082",
+      "zip": "30052",
+      "discharges": 49
+    },
+    {
+      "ccn": "110083",
+      "zip": "30052",
+      "discharges": 87
+    },
+    {
+      "ccn": "110161",
+      "zip": "30052",
+      "discharges": 32
+    },
+    {
+      "ccn": "110252",
+      "zip": "30052",
+      "discharges": 27
+    },
+    {
+      "ccn": "110010",
+      "zip": "30054",
+      "discharges": 33
+    },
+    {
+      "ccn": "110083",
+      "zip": "30054",
+      "discharges": 73
+    },
+    {
+      "ccn": "110161",
+      "zip": "30054",
+      "discharges": 13
+    },
+    {
+      "ccn": "110083",
+      "zip": "30055",
+      "discharges": 15
+    },
+    {
+      "ccn": "110010",
+      "zip": "30058",
+      "discharges": 274
+    },
+    {
+      "ccn": "110076",
+      "zip": "30058",
+      "discharges": 232
+    },
+    {
+      "ccn": "110078",
+      "zip": "30058",
+      "discharges": 89
+    },
+    {
+      "ccn": "110079",
+      "zip": "30058",
+      "discharges": 184
+    },
+    {
+      "ccn": "110082",
+      "zip": "30058",
+      "discharges": 75
+    },
+    {
+      "ccn": "110083",
+      "zip": "30058",
+      "discharges": 55
+    },
+    {
+      "ccn": "110161",
+      "zip": "30058",
+      "discharges": 44
+    },
+    {
+      "ccn": "110226",
+      "zip": "30058",
+      "discharges": 463
+    },
+    {
+      "ccn": "110010",
+      "zip": "30060",
+      "discharges": 14
+    },
+    {
+      "ccn": "110078",
+      "zip": "30060",
+      "discharges": 13
+    },
+    {
+      "ccn": "110079",
+      "zip": "30060",
+      "discharges": 16
+    },
+    {
+      "ccn": "110082",
+      "zip": "30060",
+      "discharges": 28
+    },
+    {
+      "ccn": "110083",
+      "zip": "30060",
+      "discharges": 26
+    },
+    {
+      "ccn": "110010",
+      "zip": "30062",
+      "discharges": 45
+    },
+    {
+      "ccn": "110078",
+      "zip": "30062",
+      "discharges": 20
+    },
+    {
+      "ccn": "110082",
+      "zip": "30062",
+      "discharges": 164
+    },
+    {
+      "ccn": "110083",
+      "zip": "30062",
+      "discharges": 90
+    },
+    {
+      "ccn": "110161",
+      "zip": "30062",
+      "discharges": 170
+    },
+    {
+      "ccn": "110198",
+      "zip": "30062",
+      "discharges": 80
+    },
+    {
+      "ccn": "110010",
+      "zip": "30064",
+      "discharges": 30
+    },
+    {
+      "ccn": "110078",
+      "zip": "30064",
+      "discharges": 29
+    },
+    {
+      "ccn": "110079",
+      "zip": "30064",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30064",
+      "discharges": 90
+    },
+    {
+      "ccn": "110083",
+      "zip": "30064",
+      "discharges": 69
+    },
+    {
+      "ccn": "110161",
+      "zip": "30064",
+      "discharges": 26
+    },
+    {
+      "ccn": "110010",
+      "zip": "30066",
+      "discharges": 34
+    },
+    {
+      "ccn": "110078",
+      "zip": "30066",
+      "discharges": 29
+    },
+    {
+      "ccn": "110079",
+      "zip": "30066",
+      "discharges": 12
+    },
+    {
+      "ccn": "110082",
+      "zip": "30066",
+      "discharges": 101
+    },
+    {
+      "ccn": "110083",
+      "zip": "30066",
+      "discharges": 93
+    },
+    {
+      "ccn": "110161",
+      "zip": "30066",
+      "discharges": 40
+    },
+    {
+      "ccn": "110198",
+      "zip": "30066",
+      "discharges": 60
+    },
+    {
+      "ccn": "110010",
+      "zip": "30067",
+      "discharges": 27
+    },
+    {
+      "ccn": "110078",
+      "zip": "30067",
+      "discharges": 18
+    },
+    {
+      "ccn": "110079",
+      "zip": "30067",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30067",
+      "discharges": 128
+    },
+    {
+      "ccn": "110083",
+      "zip": "30067",
+      "discharges": 63
+    },
+    {
+      "ccn": "110161",
+      "zip": "30067",
+      "discharges": 123
+    },
+    {
+      "ccn": "110198",
+      "zip": "30067",
+      "discharges": 21
+    },
+    {
+      "ccn": "110010",
+      "zip": "30068",
+      "discharges": 24
+    },
+    {
+      "ccn": "110078",
+      "zip": "30068",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30068",
+      "discharges": 178
+    },
+    {
+      "ccn": "110083",
+      "zip": "30068",
+      "discharges": 82
+    },
+    {
+      "ccn": "110161",
+      "zip": "30068",
+      "discharges": 171
+    },
+    {
+      "ccn": "110198",
+      "zip": "30068",
+      "discharges": 48
+    },
+    {
+      "ccn": "110010",
+      "zip": "30071",
+      "discharges": 17
+    },
+    {
+      "ccn": "110078",
+      "zip": "30071",
+      "discharges": 16
+    },
+    {
+      "ccn": "110082",
+      "zip": "30071",
+      "discharges": 27
+    },
+    {
+      "ccn": "110083",
+      "zip": "30071",
+      "discharges": 18
+    },
+    {
+      "ccn": "110161",
+      "zip": "30071",
+      "discharges": 29
+    },
+    {
+      "ccn": "110252",
+      "zip": "30071",
+      "discharges": 133
+    },
+    {
+      "ccn": "110076",
+      "zip": "30072",
+      "discharges": 16
+    },
+    {
+      "ccn": "110010",
+      "zip": "30075",
+      "discharges": 43
+    },
+    {
+      "ccn": "110078",
+      "zip": "30075",
+      "discharges": 27
+    },
+    {
+      "ccn": "110082",
+      "zip": "30075",
+      "discharges": 214
+    },
+    {
+      "ccn": "110083",
+      "zip": "30075",
+      "discharges": 66
+    },
+    {
+      "ccn": "110161",
+      "zip": "30075",
+      "discharges": 174
+    },
+    {
+      "ccn": "110198",
+      "zip": "30075",
+      "discharges": 752
+    },
+    {
+      "ccn": "110010",
+      "zip": "30076",
+      "discharges": 20
+    },
+    {
+      "ccn": "110078",
+      "zip": "30076",
+      "discharges": 13
+    },
+    {
+      "ccn": "110079",
+      "zip": "30076",
+      "discharges": 13
+    },
+    {
+      "ccn": "110082",
+      "zip": "30076",
+      "discharges": 117
+    },
+    {
+      "ccn": "110083",
+      "zip": "30076",
+      "discharges": 42
+    },
+    {
+      "ccn": "110161",
+      "zip": "30076",
+      "discharges": 98
+    },
+    {
+      "ccn": "110198",
+      "zip": "30076",
+      "discharges": 489
+    },
+    {
+      "ccn": "110198",
+      "zip": "30077",
+      "discharges": 16
+    },
+    {
+      "ccn": "110010",
+      "zip": "30078",
+      "discharges": 64
+    },
+    {
+      "ccn": "110076",
+      "zip": "30078",
+      "discharges": 22
+    },
+    {
+      "ccn": "110078",
+      "zip": "30078",
+      "discharges": 20
+    },
+    {
+      "ccn": "110079",
+      "zip": "30078",
+      "discharges": 20
+    },
+    {
+      "ccn": "110082",
+      "zip": "30078",
+      "discharges": 33
+    },
+    {
+      "ccn": "110083",
+      "zip": "30078",
+      "discharges": 32
+    },
+    {
+      "ccn": "110161",
+      "zip": "30078",
+      "discharges": 17
+    },
+    {
+      "ccn": "110252",
+      "zip": "30078",
+      "discharges": 21
+    },
+    {
+      "ccn": "110010",
+      "zip": "30079",
+      "discharges": 24
+    },
+    {
+      "ccn": "110076",
+      "zip": "30079",
+      "discharges": 47
+    },
+    {
+      "ccn": "110079",
+      "zip": "30079",
+      "discharges": 12
+    },
+    {
+      "ccn": "110082",
+      "zip": "30079",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30080",
+      "discharges": 34
+    },
+    {
+      "ccn": "110078",
+      "zip": "30080",
+      "discharges": 34
+    },
+    {
+      "ccn": "110079",
+      "zip": "30080",
+      "discharges": 14
+    },
+    {
+      "ccn": "110082",
+      "zip": "30080",
+      "discharges": 97
+    },
+    {
+      "ccn": "110083",
+      "zip": "30080",
+      "discharges": 137
+    },
+    {
+      "ccn": "110161",
+      "zip": "30080",
+      "discharges": 55
+    },
+    {
+      "ccn": "113300",
+      "zip": "30080",
+      "discharges": 11
+    },
+    {
+      "ccn": "110010",
+      "zip": "30082",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30082",
+      "discharges": 59
+    },
+    {
+      "ccn": "110083",
+      "zip": "30082",
+      "discharges": 77
+    },
+    {
+      "ccn": "110161",
+      "zip": "30082",
+      "discharges": 25
+    },
+    {
+      "ccn": "110010",
+      "zip": "30083",
+      "discharges": 320
+    },
+    {
+      "ccn": "110076",
+      "zip": "30083",
+      "discharges": 481
+    },
+    {
+      "ccn": "110078",
+      "zip": "30083",
+      "discharges": 68
+    },
+    {
+      "ccn": "110079",
+      "zip": "30083",
+      "discharges": 138
+    },
+    {
+      "ccn": "110082",
+      "zip": "30083",
+      "discharges": 104
+    },
+    {
+      "ccn": "110083",
+      "zip": "30083",
+      "discharges": 68
+    },
+    {
+      "ccn": "110161",
+      "zip": "30083",
+      "discharges": 53
+    },
+    {
+      "ccn": "110226",
+      "zip": "30083",
+      "discharges": 84
+    },
+    {
+      "ccn": "110010",
+      "zip": "30084",
+      "discharges": 196
+    },
+    {
+      "ccn": "110076",
+      "zip": "30084",
+      "discharges": 219
+    },
+    {
+      "ccn": "110078",
+      "zip": "30084",
+      "discharges": 44
+    },
+    {
+      "ccn": "110079",
+      "zip": "30084",
+      "discharges": 51
+    },
+    {
+      "ccn": "110082",
+      "zip": "30084",
+      "discharges": 178
+    },
+    {
+      "ccn": "110083",
+      "zip": "30084",
+      "discharges": 64
+    },
+    {
+      "ccn": "110161",
+      "zip": "30084",
+      "discharges": 101
+    },
+    {
+      "ccn": "110252",
+      "zip": "30084",
+      "discharges": 40
+    },
+    {
+      "ccn": "110010",
+      "zip": "30086",
+      "discharges": 18
+    },
+    {
+      "ccn": "110010",
+      "zip": "30087",
+      "discharges": 300
+    },
+    {
+      "ccn": "110076",
+      "zip": "30087",
+      "discharges": 251
+    },
+    {
+      "ccn": "110078",
+      "zip": "30087",
+      "discharges": 55
+    },
+    {
+      "ccn": "110079",
+      "zip": "30087",
+      "discharges": 62
+    },
+    {
+      "ccn": "110082",
+      "zip": "30087",
+      "discharges": 108
+    },
+    {
+      "ccn": "110083",
+      "zip": "30087",
+      "discharges": 84
+    },
+    {
+      "ccn": "110161",
+      "zip": "30087",
+      "discharges": 53
+    },
+    {
+      "ccn": "110226",
+      "zip": "30087",
+      "discharges": 83
+    },
+    {
+      "ccn": "110010",
+      "zip": "30088",
+      "discharges": 188
+    },
+    {
+      "ccn": "110076",
+      "zip": "30088",
+      "discharges": 209
+    },
+    {
+      "ccn": "110078",
+      "zip": "30088",
+      "discharges": 36
+    },
+    {
+      "ccn": "110079",
+      "zip": "30088",
+      "discharges": 74
+    },
+    {
+      "ccn": "110082",
+      "zip": "30088",
+      "discharges": 68
+    },
+    {
+      "ccn": "110083",
+      "zip": "30088",
+      "discharges": 35
+    },
+    {
+      "ccn": "110161",
+      "zip": "30088",
+      "discharges": 25
+    },
+    {
+      "ccn": "110226",
+      "zip": "30088",
+      "discharges": 162
+    },
+    {
+      "ccn": "110010",
+      "zip": "30092",
+      "discharges": 32
+    },
+    {
+      "ccn": "110078",
+      "zip": "30092",
+      "discharges": 24
+    },
+    {
+      "ccn": "110079",
+      "zip": "30092",
+      "discharges": 14
+    },
+    {
+      "ccn": "110082",
+      "zip": "30092",
+      "discharges": 133
+    },
+    {
+      "ccn": "110083",
+      "zip": "30092",
+      "discharges": 35
+    },
+    {
+      "ccn": "110161",
+      "zip": "30092",
+      "discharges": 96
+    },
+    {
+      "ccn": "110198",
+      "zip": "30092",
+      "discharges": 48
+    },
+    {
+      "ccn": "110252",
+      "zip": "30092",
+      "discharges": 144
+    },
+    {
+      "ccn": "110010",
+      "zip": "30093",
+      "discharges": 37
+    },
+    {
+      "ccn": "110076",
+      "zip": "30093",
+      "discharges": 13
+    },
+    {
+      "ccn": "110082",
+      "zip": "30093",
+      "discharges": 40
+    },
+    {
+      "ccn": "110083",
+      "zip": "30093",
+      "discharges": 17
+    },
+    {
+      "ccn": "110161",
+      "zip": "30093",
+      "discharges": 34
+    },
+    {
+      "ccn": "110252",
+      "zip": "30093",
+      "discharges": 135
+    },
+    {
+      "ccn": "110010",
+      "zip": "30094",
+      "discharges": 80
+    },
+    {
+      "ccn": "110076",
+      "zip": "30094",
+      "discharges": 44
+    },
+    {
+      "ccn": "110078",
+      "zip": "30094",
+      "discharges": 29
+    },
+    {
+      "ccn": "110079",
+      "zip": "30094",
+      "discharges": 44
+    },
+    {
+      "ccn": "110082",
+      "zip": "30094",
+      "discharges": 20
+    },
+    {
+      "ccn": "110083",
+      "zip": "30094",
+      "discharges": 122
+    },
+    {
+      "ccn": "110161",
+      "zip": "30094",
+      "discharges": 18
+    },
+    {
+      "ccn": "110226",
+      "zip": "30094",
+      "discharges": 33
+    },
+    {
+      "ccn": "110010",
+      "zip": "30096",
+      "discharges": 35
+    },
+    {
+      "ccn": "110078",
+      "zip": "30096",
+      "discharges": 15
+    },
+    {
+      "ccn": "110079",
+      "zip": "30096",
+      "discharges": 22
+    },
+    {
+      "ccn": "110082",
+      "zip": "30096",
+      "discharges": 63
+    },
+    {
+      "ccn": "110083",
+      "zip": "30096",
+      "discharges": 38
+    },
+    {
+      "ccn": "110161",
+      "zip": "30096",
+      "discharges": 45
+    },
+    {
+      "ccn": "110198",
+      "zip": "30096",
+      "discharges": 18
+    },
+    {
+      "ccn": "110252",
+      "zip": "30096",
+      "discharges": 612
+    },
+    {
+      "ccn": "110010",
+      "zip": "30097",
+      "discharges": 53
+    },
+    {
+      "ccn": "110078",
+      "zip": "30097",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30097",
+      "discharges": 72
+    },
+    {
+      "ccn": "110083",
+      "zip": "30097",
+      "discharges": 22
+    },
+    {
+      "ccn": "110161",
+      "zip": "30097",
+      "discharges": 13
+    },
+    {
+      "ccn": "110198",
+      "zip": "30097",
+      "discharges": 38
+    },
+    {
+      "ccn": "110252",
+      "zip": "30097",
+      "discharges": 155
+    },
+    {
+      "ccn": "110010",
+      "zip": "30101",
+      "discharges": 49
+    },
+    {
+      "ccn": "110078",
+      "zip": "30101",
+      "discharges": 14
+    },
+    {
+      "ccn": "110082",
+      "zip": "30101",
+      "discharges": 63
+    },
+    {
+      "ccn": "110083",
+      "zip": "30101",
+      "discharges": 39
+    },
+    {
+      "ccn": "110161",
+      "zip": "30101",
+      "discharges": 19
+    },
+    {
+      "ccn": "110198",
+      "zip": "30101",
+      "discharges": 14
+    },
+    {
+      "ccn": "110010",
+      "zip": "30102",
+      "discharges": 20
+    },
+    {
+      "ccn": "110082",
+      "zip": "30102",
+      "discharges": 43
+    },
+    {
+      "ccn": "110083",
+      "zip": "30102",
+      "discharges": 37
+    },
+    {
+      "ccn": "110078",
+      "zip": "30106",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30106",
+      "discharges": 17
+    },
+    {
+      "ccn": "110083",
+      "zip": "30106",
+      "discharges": 31
+    },
+    {
+      "ccn": "110161",
+      "zip": "30106",
+      "discharges": 23
+    },
+    {
+      "ccn": "110083",
+      "zip": "30107",
+      "discharges": 24
+    },
+    {
+      "ccn": "110198",
+      "zip": "30107",
+      "discharges": 11
+    },
+    {
+      "ccn": "110010",
+      "zip": "30108",
+      "discharges": 15
+    },
+    {
+      "ccn": "110078",
+      "zip": "30108",
+      "discharges": 18
+    },
+    {
+      "ccn": "110083",
+      "zip": "30108",
+      "discharges": 11
+    },
+    {
+      "ccn": "110010",
+      "zip": "30110",
+      "discharges": 13
+    },
+    {
+      "ccn": "110078",
+      "zip": "30110",
+      "discharges": 20
+    },
+    {
+      "ccn": "110079",
+      "zip": "30110",
+      "discharges": 15
+    },
+    {
+      "ccn": "110079",
+      "zip": "30113",
+      "discharges": 11
+    },
+    {
+      "ccn": "110010",
+      "zip": "30114",
+      "discharges": 22
+    },
+    {
+      "ccn": "110078",
+      "zip": "30114",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30114",
+      "discharges": 52
+    },
+    {
+      "ccn": "110083",
+      "zip": "30114",
+      "discharges": 58
+    },
+    {
+      "ccn": "110161",
+      "zip": "30114",
+      "discharges": 39
+    },
+    {
+      "ccn": "110198",
+      "zip": "30114",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30115",
+      "discharges": 22
+    },
+    {
+      "ccn": "110082",
+      "zip": "30115",
+      "discharges": 39
+    },
+    {
+      "ccn": "110083",
+      "zip": "30115",
+      "discharges": 61
+    },
+    {
+      "ccn": "110161",
+      "zip": "30115",
+      "discharges": 28
+    },
+    {
+      "ccn": "110198",
+      "zip": "30115",
+      "discharges": 47
+    },
+    {
+      "ccn": "110010",
+      "zip": "30116",
+      "discharges": 37
+    },
+    {
+      "ccn": "110078",
+      "zip": "30116",
+      "discharges": 17
+    },
+    {
+      "ccn": "110079",
+      "zip": "30116",
+      "discharges": 23
+    },
+    {
+      "ccn": "110082",
+      "zip": "30116",
+      "discharges": 11
+    },
+    {
+      "ccn": "110083",
+      "zip": "30116",
+      "discharges": 29
+    },
+    {
+      "ccn": "110010",
+      "zip": "30117",
+      "discharges": 31
+    },
+    {
+      "ccn": "110078",
+      "zip": "30117",
+      "discharges": 41
+    },
+    {
+      "ccn": "110079",
+      "zip": "30117",
+      "discharges": 31
+    },
+    {
+      "ccn": "110082",
+      "zip": "30117",
+      "discharges": 12
+    },
+    {
+      "ccn": "110083",
+      "zip": "30117",
+      "discharges": 27
+    },
+    {
+      "ccn": "110010",
+      "zip": "30120",
+      "discharges": 19
+    },
+    {
+      "ccn": "110082",
+      "zip": "30120",
+      "discharges": 12
+    },
+    {
+      "ccn": "110083",
+      "zip": "30120",
+      "discharges": 44
+    },
+    {
+      "ccn": "110010",
+      "zip": "30121",
+      "discharges": 13
+    },
+    {
+      "ccn": "110078",
+      "zip": "30121",
+      "discharges": 11
+    },
+    {
+      "ccn": "110083",
+      "zip": "30121",
+      "discharges": 23
+    },
+    {
+      "ccn": "110010",
+      "zip": "30122",
+      "discharges": 24
+    },
+    {
+      "ccn": "110078",
+      "zip": "30122",
+      "discharges": 17
+    },
+    {
+      "ccn": "110079",
+      "zip": "30122",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30122",
+      "discharges": 16
+    },
+    {
+      "ccn": "110083",
+      "zip": "30122",
+      "discharges": 36
+    },
+    {
+      "ccn": "110161",
+      "zip": "30122",
+      "discharges": 16
+    },
+    {
+      "ccn": "110010",
+      "zip": "30125",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30126",
+      "discharges": 25
+    },
+    {
+      "ccn": "110078",
+      "zip": "30126",
+      "discharges": 12
+    },
+    {
+      "ccn": "110079",
+      "zip": "30126",
+      "discharges": 16
+    },
+    {
+      "ccn": "110082",
+      "zip": "30126",
+      "discharges": 50
+    },
+    {
+      "ccn": "110083",
+      "zip": "30126",
+      "discharges": 82
+    },
+    {
+      "ccn": "110161",
+      "zip": "30126",
+      "discharges": 16
+    },
+    {
+      "ccn": "110010",
+      "zip": "30127",
+      "discharges": 49
+    },
+    {
+      "ccn": "110078",
+      "zip": "30127",
+      "discharges": 17
+    },
+    {
+      "ccn": "110079",
+      "zip": "30127",
+      "discharges": 12
+    },
+    {
+      "ccn": "110082",
+      "zip": "30127",
+      "discharges": 52
+    },
+    {
+      "ccn": "110083",
+      "zip": "30127",
+      "discharges": 89
+    },
+    {
+      "ccn": "110161",
+      "zip": "30127",
+      "discharges": 30
+    },
+    {
+      "ccn": "110198",
+      "zip": "30127",
+      "discharges": 11
+    },
+    {
+      "ccn": "110010",
+      "zip": "30132",
+      "discharges": 27
+    },
+    {
+      "ccn": "110082",
+      "zip": "30132",
+      "discharges": 16
+    },
+    {
+      "ccn": "110083",
+      "zip": "30132",
+      "discharges": 39
+    },
+    {
+      "ccn": "110010",
+      "zip": "30134",
+      "discharges": 20
+    },
+    {
+      "ccn": "110078",
+      "zip": "30134",
+      "discharges": 29
+    },
+    {
+      "ccn": "110079",
+      "zip": "30134",
+      "discharges": 26
+    },
+    {
+      "ccn": "110082",
+      "zip": "30134",
+      "discharges": 21
+    },
+    {
+      "ccn": "110083",
+      "zip": "30134",
+      "discharges": 59
+    },
+    {
+      "ccn": "110161",
+      "zip": "30134",
+      "discharges": 13
+    },
+    {
+      "ccn": "110010",
+      "zip": "30135",
+      "discharges": 59
+    },
+    {
+      "ccn": "110078",
+      "zip": "30135",
+      "discharges": 39
+    },
+    {
+      "ccn": "110079",
+      "zip": "30135",
+      "discharges": 56
+    },
+    {
+      "ccn": "110082",
+      "zip": "30135",
+      "discharges": 33
+    },
+    {
+      "ccn": "110083",
+      "zip": "30135",
+      "discharges": 106
+    },
+    {
+      "ccn": "110161",
+      "zip": "30135",
+      "discharges": 30
+    },
+    {
+      "ccn": "110010",
+      "zip": "30141",
+      "discharges": 25
+    },
+    {
+      "ccn": "110082",
+      "zip": "30141",
+      "discharges": 16
+    },
+    {
+      "ccn": "110083",
+      "zip": "30141",
+      "discharges": 26
+    },
+    {
+      "ccn": "110010",
+      "zip": "30143",
+      "discharges": 17
+    },
+    {
+      "ccn": "110078",
+      "zip": "30143",
+      "discharges": 18
+    },
+    {
+      "ccn": "110082",
+      "zip": "30143",
+      "discharges": 18
+    },
+    {
+      "ccn": "110083",
+      "zip": "30143",
+      "discharges": 146
+    },
+    {
+      "ccn": "110161",
+      "zip": "30143",
+      "discharges": 21
+    },
+    {
+      "ccn": "110198",
+      "zip": "30143",
+      "discharges": 20
+    },
+    {
+      "ccn": "110010",
+      "zip": "30144",
+      "discharges": 30
+    },
+    {
+      "ccn": "110078",
+      "zip": "30144",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30144",
+      "discharges": 68
+    },
+    {
+      "ccn": "110083",
+      "zip": "30144",
+      "discharges": 22
+    },
+    {
+      "ccn": "110161",
+      "zip": "30144",
+      "discharges": 18
+    },
+    {
+      "ccn": "110010",
+      "zip": "30152",
+      "discharges": 29
+    },
+    {
+      "ccn": "110078",
+      "zip": "30152",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30152",
+      "discharges": 44
+    },
+    {
+      "ccn": "110083",
+      "zip": "30152",
+      "discharges": 37
+    },
+    {
+      "ccn": "110010",
+      "zip": "30153",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30157",
+      "discharges": 27
+    },
+    {
+      "ccn": "110078",
+      "zip": "30157",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30157",
+      "discharges": 11
+    },
+    {
+      "ccn": "110083",
+      "zip": "30157",
+      "discharges": 43
+    },
+    {
+      "ccn": "110161",
+      "zip": "30157",
+      "discharges": 27
+    },
+    {
+      "ccn": "110010",
+      "zip": "30161",
+      "discharges": 17
+    },
+    {
+      "ccn": "110161",
+      "zip": "30161",
+      "discharges": 16
+    },
+    {
+      "ccn": "110010",
+      "zip": "30165",
+      "discharges": 15
+    },
+    {
+      "ccn": "110083",
+      "zip": "30165",
+      "discharges": 15
+    },
+    {
+      "ccn": "110078",
+      "zip": "30168",
+      "discharges": 17
+    },
+    {
+      "ccn": "110079",
+      "zip": "30168",
+      "discharges": 15
+    },
+    {
+      "ccn": "110083",
+      "zip": "30168",
+      "discharges": 35
+    },
+    {
+      "ccn": "110161",
+      "zip": "30168",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30175",
+      "discharges": 14
+    },
+    {
+      "ccn": "110083",
+      "zip": "30175",
+      "discharges": 30
+    },
+    {
+      "ccn": "110078",
+      "zip": "30176",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30179",
+      "discharges": 23
+    },
+    {
+      "ccn": "110078",
+      "zip": "30179",
+      "discharges": 21
+    },
+    {
+      "ccn": "110079",
+      "zip": "30179",
+      "discharges": 13
+    },
+    {
+      "ccn": "110082",
+      "zip": "30179",
+      "discharges": 13
+    },
+    {
+      "ccn": "110083",
+      "zip": "30179",
+      "discharges": 21
+    },
+    {
+      "ccn": "110010",
+      "zip": "30180",
+      "discharges": 45
+    },
+    {
+      "ccn": "110078",
+      "zip": "30180",
+      "discharges": 60
+    },
+    {
+      "ccn": "110079",
+      "zip": "30180",
+      "discharges": 34
+    },
+    {
+      "ccn": "110082",
+      "zip": "30180",
+      "discharges": 18
+    },
+    {
+      "ccn": "110083",
+      "zip": "30180",
+      "discharges": 39
+    },
+    {
+      "ccn": "110161",
+      "zip": "30180",
+      "discharges": 16
+    },
+    {
+      "ccn": "110082",
+      "zip": "30183",
+      "discharges": 11
+    },
+    {
+      "ccn": "110083",
+      "zip": "30183",
+      "discharges": 18
+    },
+    {
+      "ccn": "110161",
+      "zip": "30183",
+      "discharges": 18
+    },
+    {
+      "ccn": "110010",
+      "zip": "30187",
+      "discharges": 16
+    },
+    {
+      "ccn": "110078",
+      "zip": "30187",
+      "discharges": 15
+    },
+    {
+      "ccn": "110083",
+      "zip": "30187",
+      "discharges": 11
+    },
+    {
+      "ccn": "110010",
+      "zip": "30188",
+      "discharges": 23
+    },
+    {
+      "ccn": "110078",
+      "zip": "30188",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30188",
+      "discharges": 93
+    },
+    {
+      "ccn": "110083",
+      "zip": "30188",
+      "discharges": 50
+    },
+    {
+      "ccn": "110161",
+      "zip": "30188",
+      "discharges": 53
+    },
+    {
+      "ccn": "110198",
+      "zip": "30188",
+      "discharges": 183
+    },
+    {
+      "ccn": "110010",
+      "zip": "30189",
+      "discharges": 12
+    },
+    {
+      "ccn": "110078",
+      "zip": "30189",
+      "discharges": 14
+    },
+    {
+      "ccn": "110082",
+      "zip": "30189",
+      "discharges": 41
+    },
+    {
+      "ccn": "110083",
+      "zip": "30189",
+      "discharges": 23
+    },
+    {
+      "ccn": "110161",
+      "zip": "30189",
+      "discharges": 14
+    },
+    {
+      "ccn": "110010",
+      "zip": "30204",
+      "discharges": 15
+    },
+    {
+      "ccn": "110079",
+      "zip": "30204",
+      "discharges": 11
+    },
+    {
+      "ccn": "110083",
+      "zip": "30204",
+      "discharges": 16
+    },
+    {
+      "ccn": "110083",
+      "zip": "30205",
+      "discharges": 13
+    },
+    {
+      "ccn": "110010",
+      "zip": "30213",
+      "discharges": 71
+    },
+    {
+      "ccn": "110076",
+      "zip": "30213",
+      "discharges": 11
+    },
+    {
+      "ccn": "110078",
+      "zip": "30213",
+      "discharges": 55
+    },
+    {
+      "ccn": "110079",
+      "zip": "30213",
+      "discharges": 144
+    },
+    {
+      "ccn": "110082",
+      "zip": "30213",
+      "discharges": 26
+    },
+    {
+      "ccn": "110083",
+      "zip": "30213",
+      "discharges": 99
+    },
+    {
+      "ccn": "110161",
+      "zip": "30213",
+      "discharges": 17
+    },
+    {
+      "ccn": "110165",
+      "zip": "30213",
+      "discharges": 40
+    },
+    {
+      "ccn": "110010",
+      "zip": "30214",
+      "discharges": 45
+    },
+    {
+      "ccn": "110076",
+      "zip": "30214",
+      "discharges": 17
+    },
+    {
+      "ccn": "110078",
+      "zip": "30214",
+      "discharges": 36
+    },
+    {
+      "ccn": "110079",
+      "zip": "30214",
+      "discharges": 67
+    },
+    {
+      "ccn": "110082",
+      "zip": "30214",
+      "discharges": 22
+    },
+    {
+      "ccn": "110083",
+      "zip": "30214",
+      "discharges": 113
+    },
+    {
+      "ccn": "110161",
+      "zip": "30214",
+      "discharges": 19
+    },
+    {
+      "ccn": "110165",
+      "zip": "30214",
+      "discharges": 13
+    },
+    {
+      "ccn": "110010",
+      "zip": "30215",
+      "discharges": 43
+    },
+    {
+      "ccn": "110076",
+      "zip": "30215",
+      "discharges": 11
+    },
+    {
+      "ccn": "110078",
+      "zip": "30215",
+      "discharges": 30
+    },
+    {
+      "ccn": "110079",
+      "zip": "30215",
+      "discharges": 46
+    },
+    {
+      "ccn": "110082",
+      "zip": "30215",
+      "discharges": 20
+    },
+    {
+      "ccn": "110083",
+      "zip": "30215",
+      "discharges": 113
+    },
+    {
+      "ccn": "110083",
+      "zip": "30220",
+      "discharges": 25
+    },
+    {
+      "ccn": "110010",
+      "zip": "30223",
+      "discharges": 53
+    },
+    {
+      "ccn": "110078",
+      "zip": "30223",
+      "discharges": 28
+    },
+    {
+      "ccn": "110079",
+      "zip": "30223",
+      "discharges": 69
+    },
+    {
+      "ccn": "110082",
+      "zip": "30223",
+      "discharges": 16
+    },
+    {
+      "ccn": "110083",
+      "zip": "30223",
+      "discharges": 88
+    },
+    {
+      "ccn": "110161",
+      "zip": "30223",
+      "discharges": 31
+    },
+    {
+      "ccn": "110165",
+      "zip": "30223",
+      "discharges": 14
+    },
+    {
+      "ccn": "110198",
+      "zip": "30223",
+      "discharges": 33
+    },
+    {
+      "ccn": "110010",
+      "zip": "30224",
+      "discharges": 31
+    },
+    {
+      "ccn": "110078",
+      "zip": "30224",
+      "discharges": 28
+    },
+    {
+      "ccn": "110079",
+      "zip": "30224",
+      "discharges": 43
+    },
+    {
+      "ccn": "110082",
+      "zip": "30224",
+      "discharges": 13
+    },
+    {
+      "ccn": "110083",
+      "zip": "30224",
+      "discharges": 58
+    },
+    {
+      "ccn": "110198",
+      "zip": "30224",
+      "discharges": 32
+    },
+    {
+      "ccn": "110010",
+      "zip": "30228",
+      "discharges": 62
+    },
+    {
+      "ccn": "110076",
+      "zip": "30228",
+      "discharges": 19
+    },
+    {
+      "ccn": "110078",
+      "zip": "30228",
+      "discharges": 36
+    },
+    {
+      "ccn": "110079",
+      "zip": "30228",
+      "discharges": 48
+    },
+    {
+      "ccn": "110082",
+      "zip": "30228",
+      "discharges": 27
+    },
+    {
+      "ccn": "110083",
+      "zip": "30228",
+      "discharges": 100
+    },
+    {
+      "ccn": "110161",
+      "zip": "30228",
+      "discharges": 28
+    },
+    {
+      "ccn": "110165",
+      "zip": "30228",
+      "discharges": 48
+    },
+    {
+      "ccn": "110079",
+      "zip": "30230",
+      "discharges": 11
+    },
+    {
+      "ccn": "110083",
+      "zip": "30230",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30233",
+      "discharges": 33
+    },
+    {
+      "ccn": "110078",
+      "zip": "30233",
+      "discharges": 21
+    },
+    {
+      "ccn": "110079",
+      "zip": "30233",
+      "discharges": 18
+    },
+    {
+      "ccn": "110082",
+      "zip": "30233",
+      "discharges": 15
+    },
+    {
+      "ccn": "110083",
+      "zip": "30233",
+      "discharges": 74
+    },
+    {
+      "ccn": "110161",
+      "zip": "30233",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30236",
+      "discharges": 86
+    },
+    {
+      "ccn": "110076",
+      "zip": "30236",
+      "discharges": 37
+    },
+    {
+      "ccn": "110078",
+      "zip": "30236",
+      "discharges": 88
+    },
+    {
+      "ccn": "110079",
+      "zip": "30236",
+      "discharges": 93
+    },
+    {
+      "ccn": "110082",
+      "zip": "30236",
+      "discharges": 45
+    },
+    {
+      "ccn": "110083",
+      "zip": "30236",
+      "discharges": 113
+    },
+    {
+      "ccn": "110161",
+      "zip": "30236",
+      "discharges": 20
+    },
+    {
+      "ccn": "110165",
+      "zip": "30236",
+      "discharges": 149
+    },
+    {
+      "ccn": "110010",
+      "zip": "30238",
+      "discharges": 51
+    },
+    {
+      "ccn": "110076",
+      "zip": "30238",
+      "discharges": 32
+    },
+    {
+      "ccn": "110078",
+      "zip": "30238",
+      "discharges": 76
+    },
+    {
+      "ccn": "110079",
+      "zip": "30238",
+      "discharges": 71
+    },
+    {
+      "ccn": "110082",
+      "zip": "30238",
+      "discharges": 30
+    },
+    {
+      "ccn": "110083",
+      "zip": "30238",
+      "discharges": 92
+    },
+    {
+      "ccn": "110161",
+      "zip": "30238",
+      "discharges": 14
+    },
+    {
+      "ccn": "110165",
+      "zip": "30238",
+      "discharges": 114
+    },
+    {
+      "ccn": "110010",
+      "zip": "30240",
+      "discharges": 44
+    },
+    {
+      "ccn": "110078",
+      "zip": "30240",
+      "discharges": 35
+    },
+    {
+      "ccn": "110079",
+      "zip": "30240",
+      "discharges": 27
+    },
+    {
+      "ccn": "110083",
+      "zip": "30240",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30241",
+      "discharges": 32
+    },
+    {
+      "ccn": "110078",
+      "zip": "30241",
+      "discharges": 31
+    },
+    {
+      "ccn": "110079",
+      "zip": "30241",
+      "discharges": 15
+    },
+    {
+      "ccn": "110083",
+      "zip": "30241",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30248",
+      "discharges": 47
+    },
+    {
+      "ccn": "110076",
+      "zip": "30248",
+      "discharges": 14
+    },
+    {
+      "ccn": "110078",
+      "zip": "30248",
+      "discharges": 17
+    },
+    {
+      "ccn": "110079",
+      "zip": "30248",
+      "discharges": 26
+    },
+    {
+      "ccn": "110082",
+      "zip": "30248",
+      "discharges": 23
+    },
+    {
+      "ccn": "110083",
+      "zip": "30248",
+      "discharges": 70
+    },
+    {
+      "ccn": "110010",
+      "zip": "30252",
+      "discharges": 81
+    },
+    {
+      "ccn": "110076",
+      "zip": "30252",
+      "discharges": 48
+    },
+    {
+      "ccn": "110078",
+      "zip": "30252",
+      "discharges": 46
+    },
+    {
+      "ccn": "110079",
+      "zip": "30252",
+      "discharges": 35
+    },
+    {
+      "ccn": "110082",
+      "zip": "30252",
+      "discharges": 35
+    },
+    {
+      "ccn": "110083",
+      "zip": "30252",
+      "discharges": 124
+    },
+    {
+      "ccn": "110161",
+      "zip": "30252",
+      "discharges": 28
+    },
+    {
+      "ccn": "110010",
+      "zip": "30253",
+      "discharges": 82
+    },
+    {
+      "ccn": "110076",
+      "zip": "30253",
+      "discharges": 34
+    },
+    {
+      "ccn": "110078",
+      "zip": "30253",
+      "discharges": 44
+    },
+    {
+      "ccn": "110079",
+      "zip": "30253",
+      "discharges": 50
+    },
+    {
+      "ccn": "110082",
+      "zip": "30253",
+      "discharges": 47
+    },
+    {
+      "ccn": "110083",
+      "zip": "30253",
+      "discharges": 146
+    },
+    {
+      "ccn": "110161",
+      "zip": "30253",
+      "discharges": 23
+    },
+    {
+      "ccn": "110165",
+      "zip": "30253",
+      "discharges": 19
+    },
+    {
+      "ccn": "110083",
+      "zip": "30257",
+      "discharges": 16
+    },
+    {
+      "ccn": "110083",
+      "zip": "30259",
+      "discharges": 15
+    },
+    {
+      "ccn": "110010",
+      "zip": "30260",
+      "discharges": 38
+    },
+    {
+      "ccn": "110076",
+      "zip": "30260",
+      "discharges": 16
+    },
+    {
+      "ccn": "110078",
+      "zip": "30260",
+      "discharges": 45
+    },
+    {
+      "ccn": "110079",
+      "zip": "30260",
+      "discharges": 45
+    },
+    {
+      "ccn": "110082",
+      "zip": "30260",
+      "discharges": 37
+    },
+    {
+      "ccn": "110083",
+      "zip": "30260",
+      "discharges": 45
+    },
+    {
+      "ccn": "110165",
+      "zip": "30260",
+      "discharges": 110
+    },
+    {
+      "ccn": "110010",
+      "zip": "30263",
+      "discharges": 40
+    },
+    {
+      "ccn": "110078",
+      "zip": "30263",
+      "discharges": 25
+    },
+    {
+      "ccn": "110079",
+      "zip": "30263",
+      "discharges": 112
+    },
+    {
+      "ccn": "110082",
+      "zip": "30263",
+      "discharges": 18
+    },
+    {
+      "ccn": "110083",
+      "zip": "30263",
+      "discharges": 174
+    },
+    {
+      "ccn": "110010",
+      "zip": "30265",
+      "discharges": 27
+    },
+    {
+      "ccn": "110078",
+      "zip": "30265",
+      "discharges": 16
+    },
+    {
+      "ccn": "110079",
+      "zip": "30265",
+      "discharges": 51
+    },
+    {
+      "ccn": "110082",
+      "zip": "30265",
+      "discharges": 11
+    },
+    {
+      "ccn": "110083",
+      "zip": "30265",
+      "discharges": 115
+    },
+    {
+      "ccn": "110161",
+      "zip": "30265",
+      "discharges": 16
+    },
+    {
+      "ccn": "110078",
+      "zip": "30268",
+      "discharges": 14
+    },
+    {
+      "ccn": "110079",
+      "zip": "30268",
+      "discharges": 33
+    },
+    {
+      "ccn": "110083",
+      "zip": "30268",
+      "discharges": 36
+    },
+    {
+      "ccn": "110010",
+      "zip": "30269",
+      "discharges": 30
+    },
+    {
+      "ccn": "110078",
+      "zip": "30269",
+      "discharges": 19
+    },
+    {
+      "ccn": "110079",
+      "zip": "30269",
+      "discharges": 55
+    },
+    {
+      "ccn": "110083",
+      "zip": "30269",
+      "discharges": 109
+    },
+    {
+      "ccn": "110010",
+      "zip": "30273",
+      "discharges": 18
+    },
+    {
+      "ccn": "110078",
+      "zip": "30273",
+      "discharges": 39
+    },
+    {
+      "ccn": "110079",
+      "zip": "30273",
+      "discharges": 42
+    },
+    {
+      "ccn": "110082",
+      "zip": "30273",
+      "discharges": 18
+    },
+    {
+      "ccn": "110083",
+      "zip": "30273",
+      "discharges": 39
+    },
+    {
+      "ccn": "110165",
+      "zip": "30273",
+      "discharges": 23
+    },
+    {
+      "ccn": "110010",
+      "zip": "30274",
+      "discharges": 61
+    },
+    {
+      "ccn": "110076",
+      "zip": "30274",
+      "discharges": 21
+    },
+    {
+      "ccn": "110078",
+      "zip": "30274",
+      "discharges": 63
+    },
+    {
+      "ccn": "110079",
+      "zip": "30274",
+      "discharges": 106
+    },
+    {
+      "ccn": "110082",
+      "zip": "30274",
+      "discharges": 30
+    },
+    {
+      "ccn": "110083",
+      "zip": "30274",
+      "discharges": 58
+    },
+    {
+      "ccn": "110161",
+      "zip": "30274",
+      "discharges": 19
+    },
+    {
+      "ccn": "110165",
+      "zip": "30274",
+      "discharges": 219
+    },
+    {
+      "ccn": "110010",
+      "zip": "30276",
+      "discharges": 23
+    },
+    {
+      "ccn": "110078",
+      "zip": "30276",
+      "discharges": 12
+    },
+    {
+      "ccn": "110079",
+      "zip": "30276",
+      "discharges": 33
+    },
+    {
+      "ccn": "110083",
+      "zip": "30276",
+      "discharges": 46
+    },
+    {
+      "ccn": "110010",
+      "zip": "30277",
+      "discharges": 16
+    },
+    {
+      "ccn": "110079",
+      "zip": "30277",
+      "discharges": 49
+    },
+    {
+      "ccn": "110083",
+      "zip": "30277",
+      "discharges": 70
+    },
+    {
+      "ccn": "110161",
+      "zip": "30277",
+      "discharges": 13
+    },
+    {
+      "ccn": "110010",
+      "zip": "30281",
+      "discharges": 105
+    },
+    {
+      "ccn": "110076",
+      "zip": "30281",
+      "discharges": 39
+    },
+    {
+      "ccn": "110078",
+      "zip": "30281",
+      "discharges": 78
+    },
+    {
+      "ccn": "110079",
+      "zip": "30281",
+      "discharges": 67
+    },
+    {
+      "ccn": "110082",
+      "zip": "30281",
+      "discharges": 60
+    },
+    {
+      "ccn": "110083",
+      "zip": "30281",
+      "discharges": 182
+    },
+    {
+      "ccn": "110161",
+      "zip": "30281",
+      "discharges": 32
+    },
+    {
+      "ccn": "110165",
+      "zip": "30281",
+      "discharges": 24
+    },
+    {
+      "ccn": "110226",
+      "zip": "30281",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30286",
+      "discharges": 34
+    },
+    {
+      "ccn": "110078",
+      "zip": "30286",
+      "discharges": 17
+    },
+    {
+      "ccn": "110079",
+      "zip": "30286",
+      "discharges": 24
+    },
+    {
+      "ccn": "110083",
+      "zip": "30286",
+      "discharges": 25
+    },
+    {
+      "ccn": "110010",
+      "zip": "30288",
+      "discharges": 40
+    },
+    {
+      "ccn": "110076",
+      "zip": "30288",
+      "discharges": 42
+    },
+    {
+      "ccn": "110078",
+      "zip": "30288",
+      "discharges": 28
+    },
+    {
+      "ccn": "110079",
+      "zip": "30288",
+      "discharges": 53
+    },
+    {
+      "ccn": "110083",
+      "zip": "30288",
+      "discharges": 31
+    },
+    {
+      "ccn": "110165",
+      "zip": "30288",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30290",
+      "discharges": 13
+    },
+    {
+      "ccn": "110079",
+      "zip": "30290",
+      "discharges": 23
+    },
+    {
+      "ccn": "110083",
+      "zip": "30290",
+      "discharges": 22
+    },
+    {
+      "ccn": "110010",
+      "zip": "30291",
+      "discharges": 31
+    },
+    {
+      "ccn": "110078",
+      "zip": "30291",
+      "discharges": 59
+    },
+    {
+      "ccn": "110079",
+      "zip": "30291",
+      "discharges": 114
+    },
+    {
+      "ccn": "110082",
+      "zip": "30291",
+      "discharges": 22
+    },
+    {
+      "ccn": "110083",
+      "zip": "30291",
+      "discharges": 49
+    },
+    {
+      "ccn": "110161",
+      "zip": "30291",
+      "discharges": 11
+    },
+    {
+      "ccn": "110165",
+      "zip": "30291",
+      "discharges": 26
+    },
+    {
+      "ccn": "110083",
+      "zip": "30292",
+      "discharges": 11
+    },
+    {
+      "ccn": "110010",
+      "zip": "30294",
+      "discharges": 181
+    },
+    {
+      "ccn": "110076",
+      "zip": "30294",
+      "discharges": 127
+    },
+    {
+      "ccn": "110078",
+      "zip": "30294",
+      "discharges": 98
+    },
+    {
+      "ccn": "110079",
+      "zip": "30294",
+      "discharges": 114
+    },
+    {
+      "ccn": "110082",
+      "zip": "30294",
+      "discharges": 59
+    },
+    {
+      "ccn": "110083",
+      "zip": "30294",
+      "discharges": 92
+    },
+    {
+      "ccn": "110161",
+      "zip": "30294",
+      "discharges": 31
+    },
+    {
+      "ccn": "110165",
+      "zip": "30294",
+      "discharges": 20
+    },
+    {
+      "ccn": "110226",
+      "zip": "30294",
+      "discharges": 90
+    },
+    {
+      "ccn": "110010",
+      "zip": "30296",
+      "discharges": 45
+    },
+    {
+      "ccn": "110076",
+      "zip": "30296",
+      "discharges": 22
+    },
+    {
+      "ccn": "110078",
+      "zip": "30296",
+      "discharges": 55
+    },
+    {
+      "ccn": "110079",
+      "zip": "30296",
+      "discharges": 81
+    },
+    {
+      "ccn": "110082",
+      "zip": "30296",
+      "discharges": 26
+    },
+    {
+      "ccn": "110083",
+      "zip": "30296",
+      "discharges": 81
+    },
+    {
+      "ccn": "110165",
+      "zip": "30296",
+      "discharges": 150
+    },
+    {
+      "ccn": "110010",
+      "zip": "30297",
+      "discharges": 33
+    },
+    {
+      "ccn": "110076",
+      "zip": "30297",
+      "discharges": 20
+    },
+    {
+      "ccn": "110078",
+      "zip": "30297",
+      "discharges": 71
+    },
+    {
+      "ccn": "110079",
+      "zip": "30297",
+      "discharges": 104
+    },
+    {
+      "ccn": "110082",
+      "zip": "30297",
+      "discharges": 25
+    },
+    {
+      "ccn": "110083",
+      "zip": "30297",
+      "discharges": 35
+    },
+    {
+      "ccn": "110161",
+      "zip": "30297",
+      "discharges": 16
+    },
+    {
+      "ccn": "110165",
+      "zip": "30297",
+      "discharges": 154
+    },
+    {
+      "ccn": "110078",
+      "zip": "30303",
+      "discharges": 40
+    },
+    {
+      "ccn": "110079",
+      "zip": "30303",
+      "discharges": 99
+    },
+    {
+      "ccn": "110083",
+      "zip": "30303",
+      "discharges": 13
+    },
+    {
+      "ccn": "110010",
+      "zip": "30305",
+      "discharges": 52
+    },
+    {
+      "ccn": "110076",
+      "zip": "30305",
+      "discharges": 12
+    },
+    {
+      "ccn": "110078",
+      "zip": "30305",
+      "discharges": 44
+    },
+    {
+      "ccn": "110079",
+      "zip": "30305",
+      "discharges": 70
+    },
+    {
+      "ccn": "110082",
+      "zip": "30305",
+      "discharges": 107
+    },
+    {
+      "ccn": "110083",
+      "zip": "30305",
+      "discharges": 501
+    },
+    {
+      "ccn": "110161",
+      "zip": "30305",
+      "discharges": 93
+    },
+    {
+      "ccn": "110010",
+      "zip": "30306",
+      "discharges": 74
+    },
+    {
+      "ccn": "110076",
+      "zip": "30306",
+      "discharges": 16
+    },
+    {
+      "ccn": "110078",
+      "zip": "30306",
+      "discharges": 67
+    },
+    {
+      "ccn": "110079",
+      "zip": "30306",
+      "discharges": 48
+    },
+    {
+      "ccn": "110082",
+      "zip": "30306",
+      "discharges": 27
+    },
+    {
+      "ccn": "110083",
+      "zip": "30306",
+      "discharges": 112
+    },
+    {
+      "ccn": "110010",
+      "zip": "30307",
+      "discharges": 138
+    },
+    {
+      "ccn": "110076",
+      "zip": "30307",
+      "discharges": 30
+    },
+    {
+      "ccn": "110078",
+      "zip": "30307",
+      "discharges": 40
+    },
+    {
+      "ccn": "110079",
+      "zip": "30307",
+      "discharges": 70
+    },
+    {
+      "ccn": "110082",
+      "zip": "30307",
+      "discharges": 28
+    },
+    {
+      "ccn": "110083",
+      "zip": "30307",
+      "discharges": 55
+    },
+    {
+      "ccn": "110010",
+      "zip": "30308",
+      "discharges": 13
+    },
+    {
+      "ccn": "110076",
+      "zip": "30308",
+      "discharges": 11
+    },
+    {
+      "ccn": "110078",
+      "zip": "30308",
+      "discharges": 133
+    },
+    {
+      "ccn": "110079",
+      "zip": "30308",
+      "discharges": 112
+    },
+    {
+      "ccn": "110082",
+      "zip": "30308",
+      "discharges": 12
+    },
+    {
+      "ccn": "110083",
+      "zip": "30308",
+      "discharges": 69
+    },
+    {
+      "ccn": "110161",
+      "zip": "30308",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30309",
+      "discharges": 22
+    },
+    {
+      "ccn": "110078",
+      "zip": "30309",
+      "discharges": 78
+    },
+    {
+      "ccn": "110079",
+      "zip": "30309",
+      "discharges": 89
+    },
+    {
+      "ccn": "110082",
+      "zip": "30309",
+      "discharges": 25
+    },
+    {
+      "ccn": "110083",
+      "zip": "30309",
+      "discharges": 276
+    },
+    {
+      "ccn": "110161",
+      "zip": "30309",
+      "discharges": 23
+    },
+    {
+      "ccn": "110010",
+      "zip": "30310",
+      "discharges": 57
+    },
+    {
+      "ccn": "110076",
+      "zip": "30310",
+      "discharges": 33
+    },
+    {
+      "ccn": "110078",
+      "zip": "30310",
+      "discharges": 429
+    },
+    {
+      "ccn": "110079",
+      "zip": "30310",
+      "discharges": 489
+    },
+    {
+      "ccn": "110082",
+      "zip": "30310",
+      "discharges": 44
+    },
+    {
+      "ccn": "110083",
+      "zip": "30310",
+      "discharges": 227
+    },
+    {
+      "ccn": "110161",
+      "zip": "30310",
+      "discharges": 28
+    },
+    {
+      "ccn": "110010",
+      "zip": "30311",
+      "discharges": 68
+    },
+    {
+      "ccn": "110076",
+      "zip": "30311",
+      "discharges": 42
+    },
+    {
+      "ccn": "110078",
+      "zip": "30311",
+      "discharges": 503
+    },
+    {
+      "ccn": "110079",
+      "zip": "30311",
+      "discharges": 600
+    },
+    {
+      "ccn": "110082",
+      "zip": "30311",
+      "discharges": 83
+    },
+    {
+      "ccn": "110083",
+      "zip": "30311",
+      "discharges": 372
+    },
+    {
+      "ccn": "110161",
+      "zip": "30311",
+      "discharges": 43
+    },
+    {
+      "ccn": "110165",
+      "zip": "30311",
+      "discharges": 16
+    },
+    {
+      "ccn": "110226",
+      "zip": "30311",
+      "discharges": 16
+    },
+    {
+      "ccn": "110010",
+      "zip": "30312",
+      "discharges": 38
+    },
+    {
+      "ccn": "110076",
+      "zip": "30312",
+      "discharges": 19
+    },
+    {
+      "ccn": "110078",
+      "zip": "30312",
+      "discharges": 206
+    },
+    {
+      "ccn": "110079",
+      "zip": "30312",
+      "discharges": 377
+    },
+    {
+      "ccn": "110082",
+      "zip": "30312",
+      "discharges": 26
+    },
+    {
+      "ccn": "110083",
+      "zip": "30312",
+      "discharges": 104
+    },
+    {
+      "ccn": "110161",
+      "zip": "30312",
+      "discharges": 20
+    },
+    {
+      "ccn": "110078",
+      "zip": "30313",
+      "discharges": 33
+    },
+    {
+      "ccn": "110079",
+      "zip": "30313",
+      "discharges": 56
+    },
+    {
+      "ccn": "110083",
+      "zip": "30313",
+      "discharges": 18
+    },
+    {
+      "ccn": "110010",
+      "zip": "30314",
+      "discharges": 54
+    },
+    {
+      "ccn": "110076",
+      "zip": "30314",
+      "discharges": 22
+    },
+    {
+      "ccn": "110078",
+      "zip": "30314",
+      "discharges": 245
+    },
+    {
+      "ccn": "110079",
+      "zip": "30314",
+      "discharges": 416
+    },
+    {
+      "ccn": "110082",
+      "zip": "30314",
+      "discharges": 22
+    },
+    {
+      "ccn": "110083",
+      "zip": "30314",
+      "discharges": 153
+    },
+    {
+      "ccn": "110161",
+      "zip": "30314",
+      "discharges": 53
+    },
+    {
+      "ccn": "110010",
+      "zip": "30315",
+      "discharges": 87
+    },
+    {
+      "ccn": "110076",
+      "zip": "30315",
+      "discharges": 47
+    },
+    {
+      "ccn": "110078",
+      "zip": "30315",
+      "discharges": 378
+    },
+    {
+      "ccn": "110079",
+      "zip": "30315",
+      "discharges": 617
+    },
+    {
+      "ccn": "110082",
+      "zip": "30315",
+      "discharges": 31
+    },
+    {
+      "ccn": "110083",
+      "zip": "30315",
+      "discharges": 175
+    },
+    {
+      "ccn": "110161",
+      "zip": "30315",
+      "discharges": 29
+    },
+    {
+      "ccn": "110165",
+      "zip": "30315",
+      "discharges": 19
+    },
+    {
+      "ccn": "110010",
+      "zip": "30316",
+      "discharges": 147
+    },
+    {
+      "ccn": "110076",
+      "zip": "30316",
+      "discharges": 183
+    },
+    {
+      "ccn": "110078",
+      "zip": "30316",
+      "discharges": 180
+    },
+    {
+      "ccn": "110079",
+      "zip": "30316",
+      "discharges": 285
+    },
+    {
+      "ccn": "110082",
+      "zip": "30316",
+      "discharges": 50
+    },
+    {
+      "ccn": "110083",
+      "zip": "30316",
+      "discharges": 113
+    },
+    {
+      "ccn": "110161",
+      "zip": "30316",
+      "discharges": 35
+    },
+    {
+      "ccn": "110226",
+      "zip": "30316",
+      "discharges": 37
+    },
+    {
+      "ccn": "110010",
+      "zip": "30317",
+      "discharges": 83
+    },
+    {
+      "ccn": "110076",
+      "zip": "30317",
+      "discharges": 86
+    },
+    {
+      "ccn": "110078",
+      "zip": "30317",
+      "discharges": 48
+    },
+    {
+      "ccn": "110079",
+      "zip": "30317",
+      "discharges": 96
+    },
+    {
+      "ccn": "110082",
+      "zip": "30317",
+      "discharges": 17
+    },
+    {
+      "ccn": "110083",
+      "zip": "30317",
+      "discharges": 31
+    },
+    {
+      "ccn": "110010",
+      "zip": "30318",
+      "discharges": 68
+    },
+    {
+      "ccn": "110076",
+      "zip": "30318",
+      "discharges": 24
+    },
+    {
+      "ccn": "110078",
+      "zip": "30318",
+      "discharges": 436
+    },
+    {
+      "ccn": "110079",
+      "zip": "30318",
+      "discharges": 425
+    },
+    {
+      "ccn": "110082",
+      "zip": "30318",
+      "discharges": 81
+    },
+    {
+      "ccn": "110083",
+      "zip": "30318",
+      "discharges": 405
+    },
+    {
+      "ccn": "110161",
+      "zip": "30318",
+      "discharges": 44
+    },
+    {
+      "ccn": "110226",
+      "zip": "30318",
+      "discharges": 20
+    },
+    {
+      "ccn": "110010",
+      "zip": "30319",
+      "discharges": 64
+    },
+    {
+      "ccn": "110078",
+      "zip": "30319",
+      "discharges": 40
+    },
+    {
+      "ccn": "110079",
+      "zip": "30319",
+      "discharges": 60
+    },
+    {
+      "ccn": "110082",
+      "zip": "30319",
+      "discharges": 410
+    },
+    {
+      "ccn": "110083",
+      "zip": "30319",
+      "discharges": 253
+    },
+    {
+      "ccn": "110161",
+      "zip": "30319",
+      "discharges": 235
+    },
+    {
+      "ccn": "110198",
+      "zip": "30319",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30321",
+      "discharges": 18
+    },
+    {
+      "ccn": "110079",
+      "zip": "30321",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30324",
+      "discharges": 58
+    },
+    {
+      "ccn": "110078",
+      "zip": "30324",
+      "discharges": 36
+    },
+    {
+      "ccn": "110079",
+      "zip": "30324",
+      "discharges": 42
+    },
+    {
+      "ccn": "110082",
+      "zip": "30324",
+      "discharges": 75
+    },
+    {
+      "ccn": "110083",
+      "zip": "30324",
+      "discharges": 198
+    },
+    {
+      "ccn": "110161",
+      "zip": "30324",
+      "discharges": 61
+    },
+    {
+      "ccn": "110079",
+      "zip": "30326",
+      "discharges": 11
+    },
+    {
+      "ccn": "110082",
+      "zip": "30326",
+      "discharges": 35
+    },
+    {
+      "ccn": "110083",
+      "zip": "30326",
+      "discharges": 67
+    },
+    {
+      "ccn": "110161",
+      "zip": "30326",
+      "discharges": 23
+    },
+    {
+      "ccn": "110010",
+      "zip": "30327",
+      "discharges": 34
+    },
+    {
+      "ccn": "110078",
+      "zip": "30327",
+      "discharges": 49
+    },
+    {
+      "ccn": "110079",
+      "zip": "30327",
+      "discharges": 38
+    },
+    {
+      "ccn": "110082",
+      "zip": "30327",
+      "discharges": 136
+    },
+    {
+      "ccn": "110083",
+      "zip": "30327",
+      "discharges": 321
+    },
+    {
+      "ccn": "110161",
+      "zip": "30327",
+      "discharges": 102
+    },
+    {
+      "ccn": "110198",
+      "zip": "30327",
+      "discharges": 12
+    },
+    {
+      "ccn": "110010",
+      "zip": "30328",
+      "discharges": 33
+    },
+    {
+      "ccn": "110078",
+      "zip": "30328",
+      "discharges": 25
+    },
+    {
+      "ccn": "110079",
+      "zip": "30328",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30328",
+      "discharges": 412
+    },
+    {
+      "ccn": "110083",
+      "zip": "30328",
+      "discharges": 74
+    },
+    {
+      "ccn": "110161",
+      "zip": "30328",
+      "discharges": 433
+    },
+    {
+      "ccn": "110198",
+      "zip": "30328",
+      "discharges": 65
+    },
+    {
+      "ccn": "110010",
+      "zip": "30329",
+      "discharges": 187
+    },
+    {
+      "ccn": "110076",
+      "zip": "30329",
+      "discharges": 44
+    },
+    {
+      "ccn": "110078",
+      "zip": "30329",
+      "discharges": 11
+    },
+    {
+      "ccn": "110079",
+      "zip": "30329",
+      "discharges": 44
+    },
+    {
+      "ccn": "110082",
+      "zip": "30329",
+      "discharges": 70
+    },
+    {
+      "ccn": "110083",
+      "zip": "30329",
+      "discharges": 92
+    },
+    {
+      "ccn": "110161",
+      "zip": "30329",
+      "discharges": 53
+    },
+    {
+      "ccn": "110010",
+      "zip": "30331",
+      "discharges": 143
+    },
+    {
+      "ccn": "110076",
+      "zip": "30331",
+      "discharges": 52
+    },
+    {
+      "ccn": "110078",
+      "zip": "30331",
+      "discharges": 726
+    },
+    {
+      "ccn": "110079",
+      "zip": "30331",
+      "discharges": 661
+    },
+    {
+      "ccn": "110082",
+      "zip": "30331",
+      "discharges": 103
+    },
+    {
+      "ccn": "110083",
+      "zip": "30331",
+      "discharges": 520
+    },
+    {
+      "ccn": "110161",
+      "zip": "30331",
+      "discharges": 48
+    },
+    {
+      "ccn": "110165",
+      "zip": "30331",
+      "discharges": 29
+    },
+    {
+      "ccn": "110010",
+      "zip": "30337",
+      "discharges": 34
+    },
+    {
+      "ccn": "110078",
+      "zip": "30337",
+      "discharges": 93
+    },
+    {
+      "ccn": "110079",
+      "zip": "30337",
+      "discharges": 123
+    },
+    {
+      "ccn": "110082",
+      "zip": "30337",
+      "discharges": 29
+    },
+    {
+      "ccn": "110083",
+      "zip": "30337",
+      "discharges": 52
+    },
+    {
+      "ccn": "110161",
+      "zip": "30337",
+      "discharges": 13
+    },
+    {
+      "ccn": "110165",
+      "zip": "30337",
+      "discharges": 15
+    },
+    {
+      "ccn": "110010",
+      "zip": "30338",
+      "discharges": 55
+    },
+    {
+      "ccn": "110076",
+      "zip": "30338",
+      "discharges": 12
+    },
+    {
+      "ccn": "110078",
+      "zip": "30338",
+      "discharges": 15
+    },
+    {
+      "ccn": "110079",
+      "zip": "30338",
+      "discharges": 23
+    },
+    {
+      "ccn": "110082",
+      "zip": "30338",
+      "discharges": 464
+    },
+    {
+      "ccn": "110083",
+      "zip": "30338",
+      "discharges": 50
+    },
+    {
+      "ccn": "110161",
+      "zip": "30338",
+      "discharges": 305
+    },
+    {
+      "ccn": "110198",
+      "zip": "30338",
+      "discharges": 47
+    },
+    {
+      "ccn": "110010",
+      "zip": "30339",
+      "discharges": 23
+    },
+    {
+      "ccn": "110078",
+      "zip": "30339",
+      "discharges": 27
+    },
+    {
+      "ccn": "110082",
+      "zip": "30339",
+      "discharges": 89
+    },
+    {
+      "ccn": "110083",
+      "zip": "30339",
+      "discharges": 159
+    },
+    {
+      "ccn": "110161",
+      "zip": "30339",
+      "discharges": 77
+    },
+    {
+      "ccn": "110198",
+      "zip": "30339",
+      "discharges": 13
+    },
+    {
+      "ccn": "110010",
+      "zip": "30340",
+      "discharges": 49
+    },
+    {
+      "ccn": "110076",
+      "zip": "30340",
+      "discharges": 27
+    },
+    {
+      "ccn": "110078",
+      "zip": "30340",
+      "discharges": 12
+    },
+    {
+      "ccn": "110079",
+      "zip": "30340",
+      "discharges": 19
+    },
+    {
+      "ccn": "110082",
+      "zip": "30340",
+      "discharges": 151
+    },
+    {
+      "ccn": "110083",
+      "zip": "30340",
+      "discharges": 19
+    },
+    {
+      "ccn": "110161",
+      "zip": "30340",
+      "discharges": 92
+    },
+    {
+      "ccn": "110252",
+      "zip": "30340",
+      "discharges": 24
+    },
+    {
+      "ccn": "110010",
+      "zip": "30341",
+      "discharges": 49
+    },
+    {
+      "ccn": "110076",
+      "zip": "30341",
+      "discharges": 46
+    },
+    {
+      "ccn": "110078",
+      "zip": "30341",
+      "discharges": 20
+    },
+    {
+      "ccn": "110079",
+      "zip": "30341",
+      "discharges": 33
+    },
+    {
+      "ccn": "110082",
+      "zip": "30341",
+      "discharges": 199
+    },
+    {
+      "ccn": "110083",
+      "zip": "30341",
+      "discharges": 44
+    },
+    {
+      "ccn": "110161",
+      "zip": "30341",
+      "discharges": 130
+    },
+    {
+      "ccn": "110198",
+      "zip": "30341",
+      "discharges": 15
+    },
+    {
+      "ccn": "110252",
+      "zip": "30341",
+      "discharges": 17
+    },
+    {
+      "ccn": "110010",
+      "zip": "30342",
+      "discharges": 21
+    },
+    {
+      "ccn": "110078",
+      "zip": "30342",
+      "discharges": 22
+    },
+    {
+      "ccn": "110079",
+      "zip": "30342",
+      "discharges": 15
+    },
+    {
+      "ccn": "110082",
+      "zip": "30342",
+      "discharges": 164
+    },
+    {
+      "ccn": "110083",
+      "zip": "30342",
+      "discharges": 98
+    },
+    {
+      "ccn": "110161",
+      "zip": "30342",
+      "discharges": 178
+    },
+    {
+      "ccn": "110198",
+      "zip": "30342",
+      "discharges": 17
+    },
+    {
+      "ccn": "110079",
+      "zip": "30343",
+      "discharges": 14
+    },
+    {
+      "ccn": "110010",
+      "zip": "30344",
+      "discharges": 48
+    },
+    {
+      "ccn": "110076",
+      "zip": "30344",
+      "discharges": 26
+    },
+    {
+      "ccn": "110078",
+      "zip": "30344",
+      "discharges": 356
+    },
+    {
+      "ccn": "110079",
+      "zip": "30344",
+      "discharges": 431
+    },
+    {
+      "ccn": "110082",
+      "zip": "30344",
+      "discharges": 44
+    },
+    {
+      "ccn": "110083",
+      "zip": "30344",
+      "discharges": 185
+    },
+    {
+      "ccn": "110161",
+      "zip": "30344",
+      "discharges": 18
+    },
+    {
+      "ccn": "110165",
+      "zip": "30344",
+      "discharges": 26
+    },
+    {
+      "ccn": "110010",
+      "zip": "30345",
+      "discharges": 112
+    },
+    {
+      "ccn": "110076",
+      "zip": "30345",
+      "discharges": 60
+    },
+    {
+      "ccn": "110078",
+      "zip": "30345",
+      "discharges": 40
+    },
+    {
+      "ccn": "110079",
+      "zip": "30345",
+      "discharges": 27
+    },
+    {
+      "ccn": "110082",
+      "zip": "30345",
+      "discharges": 110
+    },
+    {
+      "ccn": "110083",
+      "zip": "30345",
+      "discharges": 85
+    },
+    {
+      "ccn": "110161",
+      "zip": "30345",
+      "discharges": 61
+    },
+    {
+      "ccn": "110082",
+      "zip": "30346",
+      "discharges": 31
+    },
+    {
+      "ccn": "110161",
+      "zip": "30346",
+      "discharges": 15
+    },
+    {
+      "ccn": "110010",
+      "zip": "30349",
+      "discharges": 108
+    },
+    {
+      "ccn": "110076",
+      "zip": "30349",
+      "discharges": 49
+    },
+    {
+      "ccn": "110078",
+      "zip": "30349",
+      "discharges": 300
+    },
+    {
+      "ccn": "110079",
+      "zip": "30349",
+      "discharges": 371
+    },
+    {
+      "ccn": "110082",
+      "zip": "30349",
+      "discharges": 65
+    },
+    {
+      "ccn": "110083",
+      "zip": "30349",
+      "discharges": 270
+    },
+    {
+      "ccn": "110161",
+      "zip": "30349",
+      "discharges": 41
+    },
+    {
+      "ccn": "110165",
+      "zip": "30349",
+      "discharges": 187
+    },
+    {
+      "ccn": "110010",
+      "zip": "30350",
+      "discharges": 33
+    },
+    {
+      "ccn": "110078",
+      "zip": "30350",
+      "discharges": 16
+    },
+    {
+      "ccn": "110082",
+      "zip": "30350",
+      "discharges": 276
+    },
+    {
+      "ccn": "110083",
+      "zip": "30350",
+      "discharges": 47
+    },
+    {
+      "ccn": "110161",
+      "zip": "30350",
+      "discharges": 271
+    },
+    {
+      "ccn": "110198",
+      "zip": "30350",
+      "discharges": 112
+    },
+    {
+      "ccn": "110010",
+      "zip": "30354",
+      "discharges": 49
+    },
+    {
+      "ccn": "110076",
+      "zip": "30354",
+      "discharges": 15
+    },
+    {
+      "ccn": "110078",
+      "zip": "30354",
+      "discharges": 162
+    },
+    {
+      "ccn": "110079",
+      "zip": "30354",
+      "discharges": 224
+    },
+    {
+      "ccn": "110082",
+      "zip": "30354",
+      "discharges": 22
+    },
+    {
+      "ccn": "110083",
+      "zip": "30354",
+      "discharges": 82
+    },
+    {
+      "ccn": "110165",
+      "zip": "30354",
+      "discharges": 29
+    },
+    {
+      "ccn": "110083",
+      "zip": "30355",
+      "discharges": 14
+    },
+    {
+      "ccn": "110010",
+      "zip": "30360",
+      "discharges": 16
+    },
+    {
+      "ccn": "110078",
+      "zip": "30360",
+      "discharges": 12
+    },
+    {
+      "ccn": "110082",
+      "zip": "30360",
+      "discharges": 130
+    },
+    {
+      "ccn": "110083",
+      "zip": "30360",
+      "discharges": 19
+    },
+    {
+      "ccn": "110161",
+      "zip": "30360",
+      "discharges": 82
+    },
+    {
+      "ccn": "110198",
+      "zip": "30360",
+      "discharges": 14
+    },
+    {
+      "ccn": "110078",
+      "zip": "30364",
+      "discharges": 11
+    },
+    {
+      "ccn": "110079",
+      "zip": "30364",
+      "discharges": 20
+    }
+  ]
+}

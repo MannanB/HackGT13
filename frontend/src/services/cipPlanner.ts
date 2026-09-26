@@ -4,6 +4,7 @@ import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geog
 import type { Station, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation } from '@/types/simulation'
 import { categorySingular } from '@/utils/categories'
+import { dailyActivityTrips } from '@/services/activityModel'
 import { categoryWeight } from '@/utils/categoryWeights'
 import { facilityCost, formatUsd, sectorMeta, type CipSector } from '@/utils/facilityCosts'
 import { haversineKm } from '@/utils/geo'
@@ -88,7 +89,7 @@ function collectGaps(input: {
       const extra = stressed ? Math.max(0, stressed.minutes - access.minutes) : 0
       const critical = input.poiCriticalById[access.poiId]
       const fragile = critical?.access[0] ?? critical?.pressure[0] ?? null
-      const people = dailyZoneDemand(zone, category)
+      const people = dailyActivityTrips(zone, category) ?? dailyZoneDemand(zone, category)
       const score =
         (access.minutes * people * categoryWeight(category) + extra * people * categoryWeight(category) * 1.6) *
         equityMultiplier(zone)

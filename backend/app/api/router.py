@@ -2,9 +2,11 @@ from fastapi import APIRouter
 
 from app.api import (
     access,
+    activity,
     critical,
     experimental,
     health,
+    hospital_choice,
     intelligence,
     live,
     network,
@@ -32,3 +34,5 @@ api_router.include_router(travel_times.router)
 api_router.include_router(critical.router)
 api_router.include_router(live.router)
 api_router.include_router(experimental.router)
+api_router.include_router(activity.router)
+api_router.include_router(hospital_choice.router)

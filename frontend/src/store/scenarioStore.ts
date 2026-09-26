@@ -7,6 +7,7 @@ import {
   createPoiCriticalIndex,
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
+import { getActivityModel, setActivityModel } from '@/services/activityModel'
 import type { CipPlan } from '@/types/cip'
 import type { CipSector } from '@/utils/facilityCosts'
 import {
@@ -307,14 +308,19 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0, criticalFromCache: false })
       }
       try {
-        const [network, zones, pois, accessEdges, experimental, streetRoutes] = await Promise.all([
+        const [network, zones, pois, accessEdges, experimental, streetRoutes, activity] = await Promise.all([
           getNetwork(),
           getZones(),
           getPointsOfInterest(),
           getAccessEdges(),
           getExperimentalContext(),
           getStreetRoutes(),
+          getActivityModel().catch((error: unknown) => {
+            console.warn('Activity model unavailable', error)
+            return null
+          }),
         ])
+        setActivityModel(activity)
         const enriched = attachExperimental(zones, pois, experimental)
         const connected = attachAccess(enriched.zones, enriched.pois, accessEdges)
         const fingerprint = networkFingerprint({

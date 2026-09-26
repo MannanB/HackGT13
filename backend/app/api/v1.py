@@ -19,6 +19,8 @@ RESOURCES = [
     "/api/v1/intelligence/events",
     "/api/v1/live/trains",
     "/api/v1/experimental/context",
+    "/api/v1/hospital-choice/model",
+    "/api/v1/activity/model",
 ]
 
 
