@@ -383,7 +383,7 @@ export function createPassengerFlowLayers(
       data: glowPassengers,
       getPosition: (passenger) => passenger.position,
       getRadius: (passenger) =>
-        (passenger.highlighted ? 5.2 : Math.min(3.6, 1.8 + Math.sqrt(passenger.weight) / 64)) * dotScale,
+        (passenger.highlighted ? 5.2 : Math.min(3.6, 1.8 + Math.sqrt(passenger.weight) / 64)) * dotScale * 2,
       radiusUnits: 'pixels',
       getFillColor: (passenger): RGBA => [...passenger.color, passenger.highlighted ? 42 : 10],
       pickable: false,
@@ -394,7 +394,7 @@ export function createPassengerFlowLayers(
       data: passengers,
       getPosition: (passenger) => passenger.position,
       getRadius: (passenger) =>
-        (passenger.highlighted ? 2.25 : Math.min(1.65, 0.75 + Math.sqrt(passenger.weight) / 95)) * dotScale,
+        (passenger.highlighted ? 2.25 : Math.min(1.65, 0.75 + Math.sqrt(passenger.weight) / 95)) * dotScale * 2,
       radiusUnits: 'pixels',
       getFillColor: (passenger): RGBA => [...passenger.color, passenger.highlighted ? 235 : 135],
       pickable: false,
