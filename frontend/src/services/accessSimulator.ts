@@ -318,7 +318,7 @@ function hospitalCapacityReport(
   ranked: Map<string, Trip[]>,
   beforeByZone: Map<string, Map<PoiCategory, Trip>>,
   minuteOfDay: number,
-  failureStartMinute = 0,
+  failureStartMinute = DEFAULT_TIME_MINUTE,
   failureElapsedMinutes = minuteOfDay,
 ): HospitalCapacity[] {
   const baselineOccupied = new Map<string, number>()
@@ -590,7 +590,7 @@ export interface AdditionRequest extends SimulateScenarioRequest {
 export function buildAdditionSimulation(request: AdditionRequest): SimulationResult {
   const { zones, addedPois } = request
   const minuteOfDay = request.timeMinute ?? DEFAULT_TIME_MINUTE
-  const failureStartMinute = request.failureStartMinute ?? 0
+  const failureStartMinute = request.failureStartMinute ?? DEFAULT_TIME_MINUTE
   const failureElapsedMinutes = request.failureElapsedMinutes ?? minuteOfDay
   if (request.stations.length === 0) throw new Error('Station network is not loaded')
   const categories = [...new Set([...request.serviceCategories, ...addedPois.map((poi) => poi.category)])]
@@ -839,7 +839,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   const { zones, stations, transitEdges: edges, maintenanceStations, shutdownStations } = request
   const categories = request.serviceCategories
   const minuteOfDay = request.timeMinute ?? DEFAULT_TIME_MINUTE
-  const failureStartMinute = request.failureStartMinute ?? 0
+  const failureStartMinute = request.failureStartMinute ?? DEFAULT_TIME_MINUTE
   const failureElapsedMinutes = request.failureElapsedMinutes ?? minuteOfDay
   if (maintenanceStations.length + shutdownStations.length === 0) {
     throw new Error('Set a station to maintenance or shut down')

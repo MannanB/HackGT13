@@ -5,7 +5,7 @@ import type { Station, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation } from '@/types/simulation'
 import { categorySingular } from '@/utils/categories'
 import { categoryWeight } from '@/utils/categoryWeights'
-import { CIP_CATEGORIES, facilityCost, formatUsd } from '@/utils/facilityCosts'
+import { categoriesForSector, facilityCost, formatUsd, sectorMeta, type CipSector } from '@/utils/facilityCosts'
 import { haversineKm } from '@/utils/geo'
 
 const MAX_PROJECTS = 6
@@ -53,7 +53,7 @@ function nearestStation(point: { latitude: number; longitude: number }, stations
 }
 
 function projectNoun(category: PoiCategory) {
-  const label = categorySingular(category)
+  return categorySingular(category).toLowerCase()
 }
 
 function collectGaps(input: {
@@ -64,8 +64,9 @@ function collectGaps(input: {
   maintenanceStations: string[]
   shutdownStations: string[]
   poiCriticalById: Record<string, PoiCriticalStation>
+  categories: PoiCategory[]
 }): ServiceGap[] {
-  const categories = CIP_CATEGORIES
+  const categories = input.categories
   const scoped = {
     zones: input.zones,
     pois: input.pois,
@@ -163,6 +164,7 @@ function rationaleFor(project: {
 
 export function planCapitalImprovements(input: {
   budget: number
+  sector: CipSector
   zones: ResidentialZone[]
   pois: PointOfInterest[]
   stations: Station[]
@@ -172,7 +174,10 @@ export function planCapitalImprovements(input: {
   poiCriticalById: Record<string, PoiCriticalStation>
   disruptionStationNames: string[]
 }): CipPlan {
-  const gaps = collectGaps(input)
+  const sector = sectorMeta(input.sector)
+  const categories = sector.categories
+  const maxPerCategory = categories.length === 1 ? MAX_PROJECTS : categories.length === 2 ? 3 : MAX_PER_CATEGORY
+  const gaps = collectGaps({ ...input, categories })
   const occupied = input.pois.map((poi) => ({ latitude: poi.latitude, longitude: poi.longitude }))
   const inventory = [...input.pois]
   const projects: CipProject[] = []
@@ -181,11 +186,11 @@ export function planCapitalImprovements(input: {
 
   while (projects.length < MAX_PROJECTS) {
     const copies = (category: PoiCategory) => projects.filter((project) => project.category === category).length
-    const affordable = CIP_CATEGORIES.filter((category) => {
+    const affordable = categories.filter((category) => {
       if (facilityCost(category) > remaining) return false
-      if (copies(category) >= MAX_PER_CATEGORY) {
-        const alternative = CIP_CATEGORIES.some(
-          (other) => other !== category && facilityCost(other) <= remaining && copies(other) < MAX_PER_CATEGORY,
+      if (copies(category) >= maxPerCategory) {
+        const alternative = categories.some(
+          (other) => other !== category && facilityCost(other) <= remaining && copies(other) < maxPerCategory,
         )
         if (alternative) return false
       }
@@ -211,7 +216,7 @@ export function planCapitalImprovements(input: {
         pois: inventory,
         stations: input.stations,
         transitEdges: input.transitEdges,
-        serviceCategories: CIP_CATEGORIES,
+        serviceCategories: categories,
         occupied,
         maintenanceStations: input.maintenanceStations,
         shutdownStations: input.shutdownStations,
@@ -261,6 +266,8 @@ export function planCapitalImprovements(input: {
     spent: input.budget - remaining,
     leftover: remaining,
     generatedAt: new Date().toISOString(),
+    sector: sector.id,
+    sectorLabel: sector.label,
     disruptionStationNames: input.disruptionStationNames,
     gaps,
     projects,

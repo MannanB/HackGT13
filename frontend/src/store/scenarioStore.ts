@@ -8,6 +8,7 @@ import {
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
 import type { CipPlan } from '@/types/cip'
+import type { CipSector } from '@/utils/facilityCosts'
 import {
   networkFingerprint,
   readCriticalCache,
@@ -27,7 +28,7 @@ import type { PointOfInterest, PoiCategory, ResidentialZone, StreetRouteMap } fr
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation, RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
 import type { IntelEvent } from '@/types/intelligence'
-import { DEFAULT_TIME_MINUTE } from '@/utils/hourlyDemand'
+import { DEFAULT_TIME_MINUTE, DEFAULT_FAILURE_ELAPSED_MINUTES } from '@/utils/hourlyDemand'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
 export type AppMode = 'disrupt' | 'add' | 'intel'
@@ -75,11 +76,13 @@ interface ScenarioState {
   intelNarrative: string | null
   criticalFromCache: boolean
   cipBudget: number
+  cipSector: CipSector
   cipPlan: CipPlan | null
   cipStatus: string | null
 
   setAppMode: (mode: AppMode) => void
   setCipBudget: (budget: number) => void
+  setCipSector: (sector: CipSector) => void
   generateCipPlan: () => void
   downloadCip: () => void
   setMapCenter: (longitude: number, latitude: number) => void
@@ -272,8 +275,8 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     selectedStationId: null,
     hoveredStationId: null,
     selectedServiceCategories: DEFAULT_CATEGORIES,
-    failureStartMinute: 0,
-    failureElapsedMinutes: DEFAULT_TIME_MINUTE,
+    failureStartMinute: DEFAULT_TIME_MINUTE,
+    failureElapsedMinutes: DEFAULT_FAILURE_ELAPSED_MINUTES,
     timeMinute: DEFAULT_TIME_MINUTE,
 
     result: null,
@@ -293,6 +296,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     intelNarrative: null,
     criticalFromCache: false,
     cipBudget: 10_000_000,
+    cipSector: 'general',
     cipPlan: null,
     cipStatus: null,
 
@@ -394,6 +398,8 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
 
     setCipBudget: (cipBudget) => set({ cipBudget }),
 
+    setCipSector: (cipSector) => set({ cipSector }),
+
     generateCipPlan: () => {
       const generation = ++impactGeneration
       set({ computing: true, cipStatus: null })
@@ -407,6 +413,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         try {
           const plan = planCapitalImprovements({
             budget: state.cipBudget,
+            sector: state.cipSector,
             zones: state.zones,
             pois: state.pois,
             stations: state.stations,
@@ -420,7 +427,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
             set({
               computing: false,
               cipPlan: plan,
-              cipStatus: 'Nothing in the menu both fits this budget and saves at least 15 minutes. Raise the budget or fail a station first.',
+              cipStatus: 'Nothing in this sector both fits this budget and saves at least 15 minutes. Raise the budget or fail a station first.',
             })
             return
           }

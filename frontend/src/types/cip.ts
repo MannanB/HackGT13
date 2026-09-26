@@ -1,4 +1,7 @@
 import type { PoiCategory } from '@/types/geography'
+import type { CipSector } from '@/utils/facilityCosts'
+
+export type { CipSector }
 
 export interface ServiceGap {
   zoneId: string
@@ -33,6 +36,8 @@ export interface CipPlan {
   spent: number
   leftover: number
   generatedAt: string
+  sector: CipSector
+  sectorLabel: string
   disruptionStationNames: string[]
   gaps: ServiceGap[]
   projects: CipProject[]

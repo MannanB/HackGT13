@@ -1,14 +1,17 @@
 import { Download, Lightbulb, Plus, Sparkles, X } from 'lucide-react'
 import { useScenarioStore } from '@/store/scenarioStore'
 import { SERVICE_CATEGORIES, categoryMeta } from '@/utils/categories'
+import { cn } from '@/utils/cn'
 import { hex } from '@/utils/constants'
 import {
   CIP_BUDGET_MAX,
   CIP_BUDGET_MIN,
+  CIP_SECTORS,
   budgetFromSlider,
   cheapestFacilityCost,
   formatBudgetMillions,
   formatUsd,
+  sectorMeta,
   sliderFromBudget,
 } from '@/utils/facilityCosts'
 
@@ -50,12 +53,15 @@ export function PlacedPoiList() {
 function CapitalProgram() {
   const budget = useScenarioStore((state) => state.cipBudget)
   const setBudget = useScenarioStore((state) => state.setCipBudget)
+  const sector = useScenarioStore((state) => state.cipSector)
+  const setSector = useScenarioStore((state) => state.setCipSector)
   const generate = useScenarioStore((state) => state.generateCipPlan)
   const download = useScenarioStore((state) => state.downloadCip)
   const plan = useScenarioStore((state) => state.cipPlan)
   const status = useScenarioStore((state) => state.cipStatus)
   const computing = useScenarioStore((state) => state.computing)
   const slider = sliderFromBudget(budget)
+  const focus = sectorMeta(sector)
 
   return (
     <div className="space-y-2.5 rounded-xl bg-white/[0.03] p-2.5 ring-1 ring-emerald-400/20">
@@ -77,9 +83,33 @@ function CapitalProgram() {
         <span>{formatBudgetMillions(CIP_BUDGET_MIN)}</span>
         <span>{formatBudgetMillions(CIP_BUDGET_MAX)}</span>
       </div>
+      <div>
+        <div className="mb-1 text-[11px] text-fog-400">Sector</div>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Capital plan sector">
+          {CIP_SECTORS.map((item) => {
+            const active = item.id === sector
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setSector(item.id)}
+                className={cn(
+                  'rounded-lg px-2 py-1 text-[11px] ring-1 transition-colors',
+                  active
+                    ? 'bg-emerald-500/20 text-emerald-200 ring-emerald-400/40'
+                    : 'text-fog-400 ring-white/10 hover:bg-white/[0.04] hover:text-fog-100',
+                )}
+              >
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
       <p className="text-[11px] leading-relaxed text-fog-500">
-        The planner ranks neighborhoods that lack a destination — especially if a station fails — then spends on
-        the mix that saves the most rider-minutes. A clinic is about {formatUsd(cheapestFacilityCost())}.
+        {focus.brief}. Lowest-cost site in this sector is about {formatUsd(cheapestFacilityCost(sector))}.
       </p>
       <div className="flex flex-col gap-1.5">
         <button
@@ -103,7 +133,7 @@ function CapitalProgram() {
       </div>
       {plan && plan.projects.length > 0 && (
         <p className="text-[11px] leading-relaxed text-fog-400">
-          {plan.projects.length} site{plan.projects.length === 1 ? '' : 's'} · {formatUsd(plan.spent)} committed ·{' '}
+          {plan.projects.length} site{plan.projects.length === 1 ? '' : 's'} · {plan.sectorLabel} · {formatUsd(plan.spent)} committed ·{' '}
           {formatUsd(plan.leftover)} left
         </p>
       )}

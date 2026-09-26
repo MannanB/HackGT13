@@ -2,7 +2,7 @@ import type { CipPlan } from '@/types/cip'
 import type { PoiCategory, ResidentialZone } from '@/types/geography'
 import type { SimulationResult } from '@/types/simulation'
 import { categoryMeta, categorySingular } from '@/utils/categories'
-import { formatBudgetMillions, formatUsd } from '@/utils/facilityCosts'
+import { formatBudgetMillions, formatUsd, sectorMeta } from '@/utils/facilityCosts'
 import { formatPopulation } from '@/utils/constants'
 
 const PAGE_W = 612
@@ -62,7 +62,7 @@ class PdfDoc {
     this.y = 78
   }
 
-  letterhead(date: string, docId: string) {
+  letterhead(date: string, docId: string, subject: string, subtitle: string) {
     this.docId = docId
     this.dateLabel = date
     this.page.push('q 0 0 0 RG 1.6 w')
@@ -75,12 +75,12 @@ class PdfDoc {
     this.text('/F1', 8, PAGE_W - MARGIN - 168, 66, 'Rapid Transit Authority (MARTA)')
     this.rule(74, 0.9)
     this.text('/F2', 16, MARGIN, 94, 'Capital Improvement Program Brief')
-    this.text('/F3', 10, MARGIN, 110, 'Recommended package to improve MARTA access to essential destinations')
+    this.text('/F3', 10, MARGIN, 110, subtitle)
     this.y = 124
     this.memoRow('TO', 'City Council; MARTA Board of Directors; Office of the Mayor')
     this.memoRow('FROM', 'Ripple access model, prepared for staff discussion')
     this.memoRow('DATE', date)
-    this.memoRow('SUBJECT', 'Capital facilities to reduce travel time to care, food, school, and civic services')
+    this.memoRow('SUBJECT', subject)
     this.memoRow('CONTROL NO.', docId)
     this.spacer(6)
     this.rule(this.y, 0.5)
@@ -251,17 +251,24 @@ export function buildCipPdf(input: {
     month: 'long',
     day: 'numeric',
   })
-  doc.letterhead(date, controlNumber(plan.generatedAt))
+  const sector = sectorMeta(plan.sector)
+  const names = sector.categories.map((category) => categorySingular(category).toLowerCase()).join(', ')
+  doc.letterhead(
+    date,
+    controlNumber(plan.generatedAt),
+    `${sector.label} sector capital package to reduce MARTA travel time`,
+    `Scope: ${sector.brief}. Eligible destinations: ${names}.`,
+  )
 
   doc.section('1.', 'Purpose')
   doc.body(
-    'This brief recommends a constrained capital package of new destinations so that Atlanta residents, especially those who rely on MARTA, can reach essential services in less time. It is written for elected officials, board members, and department heads who must justify where limited capital should go.',
+    `This brief recommends a constrained ${sector.label.toLowerCase()} capital package of new destinations so that Atlanta residents, especially those who rely on MARTA, can reach those services in less time. Spending is limited to ${names}; other facility types are out of scope. It is written for elected officials, board members, and department heads who must justify where limited capital should go.`,
   )
 
   doc.section('2.', 'Planning constraints')
-  doc.subsection('2.1', 'Budget ceiling')
+  doc.subsection('2.1', 'Budget ceiling and sector')
   doc.body(
-    `The package stays within a ${formatBudgetMillions(plan.budget)} capital ceiling. Planning-level construction allowances total ${formatUsd(plan.spent)}. ${formatUsd(plan.leftover)} is left unallocated rather than forcing a weaker extra site that would not clear the travel-time test.`,
+    `The package stays within a ${formatBudgetMillions(plan.budget)} capital ceiling, scoped to the ${sector.label.toLowerCase()} sector (${sector.brief.toLowerCase()}). Planning-level construction allowances total ${formatUsd(plan.spent)}. ${formatUsd(plan.leftover)} is left unallocated rather than forcing a weaker extra site that would not clear the travel-time test.`,
   )
   doc.subsection('2.2', 'Network and assignment rules')
   if (plan.disruptionStationNames.length > 0) {

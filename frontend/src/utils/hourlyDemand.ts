@@ -22,6 +22,7 @@ const MAX_DENSITY_UPLIFT = 2.5
 const densityMultiplierCache = new WeakMap<ResidentialZone, number>()
 
 export const DEFAULT_TIME_MINUTE = 12 * 60
+export const DEFAULT_FAILURE_ELAPSED_MINUTES = 0
 
 export function hourAt(minuteOfDay: number): number {
   return Math.max(0, Math.min(23, Math.floor(minuteOfDay / 60)))

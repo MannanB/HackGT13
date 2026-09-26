@@ -17,12 +17,31 @@ export const FACILITY_COST: Record<PoiCategory, number> = {
 
 export const CIP_CATEGORIES: PoiCategory[] = SERVICE_CATEGORIES.map((item) => item.category)
 
+export type CipSector = 'general' | 'healthcare' | 'education' | 'food' | 'civic'
+
+export const CIP_SECTORS: { id: CipSector; label: string; brief: string; categories: PoiCategory[] }[] = [
+  { id: 'general', label: 'General', brief: 'Any destination that saves the most rider-minutes', categories: CIP_CATEGORIES },
+  { id: 'healthcare', label: 'Health', brief: 'Hospitals and clinics', categories: ['hospital', 'clinic'] },
+  { id: 'education', label: 'Education', brief: 'Schools, universities, and libraries', categories: ['school', 'university', 'library'] },
+  { id: 'food', label: 'Food', brief: 'Grocery access', categories: ['grocery'] },
+  { id: 'civic', label: 'Civic', brief: 'Government service sites', categories: ['government'] },
+]
+
+export function sectorMeta(sector: CipSector) {
+  return CIP_SECTORS.find((item) => item.id === sector) ?? CIP_SECTORS[0]
+}
+
+export function categoriesForSector(sector: CipSector) {
+  return sectorMeta(sector).categories
+}
+
+export function cheapestFacilityCost(sector: CipSector = 'general') {
+  const categories = categoriesForSector(sector)
+  return Math.min(...categories.map((category) => FACILITY_COST[category]))
+}
+
 export const CIP_BUDGET_MIN = 1_000_000
 export const CIP_BUDGET_MAX = 100_000_000
-
-export function cheapestFacilityCost() {
-  return Math.min(...CIP_CATEGORIES.map((category) => FACILITY_COST[category]))
-}
 
 export function facilityCost(category: PoiCategory) {
   return FACILITY_COST[category] ?? FACILITY_COST.other
