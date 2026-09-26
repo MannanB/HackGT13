@@ -200,7 +200,7 @@ function BuildCompare({
         ))}
       </ul>
       {withSitesPersonMinutes == null && (
-        <p className="mt-1 px-1 text-[10px] text-fog-500">Switch to Add new and place a facility to draw the second bar from this closure.</p>
+        <p className="mt-1 px-1 text-[10px] text-fog-500">Switch to Plan and place a facility to draw the second bar from this closure.</p>
       )}
     </ChartFrame>
   )

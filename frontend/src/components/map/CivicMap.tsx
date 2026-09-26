@@ -439,10 +439,30 @@ export function CivicMap() {
           value={appMode}
           onChange={setAppMode}
           options={[
-            { value: 'disrupt', label: 'Disrupt' },
-            { value: 'add', label: 'Add new', activeClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/40' },
-            { value: 'intel', label: 'Intelligence', activeClass: 'bg-signal/15 text-signal-soft ring-1 ring-signal/40' },
-            { value: 'build', label: 'Build', activeClass: 'bg-white/[0.08] text-fog-100 ring-1 ring-white/15' },
+            {
+              value: 'disrupt',
+              label: 'Disrupt',
+              idleClass: 'text-fog-400 hover:bg-red-500/15 hover:text-red-200 hover:ring-1 hover:ring-red-400/40',
+              activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-red-500/15 hover:text-red-200 hover:ring-1 hover:ring-red-400/40',
+            },
+            {
+              value: 'add',
+              label: 'Plan',
+              idleClass: 'text-fog-400 hover:bg-emerald-500/15 hover:text-emerald-300 hover:ring-1 hover:ring-emerald-400/40',
+              activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-emerald-500/15 hover:text-emerald-300 hover:ring-1 hover:ring-emerald-400/40',
+            },
+            {
+              value: 'intel',
+              label: 'Intelligence',
+              idleClass: 'text-fog-400 hover:bg-blue-500/15 hover:text-blue-200 hover:ring-1 hover:ring-blue-400/40',
+              activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-blue-500/15 hover:text-blue-200 hover:ring-1 hover:ring-blue-400/40',
+            },
+            {
+              value: 'build',
+              label: 'Report',
+              idleClass: 'text-fog-400 hover:bg-yellow-400/15 hover:text-yellow-200 hover:ring-1 hover:ring-yellow-300/40',
+              activeClass: 'bg-ink-700 text-fog-100 shadow-sm hover:bg-yellow-400/15 hover:text-yellow-200 hover:ring-1 hover:ring-yellow-300/40',
+            },
           ]}
         />
       </div>

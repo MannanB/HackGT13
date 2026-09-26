@@ -5,6 +5,7 @@ interface Option<T extends string> {
   value: T
   label: ReactNode
   activeClass?: string
+  idleClass?: string
 }
 
 export function Segmented<T extends string>({
@@ -39,7 +40,7 @@ export function Segmented<T extends string>({
               size === 'sm' ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-1.5 text-xs',
               active
                 ? (option.activeClass ?? 'bg-ink-700 text-fog-100 shadow-sm')
-                : 'text-fog-400 hover:text-fog-100',
+                : (option.idleClass ?? 'text-fog-400 hover:text-fog-100'),
             )}
           >
             {option.label}

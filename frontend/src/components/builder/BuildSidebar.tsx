@@ -246,7 +246,7 @@ export function BuildSidebar() {
   return (
     <>
       <section className="space-y-2">
-        <h2 className="eyebrow">Build</h2>
+        <h2 className="eyebrow">Report</h2>
         <Segmented<BuildKind>
           size="sm"
           value={kind}
