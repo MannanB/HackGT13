@@ -1,8 +1,7 @@
+import { apiGet, apiPut, endpoints } from '@/services/api'
 import type { PointOfInterest, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation } from '@/types/simulation'
-
-const CACHE_KEY = 'ripple.poi-critical.v1'
 
 interface CacheRecord {
   fingerprint: string
@@ -43,13 +42,11 @@ export function networkFingerprint(input: {
   return fnv1a(`${stations}\n${edges}\n${zones}\n${pois}`)
 }
 
-export function readCriticalCache(
+export async function readCriticalCache(
   fingerprint: string,
-): Record<string, PoiCriticalStation> | null {
+): Promise<Record<string, PoiCriticalStation> | null> {
   try {
-    const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return null
-    const record = JSON.parse(raw) as CacheRecord
+    const record = await apiGet<CacheRecord>(endpoints.poiCriticalCache(fingerprint))
     if (record.fingerprint !== fingerprint || !record.snapshot) return null
     return record.snapshot
   } catch {
@@ -57,25 +54,13 @@ export function readCriticalCache(
   }
 }
 
-export function hasCriticalCache(): boolean {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return false
-    const record = JSON.parse(raw) as CacheRecord
-    return Boolean(record.fingerprint && record.snapshot)
-  } catch {
-    return false
-  }
-}
-
-export function writeCriticalCache(
+export async function writeCriticalCache(
   fingerprint: string,
   snapshot: Record<string, PoiCriticalStation>,
-): void {
+): Promise<void> {
   try {
-    const record: CacheRecord = { fingerprint, snapshot }
-    localStorage.setItem(CACHE_KEY, JSON.stringify(record))
+    await apiPut(endpoints.poiCriticalCache(fingerprint), { snapshot })
   } catch {
-    // Quota or private mode — skip; next visit will recompute.
+    // API unavailable — next visit will recompute.
   }
 }

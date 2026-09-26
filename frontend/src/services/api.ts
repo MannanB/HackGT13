@@ -5,6 +5,8 @@ export const endpoints = {
   pois: '/api/v1/pois',
   network: '/api/v1/network',
   accessEdges: '/api/v1/access-edges',
+  poiCriticalCache: (fingerprint: string) =>
+    `/api/v1/poi-critical-cache/${encodeURIComponent(fingerprint)}`,
 } as const
 
 interface Page<T> {
@@ -24,6 +26,18 @@ export class ApiError extends Error {
 
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`)
+  if (!response.ok) {
+    throw new ApiError(response.status, `Request failed: ${path} (${response.status})`)
+  }
+  return response.json() as Promise<T>
+}
+
+export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
   if (!response.ok) {
     throw new ApiError(response.status, `Request failed: ${path} (${response.status})`)
   }
