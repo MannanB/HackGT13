@@ -14,3 +14,7 @@ build/
 .env
 .env.*
 !.env.example
+
+# Downloaded source extracts
+data/**/raw/
+/tl_2024_13_bg.zip

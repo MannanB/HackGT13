@@ -12,7 +12,11 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
-MIGRATIONS = (("001_schema", SQL_DIR / "001_schema.sql"),)
+MIGRATIONS = (
+    ("001_schema", SQL_DIR / "001_schema.sql"),
+    ("002_zone_income", SQL_DIR / "002_zone_income.sql"),
+    ("003_poi_source", SQL_DIR / "003_poi_source.sql"),
+)
 
 
 def iter_statements(script: str):

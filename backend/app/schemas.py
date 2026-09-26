@@ -100,6 +100,7 @@ class Zone(BaseModel):
     geometry: dict[str, Any]
     centroid: LonLat
     population: int
+    median_income: int | None = None
 
 
 class ZoneCreate(BaseModel):
@@ -123,6 +124,10 @@ class PointOfInterest(BaseModel):
     name: str
     category: str
     location: LonLat
+    source: str | None = None
+    source_id: str | None = None
+    jobs_count: int | None = None
+    enrollment: int | None = None
 
 
 class PointOfInterestCreate(BaseModel):

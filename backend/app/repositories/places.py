@@ -16,7 +16,8 @@ ZONE_COLUMNS = """
         'lon', ST_X(centroid::geometry),
         'lat', ST_Y(centroid::geometry)
     ) AS centroid,
-    population
+    population,
+    median_income
 """
 
 POI_COLUMNS = """
@@ -26,7 +27,11 @@ POI_COLUMNS = """
     json_build_object(
         'lon', ST_X(location::geometry),
         'lat', ST_Y(location::geometry)
-    ) AS location
+    ) AS location,
+    source,
+    source_id,
+    jobs_count,
+    enrollment
 """
 
 

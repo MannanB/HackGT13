@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS residential_zones (
     geometry GEOMETRY(MULTIPOLYGON, 4326) NOT NULL,
     centroid GEOGRAPHY(POINT, 4326) NOT NULL,
     population INTEGER NOT NULL DEFAULT 0,
-    CONSTRAINT residential_zones_population_nonnegative CHECK (population >= 0)
+    median_income INTEGER,
+    CONSTRAINT residential_zones_population_nonnegative CHECK (population >= 0),
+    CONSTRAINT residential_zones_income_nonnegative CHECK (median_income IS NULL OR median_income >= 0)
 );
 
 CREATE INDEX IF NOT EXISTS residential_zones_geometry_gix
@@ -53,11 +55,20 @@ CREATE TABLE IF NOT EXISTS points_of_interest (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     category TEXT NOT NULL,
-    location GEOGRAPHY(POINT, 4326) NOT NULL
+    location GEOGRAPHY(POINT, 4326) NOT NULL,
+    source TEXT,
+    source_id TEXT,
+    jobs_count INTEGER,
+    enrollment INTEGER,
+    CONSTRAINT pois_jobs_nonnegative CHECK (jobs_count IS NULL OR jobs_count >= 0),
+    CONSTRAINT pois_enrollment_nonnegative CHECK (enrollment IS NULL OR enrollment >= 0)
 );
 
 CREATE INDEX IF NOT EXISTS pois_location_gix ON points_of_interest USING GIST (location);
 CREATE INDEX IF NOT EXISTS pois_category_idx ON points_of_interest (category);
+CREATE UNIQUE INDEX IF NOT EXISTS pois_source_record_idx
+    ON points_of_interest (source, source_id)
+    WHERE source IS NOT NULL AND source_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS access_edges (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
