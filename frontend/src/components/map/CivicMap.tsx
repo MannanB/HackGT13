@@ -37,7 +37,6 @@ type Hover =
   | { kind: 'station'; station: Station }
   | { kind: 'zone'; feature: ZoneFeature }
   | { kind: 'poi'; poi: PointOfInterest }
-  | { kind: 'train'; train: SimTrain }
 
 interface Placed<T> {
   item: T
@@ -87,7 +86,6 @@ export function CivicMap() {
   const setMapCenter = useScenarioStore((state) => state.setMapCenter)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const gain = appMode === 'add'
-  const [simTime, setSimTime] = useState(0)
 
   const shutdownIds = useMemo(
     () => new Set(Object.keys(stationStates).filter((id) => stationStates[id] === 'shutdown')),
@@ -108,25 +106,6 @@ export function CivicMap() {
   useEffect(() => {
     mapRef.current?.easeTo({ pitch: extruded ? 52 : 0, bearing: extruded ? -18 : 0, duration: 900 })
   }, [extruded])
-
-  useEffect(() => {
-    let raf = 0
-    let last = 0
-    const paint = (now: number) => {
-      if (now - last > 90) {
-        last = now
-        setSimTime(now)
-      }
-      raf = window.requestAnimationFrame(paint)
-    }
-    raf = window.requestAnimationFrame(paint)
-    return () => window.cancelAnimationFrame(raf)
-  }, [])
-
-  const simTrains = useMemo(
-    () => simulatedTrains(stations, transitEdges, shutdownIds, simTime),
-    [stations, transitEdges, shutdownIds, simTime],
-  )
 
   const layers = useMemo<LayersList>(
     () => [
@@ -157,7 +136,6 @@ export function CivicMap() {
         hoveredId: hoveredStationId,
       }),
       ...(addedPois.length > 0 ? createAddedPoiLayers(addedPois, draggingId) : []),
-      ...createLiveTrainLayers(simTrains),
     ],
     [
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
@@ -214,12 +192,6 @@ export function CivicMap() {
     if (overMarker) {
       hoverZone(null)
       setHover(place({ kind: 'poi', poi: info.object as PointOfInterest }, info, 240, 60))
-      return
-    }
-    if (id === LIVE_TRAIN_LAYER && info.object) {
-      hoverStation(null)
-      hoverZone(null)
-      setHover(place({ kind: 'train', train: info.object as SimTrain }, info, 220, 56))
       return
     }
     if (id === 'stations' && info.object) {
@@ -403,19 +375,6 @@ function TooltipBody({
         <div className={`text-[11px] ${state === 'shutdown' ? 'text-shut' : state === 'maintenance' ? 'text-maint' : 'text-fog-500'}`}>
           {state === 'shutdown' ? 'Shut down' : state === 'maintenance' ? 'Maintenance' : 'Click to change state'}
         </div>
-      </>
-    )
-  }
-  if (hover.kind === 'train') {
-    const { train } = hover
-    return (
-      <>
-        <div className="flex items-center gap-2 text-[13px] font-medium">
-          <span className="h-2 w-2 rounded-full" style={{ background: MARTA_LINE_HEX[train.line] }} />
-          {train.line[0].toUpperCase()}
-          {train.line.slice(1)} line
-        </div>
-        <div className="text-[11px] text-fog-400">Simulated · near {train.nextStation}</div>
       </>
     )
   }

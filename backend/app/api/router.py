@@ -1,6 +1,20 @@
 from fastapi import APIRouter
 
-from app.api import access, health, intelligence, network, pois, scenarios, stations, transit, travel_times, v1, zones
+from app.api import (
+    access,
+    experimental,
+    health,
+    intelligence,
+    live,
+    network,
+    pois,
+    scenarios,
+    stations,
+    transit,
+    travel_times,
+    v1,
+    zones,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router)
