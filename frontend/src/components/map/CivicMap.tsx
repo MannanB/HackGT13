@@ -4,6 +4,7 @@ import { Box, Loader2, Square, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Map, useControl, type MapRef } from 'react-map-gl/maplibre'
 import { ADDED_POI_LAYER, createAddedPoiLayers } from '@/components/map/AddedPoiLayer'
+import { createEventRadiusLayer } from '@/components/map/EventRadiusLayer'
 import { createMartaNetworkLayers } from '@/components/map/MartaNetworkLayer'
 import { createPoiLayers } from '@/components/map/PoiLayer'
 import { createRouteLayers } from '@/components/map/RouteLayer'
@@ -79,6 +80,7 @@ export function CivicMap() {
   const appMode = useScenarioStore((state) => state.appMode)
   const setAppMode = useScenarioStore((state) => state.setAppMode)
   const addedPois = useScenarioStore((state) => state.addedPois)
+  const intelEvent = useScenarioStore((state) => state.intelEvent)
   const movePoi = useScenarioStore((state) => state.movePoi)
   const setMapCenter = useScenarioStore((state) => state.setMapCenter)
   const [draggingId, setDraggingId] = useState<string | null>(null)
@@ -114,6 +116,7 @@ export function CivicMap() {
         extruded,
         gain,
       }),
+      ...createEventRadiusLayer(intelEvent),
       ...createMartaNetworkLayers(transitEdges, stations, shutdownIds),
       ...createPoiLayers({
         pois,
@@ -136,7 +139,7 @@ export function CivicMap() {
     [
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
       shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
-      hoveredStationId, gain, addedPois, draggingId,
+      hoveredStationId, gain, addedPois, draggingId, intelEvent,
     ],
   )
 
@@ -284,6 +287,7 @@ export function CivicMap() {
           options={[
             { value: 'disrupt', label: 'Disrupt' },
             { value: 'add', label: 'Add new', activeClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/40' },
+            { value: 'intel', label: 'Intelligence', activeClass: 'bg-signal/15 text-signal-soft ring-1 ring-signal/40' },
           ]}
         />
       </div>

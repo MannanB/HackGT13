@@ -10,9 +10,10 @@ import { getNetwork } from '@/services/stationService'
 import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation, RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
+import type { IntelEvent } from '@/types/intelligence'
 
 type LoadStatus = 'loading' | 'ready' | 'error'
-export type AppMode = 'disrupt' | 'add'
+export type AppMode = 'disrupt' | 'add' | 'intel'
 
 interface FocusRequest {
   bounds: [[number, number], [number, number]]
@@ -48,6 +49,8 @@ interface ScenarioState {
   poiCriticalById: Record<string, PoiCriticalStation>
   /** Fraction of stations already tested for the per-facility critical index. */
   poiCriticalProgress: number
+  intelEvent: IntelEvent | null
+  intelNarrative: string | null
 
   setAppMode: (mode: AppMode) => void
   setMapCenter: (longitude: number, latitude: number) => void
@@ -66,6 +69,8 @@ interface ScenarioState {
   setDelayRange: (range: [number, number] | null) => void
   setRouteView: (view: RouteView) => void
   setExtruded: (extruded: boolean) => void
+  applyIntelEvent: (event: IntelEvent, narrative: string) => void
+  clearIntelEvent: () => void
 }
 
 const DEFAULT_CATEGORIES: PoiCategory[] = ['government', 'hospital', 'grocery']
@@ -108,11 +113,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     })
   }
 
-  const recompute = () => {
-    if (get().appMode === 'add') {
-      recomputeAddition()
-      return
-    }
+  const runDisruption = () => {
     const { maintenanceStations, shutdownStations } = disruptionLists(get().stationStates)
     if (maintenanceStations.length + shutdownStations.length === 0) {
       clearImpacts()
@@ -120,7 +121,6 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     }
     const generation = ++impactGeneration
     set({ computing: true })
-    // Yield a frame so the UI can paint the pending state before the synchronous solve.
     window.setTimeout(() => {
       if (generation !== impactGeneration) return
       const state = get()
@@ -151,6 +151,14 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         })
       }
     }, 16)
+  }
+
+  const recompute = () => {
+    if (get().appMode === 'add') {
+      recomputeAddition()
+      return
+    }
+    runDisruption()
   }
 
   const recomputeAddition = () => {
@@ -215,6 +223,8 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     focusRequest: null,
     poiCriticalById: {},
     poiCriticalProgress: 0,
+    intelEvent: null,
+    intelNarrative: null,
 
     loadNetwork: async () => {
       criticalGeneration += 1
@@ -275,6 +285,10 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
 
     setAppMode: (appMode) => {
       if (get().appMode === appMode) return
+      if (appMode === 'intel') {
+        set({ appMode })
+        return
+      }
       set({ appMode, result: null, selectedZoneId: null })
       recompute()
     },
@@ -410,5 +424,36 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     setRouteView: (routeView) => set({ routeView }),
 
     setExtruded: (extruded) => set({ extruded }),
+
+    applyIntelEvent: (event, narrative) => {
+      const stationStates: Record<string, StationOperatingState> = {}
+      for (const impact of event.stationImpacts) {
+        stationStates[impact.stationId] = impact.effect
+      }
+      const lat = event.centerLatitude
+      const lng = event.centerLongitude
+      const dLat = event.radiusKm / 111
+      const dLng = event.radiusKm / (111 * Math.max(0.2, Math.cos((lat * Math.PI) / 180)))
+      set({
+        stationStates,
+        selectedStationId: event.stationImpacts[0]?.stationId ?? get().selectedStationId,
+        intelEvent: event,
+        intelNarrative: narrative,
+        selectedZoneId: null,
+        focusRequest: {
+          bounds: [
+            [lng - dLng, lat - dLat],
+            [lng + dLng, lat + dLat],
+          ],
+          key: Date.now(),
+        },
+      })
+      runDisruption()
+    },
+
+    clearIntelEvent: () => {
+      set({ intelEvent: null, intelNarrative: null, stationStates: {} })
+      clearImpacts()
+    },
   }
 })

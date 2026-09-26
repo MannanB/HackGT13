@@ -1,5 +1,6 @@
 import { Loader2, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
+import { IntelligencePanel } from '@/components/intelligence/IntelligencePanel'
 import { ImpactPanel } from '@/components/impact/ImpactPanel'
 import { CivicMap } from '@/components/map/CivicMap'
 import { ScenarioSidebar } from '@/components/scenario/ScenarioSidebar'
@@ -9,6 +10,7 @@ export function AppShell() {
   const loadNetwork = useScenarioStore((state) => state.loadNetwork)
   const loadStatus = useScenarioStore((state) => state.loadStatus)
   const loadError = useScenarioStore((state) => state.loadError)
+  const appMode = useScenarioStore((state) => state.appMode)
 
   useEffect(() => {
     void loadNetwork()
@@ -20,7 +22,7 @@ export function AppShell() {
       {loadStatus === 'ready' && (
         <div className="pointer-events-none absolute inset-3 z-10 flex items-start justify-between gap-3">
           <ScenarioSidebar />
-          <ImpactPanel />
+          {appMode === 'intel' ? <IntelligencePanel /> : <ImpactPanel />}
         </div>
       )}
       {loadStatus !== 'ready' && (

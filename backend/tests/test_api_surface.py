@@ -18,6 +18,7 @@ EXPECTED_PATHS = [
     "/api/v1/scenarios/{scenario_id}",
     "/api/v1/scenarios/{scenario_id}/impact",
     "/api/v1/travel-times",
+    "/api/v1/intelligence/events",
 ]
 
 TABLES = [
