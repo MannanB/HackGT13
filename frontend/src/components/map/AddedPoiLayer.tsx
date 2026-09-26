@@ -38,7 +38,7 @@ export function createAddedPoiLayers(pois: PointOfInterest[], draggingId: string
       getSize: 12,
       getColor: [220, 255, 225, 255],
       getPixelOffset: [0, 20],
-      fontFamily: 'Geist, sans-serif',
+      fontFamily: 'Inter, sans-serif',
       fontWeight: 600,
       fontSettings: { sdf: true },
       outlineWidth: 3,

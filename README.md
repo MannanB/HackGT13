@@ -64,7 +64,7 @@ API keys stay on the server. The browser never receives them.
 frontend/     React, Vite, MapLibre, deck.gl
 backend/      FastAPI, SQL, Intelligence models
 data/         Loaders for GTFS, Census, OSM, hospitals, and demand profiles
-design.md     Architecture and data notes
+DESIGN.md     Architecture and data notes
 ```
 
 ## Stack

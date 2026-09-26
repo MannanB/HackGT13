@@ -24,6 +24,15 @@ export function AppShell() {
       style={{ '--timeline-clearance': timelineOpen ? '8.75rem' : '4.75rem' } as CSSProperties}
     >
       <CivicMap />
+      <div className="glass pointer-events-none absolute bottom-3 left-3 z-20 flex items-center gap-2.5 rounded-2xl py-2 pr-4 pl-2">
+        <svg viewBox="0 0 32 32" aria-hidden="true" className="h-9 w-9 shrink-0">
+          <rect width="32" height="32" rx="8" fill="#1c2434" />
+          <path d="M7 22V10" stroke="#3b82f6" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M7 16h8l4-5 6 11" stroke="#e8eef5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="7" cy="16" r="2" fill="#ef4444" />
+        </svg>
+        <span className="text-lg font-semibold tracking-tight text-fog-100">Ripple</span>
+      </div>
       {loadStatus === 'ready' && (
         <>
           <div className="pointer-events-none absolute inset-3 z-10 flex items-start justify-between gap-3 pb-[var(--timeline-clearance)] transition-[padding] duration-300">
