@@ -1,0 +1,78 @@
+import { Check, ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import { SELECTABLE_STATION_IDS } from '@/data/mockStations'
+import { useScenarioStore } from '@/store/scenarioStore'
+import { MARTA_LINE_HEX } from '@/utils/constants'
+import { cn } from '@/utils/cn'
+
+export function StationSelector() {
+  const stations = useScenarioStore((state) => state.stations)
+  const selectedStationId = useScenarioStore((state) => state.selectedStationId)
+  const setSelectedStation = useScenarioStore((state) => state.setSelectedStation)
+  const simulationStatus = useScenarioStore((state) => state.simulationStatus)
+  const [open, setOpen] = useState(false)
+
+  const selectable = stations.filter((station) =>
+    SELECTABLE_STATION_IDS.includes(station.id as (typeof SELECTABLE_STATION_IDS)[number]),
+  )
+  const selected = stations.find((station) => station.id === selectedStationId)
+  const offline = simulationStatus === 'success'
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between rounded-xl border border-ink-600 bg-ink-850 px-3 py-2.5 text-left"
+      >
+        <span className="flex items-center gap-2">
+          <span
+            className={cn(
+              'h-2 w-2 rounded-full',
+              offline ? 'bg-line-red' : 'bg-signal',
+            )}
+          />
+          <span className="text-sm text-fog-100">{selected?.name ?? 'Select a station'}</span>
+          {offline && (
+            <span className="rounded-full bg-line-red/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-line-red">
+              Offline
+            </span>
+          )}
+        </span>
+        <ChevronDown className="h-4 w-4 text-fog-400" />
+      </button>
+      {open && (
+        <div className="civic-scroll absolute z-30 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-ink-600 bg-ink-800 p-1 shadow-xl">
+          {selectable.map((station) => (
+            <button
+              key={station.id}
+              type="button"
+              onClick={() => {
+                setSelectedStation(station.id)
+                setOpen(false)
+              }}
+              className={cn(
+                'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm',
+                station.id === selectedStationId
+                  ? 'bg-ink-700 text-fog-100'
+                  : 'text-fog-300 hover:bg-ink-700/70 hover:text-fog-100',
+              )}
+            >
+              <span>{station.name}</span>
+              <span className="flex items-center gap-1">
+                {station.lines.map((line) => (
+                  <span
+                    key={line}
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: MARTA_LINE_HEX[line] }}
+                  />
+                ))}
+                {station.id === selectedStationId && <Check className="ml-1 h-3.5 w-3.5" />}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

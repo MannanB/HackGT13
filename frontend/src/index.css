@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink-950: #070b12;
+  --color-ink-900: #0b1220;
+  --color-ink-850: #101826;
+  --color-ink-800: #151e2e;
+  --color-ink-700: #1c2738;
+  --color-ink-600: #2a384c;
+  --color-ink-500: #3d4f66;
+  --color-fog-400: #8b9bb0;
+  --color-fog-300: #b7c3d3;
+  --color-fog-100: #e8eef5;
+  --color-signal: #3b82f6;
+  --color-signal-soft: #60a5fa;
+  --color-line-red: #e31837;
+  --color-line-gold: #f0b429;
+  --color-line-blue: #1d7bd6;
+  --color-line-green: #16a34a;
+  --color-impact-1: #f6e27a;
+  --color-impact-2: #f0b429;
+  --color-impact-3: #e67a35;
+  --color-impact-4: #d4483a;
+  --color-impact-5: #9b1d2e;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-ink-900);
+  color: var(--color-fog-100);
+  font-family: var(--font-sans);
+}
+
+body {
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-attrib {
+  background: transparent !important;
+  color: #8b9bb0 !important;
+  font-size: 10px !important;
+}
+
+.maplibregl-ctrl-attrib a {
+  color: #b7c3d3 !important;
+}
+
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+  margin: 0 0 8px 8px;
+}
+
+.civic-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.civic-scroll::-webkit-scrollbar-thumb {
+  background: #2a384c;
+  border-radius: 99px;
+}
+
+.civic-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
