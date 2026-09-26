@@ -225,6 +225,16 @@ class Network(BaseModel):
     transit_edges: list[TransitEdge]
 
 
+class PoiCriticalCache(BaseModel):
+    fingerprint: str
+    snapshot: dict[str, Any]
+    calculated_at: datetime
+
+
+class PoiCriticalCacheWrite(BaseModel):
+    snapshot: dict[str, Any]
+
+
 class ApiRoot(BaseModel):
     service: Literal["hackgt13"] = "hackgt13"
     version: Literal["v1"] = "v1"

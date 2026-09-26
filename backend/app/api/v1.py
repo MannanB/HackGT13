@@ -15,6 +15,7 @@ RESOURCES = [
     "/api/v1/scenarios",
     "/api/v1/scenarios/{scenario_id}/impact",
     "/api/v1/travel-times",
+    "/api/v1/poi-critical-cache/{fingerprint}",
     "/api/v1/intelligence/events",
     "/api/v1/live/trains",
     "/api/v1/experimental/context",

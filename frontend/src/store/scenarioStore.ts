@@ -6,7 +6,6 @@ import {
   findOptimalAdditionSite,
 } from '@/services/accessSimulator'
 import {
-  hasCriticalCache,
   networkFingerprint,
   readCriticalCache,
   writeCriticalCache,
@@ -214,7 +213,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     appMode: 'disrupt',
     addedPois: [],
     mapCenter: { longitude: -84.39, latitude: 33.755 },
-    loadStatus: hasCriticalCache() ? 'ready' : 'loading',
+    loadStatus: 'loading',
     loadError: null,
     stations: [],
     transitEdges: [],
@@ -237,16 +236,15 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     extruded: false,
     focusRequest: null,
     poiCriticalById: {},
-    poiCriticalProgress: hasCriticalCache() ? 1 : 0,
+    poiCriticalProgress: 0,
     intelEvent: null,
     intelNarrative: null,
-    criticalFromCache: hasCriticalCache(),
+    criticalFromCache: false,
 
     loadNetwork: async () => {
       criticalGeneration += 1
       const alreadyShowingMap = get().stations.length > 0
-      const diskCache = hasCriticalCache()
-      if (!alreadyShowingMap && !diskCache) {
+      if (!alreadyShowingMap) {
         set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0, criticalFromCache: false })
       }
       try {
@@ -265,7 +263,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           zones: connected.zones,
           pois: connected.pois,
         })
-        const cached = readCriticalCache(fingerprint)
+        const cached = await readCriticalCache(fingerprint)
         set({
           stations: network.stations,
           transitEdges: network.transitEdges,
@@ -302,7 +300,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
               poiCriticalProgress: total ? cursor / total : 1,
               ...(snapshot ? { poiCriticalById: snapshot } : {}),
             })
-            if (done && snapshot) writeCriticalCache(fingerprint, snapshot)
+            if (done && snapshot) void writeCriticalCache(fingerprint, snapshot)
             if (!done) window.requestAnimationFrame(step)
           }
           window.requestAnimationFrame(step)
