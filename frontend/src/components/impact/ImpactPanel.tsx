@@ -35,7 +35,7 @@ export function ImpactPanel() {
           <div className="rounded-2xl border border-dashed border-ink-600 bg-ink-850/60 px-4 py-8 text-center">
             <p className="text-sm leading-relaxed text-fog-300">
               {gain
-                ? 'Add a hospital, grocery or other service and drag it around. Areas that save 10+ minutes turn green.'
+                ? 'Add a hospital, grocery or other service and drag it around. Areas that save 15+ minutes turn green.'
                 : 'Set a station to maintenance or shut down. Affected communities update immediately.'}
             </p>
             {!gain && (
@@ -68,7 +68,7 @@ export function ImpactPanel() {
                 </div>
                 <p className="mt-2 text-[12px] leading-relaxed text-fog-300">
                   {addedCount} new {addedCount === 1 ? 'site' : 'sites'} placed. Green only appears where a
-                  trip gets at least 10 minutes shorter.
+                  trip gets at least 15 minutes shorter.
                 </p>
               </div>
             ) : (

@@ -1,6 +1,6 @@
 import { categoryWeight } from '@/utils/categoryWeights'
 import { MIN_ADDITION_GAIN_MINUTES } from '@/utils/constants'
-import { walkMinutes } from '@/utils/geo'
+import { haversineKm, walkMinutes } from '@/utils/geo'
 import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
 import type { Station, TransitEdge } from '@/types/network'
 import type {
@@ -210,7 +210,9 @@ let baselineCache: Baseline | null = null
 function baselineKey(request: SimulateScenarioRequest): string {
   const categories = [...request.serviceCategories].sort().join(',')
   const zones = request.zones.map((zone) => zone.id).join(',')
-  const pois = request.pois.map((poi) => `${poi.id}:${poi.category}`).join(',')
+  const pois = request.pois
+    .map((poi) => `${poi.id}:${poi.category}:${poi.latitude.toFixed(5)}:${poi.longitude.toFixed(5)}`)
+    .join(',')
   return `${categories}|${zones}|${pois}|${request.stations.length}|${request.transitEdges.length}`
 }
 
@@ -342,6 +344,7 @@ export function findOptimalAdditionSite(request: {
   stations: Station[]
   transitEdges: TransitEdge[]
   serviceCategories: PoiCategory[]
+  occupied?: LatLng[]
 }): { longitude: number; latitude: number } | null {
   const categories = [...new Set([...request.serviceCategories, request.category])]
   const scoped: SimulateScenarioRequest = {
@@ -377,7 +380,10 @@ export function findOptimalAdditionSite(request: {
   ]
   if (candidates.length === 0) return null
 
-  let best: { longitude: number; latitude: number; regions: number; value: number } | null = null
+  const occupied = request.occupied ?? []
+  const taken = (point: LatLng) => occupied.some((site) => haversineKm(point, site) < 0.45)
+
+  const ranked: { point: LatLng; regions: number; value: number }[] = []
   let probe = 0
   for (const point of candidates) {
     probe += 1
@@ -398,12 +404,14 @@ export function findOptimalAdditionSite(request: {
       regions += 1
       value += saved * zone.population
     }
-    if (!best || regions > best.regions || (regions === best.regions && value > best.value)) {
-      best = { longitude: point.longitude, latitude: point.latitude, regions, value }
-    }
+    ranked.push({ point, regions, value })
   }
-  if (!best) return null
-  return { longitude: best.longitude, latitude: best.latitude }
+
+  ranked.sort((a, b) => b.regions - a.regions || b.value - a.value)
+  const next = ranked.find((item) => item.regions > 0 && !taken(item.point))
+    ?? ranked.find((item) => !taken(item.point))
+  if (!next) return null
+  return { longitude: next.point.longitude, latitude: next.point.latitude }
 }
 
 export function buildAccessSimulation(request: SimulateScenarioRequest): SimulationResult {

@@ -113,7 +113,6 @@ export function CivicMap() {
         delayRange,
         extruded,
         gain,
-        live: gain,
       }),
       ...createMartaNetworkLayers(transitEdges, stations, shutdownIds),
       ...createPoiLayers({
@@ -132,7 +131,7 @@ export function CivicMap() {
         selectedId: selectedStationId,
         hoveredId: hoveredStationId,
       }),
-      ...(gain ? createAddedPoiLayers(addedPois, draggingId) : []),
+      ...(addedPois.length > 0 ? createAddedPoiLayers(addedPois, draggingId) : []),
     ],
     [
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,

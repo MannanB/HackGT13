@@ -42,12 +42,12 @@ export function delayHex(minutes: number): string {
   return hex(delayRgb(minutes))
 }
 
-export const MIN_ADDITION_GAIN_MINUTES = 10
+export const MIN_ADDITION_GAIN_MINUTES = 15
 
 export const GAIN_BREAKS: typeof IMPACT_BREAKS = [
-  { min: 10, max: 15, label: '10 – 15', color: [60, 205, 110] },
-  { min: 15, max: 25, label: '15 – 25', color: [30, 170, 95] },
-  { min: 25, max: Infinity, label: '> 25', color: [15, 135, 80] },
+  { min: 15, max: 25, label: '15 – 25', color: [60, 205, 110] },
+  { min: 25, max: 40, label: '25 – 40', color: [30, 170, 95] },
+  { min: 40, max: Infinity, label: '> 40', color: [15, 135, 80] },
 ]
 
 export function gainRgb(minutes: number): RGB {

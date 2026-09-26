@@ -1,4 +1,4 @@
-import { AddInfrastructure } from '@/components/scenario/AddInfrastructure'
+import { AddInfrastructure, PlacedPoiList } from '@/components/scenario/AddInfrastructure'
 import { ServiceLayerToggle } from '@/components/scenario/ServiceLayerToggle'
 import { StationSelector } from '@/components/scenario/StationSelector'
 import { StationStateControl } from '@/components/scenario/StationStateControl'
@@ -9,6 +9,7 @@ export function ScenarioSidebar() {
   const stationStates = useScenarioStore((state) => state.stationStates)
   const resetStationStates = useScenarioStore((state) => state.resetStationStates)
   const appMode = useScenarioStore((state) => state.appMode)
+  const addedPois = useScenarioStore((state) => state.addedPois)
   const disrupted = Object.values(stationStates).some((status) => status !== 'normal')
 
   return (
@@ -34,6 +35,14 @@ export function ScenarioSidebar() {
             </button>
           )}
         </section>
+        )}
+
+        {appMode !== 'add' && addedPois.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="eyebrow">Added destinations</h2>
+            <PlacedPoiList />
+            <p className="text-[11px] text-fog-500">These sites stay in the disruption model.</p>
+          </section>
         )}
 
         <section className="space-y-2">

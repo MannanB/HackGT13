@@ -68,6 +68,14 @@ interface ScenarioState {
 
 const DEFAULT_CATEGORIES: PoiCategory[] = ['government', 'hospital', 'grocery']
 
+function allDestinations(state: Pick<ScenarioState, 'pois' | 'addedPois' | 'selectedServiceCategories'>) {
+  const pois = [...state.pois, ...state.addedPois]
+  const serviceCategories = [
+    ...new Set([...state.selectedServiceCategories, ...state.addedPois.map((poi) => poi.category)]),
+  ]
+  return { pois, serviceCategories }
+}
+
 export function selectTrace(state: ScenarioState): TraceImpact | null {
   if (!state.selectedZoneId || !state.result) return null
   return state.result.traces[state.selectedZoneId] ?? null
@@ -115,12 +123,13 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
       if (generation !== impactGeneration) return
       const state = get()
       try {
+        const destinations = allDestinations(state)
         const result = buildAccessSimulation({
           maintenanceStations,
           shutdownStations,
-          serviceCategories: state.selectedServiceCategories,
+          serviceCategories: destinations.serviceCategories,
           zones: state.zones,
-          pois: state.pois,
+          pois: destinations.pois,
           stations: state.stations,
           transitEdges: state.transitEdges,
         })
@@ -290,10 +299,14 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         const site = findOptimalAdditionSite({
           category,
           zones: state.zones,
-          pois: state.pois,
+          pois: [...state.pois, ...state.addedPois],
           stations: state.stations,
           transitEdges: state.transitEdges,
           serviceCategories: state.selectedServiceCategories,
+          occupied: state.addedPois.map((poi) => ({
+            latitude: poi.latitude,
+            longitude: poi.longitude,
+          })),
         })
         poiSequence += 1
         const fallback = state.mapCenter

@@ -33,7 +33,6 @@ export function createZoneImpactLayer({
   delayRange,
   extruded,
   gain,
-  live,
 }: {
   data: FeatureCollection<Polygon | MultiPolygon, ZoneProps>
   selectedZoneId: string | null
@@ -50,6 +49,10 @@ export function createZoneImpactLayer({
   }
   const inRange = (delay: number) =>
     !delayRange || (delay >= delayRange[0] && delay < delayRange[1])
+  const impactKey = data.features
+    .map((feature) => delayOf(feature))
+    .filter((delay) => delay > 0)
+    .join(',')
 
   return new GeoJsonLayer<ZoneProps>({
     id: 'zone-impacts',
@@ -69,7 +72,13 @@ export function createZoneImpactLayer({
       const [r, g, b] = gain ? gainRgb(delay) : delayRgb(delay)
       const focused = id === selectedZoneId || id === hoveredZoneId
       const severity = Math.min(1, delay / (gain ? 20 : 45))
-      const alpha = !inRange(delay) ? 22 : focused ? 225 : extruded ? 230 : (gain ? 165 : 130) + Math.round(severity * 50)
+      const alpha = !inRange(delay)
+        ? 22
+        : focused
+          ? 225
+          : extruded
+            ? 230
+            : (gain ? 190 : 130) + Math.round(severity * 50)
       return [r, g, b, alpha]
     },
     getLineColor: (feature): RGBA => {
@@ -86,15 +95,15 @@ export function createZoneImpactLayer({
     },
     lineWidthUnits: 'pixels',
     pickable: true,
-    transitions: live
-      ? undefined
+    transitions: gain
+      ? { getFillColor: 80, getElevation: 80 }
       : {
           getFillColor: 450,
           getElevation: { duration: 700, easing: (t: number) => 1 - (1 - t) ** 3 },
         },
     updateTriggers: {
-      getFillColor: [selectedZoneId, hoveredZoneId, delayRange, extruded, gain, data],
-      getElevation: [data, extruded, gain],
+      getFillColor: [selectedZoneId, hoveredZoneId, delayRange, extruded, gain, impactKey],
+      getElevation: [extruded, gain, impactKey],
       getLineColor: [selectedZoneId, hoveredZoneId],
       getLineWidth: [selectedZoneId, hoveredZoneId],
     },
