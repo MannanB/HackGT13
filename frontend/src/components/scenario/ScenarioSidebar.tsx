@@ -15,15 +15,7 @@ export function ScenarioSidebar() {
   return (
     <aside className="glass scroll-thin pointer-events-auto flex max-h-full w-[320px] flex-col overflow-y-auto rounded-2xl">
       <div className="space-y-6 p-4">
-        {appMode === 'intel' ? (
-          <section className="space-y-2">
-            <h2 className="eyebrow">Event</h2>
-            <p className="text-[12.5px] leading-relaxed text-fog-400">
-              Use the chat on the right to describe a shock to the city. Station closures and new sites
-              will be proposed from that event.
-            </p>
-          </section>
-        ) : appMode === 'add' ? (
+        {appMode === 'add' ? (
           <section className="space-y-2">
             <h2 className="eyebrow">Add infrastructure</h2>
             <AddInfrastructure />
@@ -45,7 +37,7 @@ export function ScenarioSidebar() {
         </section>
         )}
 
-        {appMode === 'disrupt' && addedPois.length > 0 && (
+        {appMode !== 'add' && addedPois.length > 0 && (
           <section className="space-y-2">
             <h2 className="eyebrow">Added destinations</h2>
             <PlacedPoiList />
@@ -53,12 +45,10 @@ export function ScenarioSidebar() {
           </section>
         )}
 
-        {appMode !== 'intel' && (
         <section className="space-y-2">
           <h2 className="eyebrow">Destinations</h2>
           <ServiceLayerToggle />
         </section>
-        )}
       </div>
     </aside>
   )

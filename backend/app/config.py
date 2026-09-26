@@ -19,8 +19,6 @@ class Settings(BaseSettings):
     app_name: str = "HackGT13 API"
     debug: bool = False
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.5-flash"
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -1,7 +1,6 @@
 import { Sprout, TriangleAlert, Wrench } from 'lucide-react'
 import { AffectedCommunities } from '@/components/impact/AffectedCommunities'
 import { ImpactSummary } from '@/components/impact/ImpactSummary'
-import { IncomeEquity } from '@/components/impact/IncomeEquity'
 import { PoiPressureList } from '@/components/impact/PoiPressureList'
 import { TraceImpactPanel } from '@/components/trace/TraceImpactPanel'
 import { useScenarioStore } from '@/store/scenarioStore'
@@ -120,7 +119,6 @@ export function ImpactPanel() {
             )}
 
             <ImpactSummary summary={result.summary} gain={gain} />
-            <IncomeEquity impacts={result.zoneImpacts} gain={gain} />
             <PoiPressureList pressure={result.poiPressure} gain={gain} />
             <AffectedCommunities impacts={result.zoneImpacts} />
             {selectedZoneId && <TraceImpactPanel />}

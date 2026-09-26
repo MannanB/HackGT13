@@ -5,12 +5,8 @@ export const endpoints = {
   pois: '/api/v1/pois',
   network: '/api/v1/network',
   accessEdges: '/api/v1/access-edges',
-<<<<<<< HEAD
   poiCriticalCache: (fingerprint: string) =>
     `/api/v1/poi-critical-cache/${encodeURIComponent(fingerprint)}`,
-=======
-  experimentalContext: '/api/v1/experimental/context',
->>>>>>> e0b3acb7d56a4a115a667784874273a883388135
 } as const
 
 interface Page<T> {

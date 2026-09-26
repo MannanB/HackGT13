@@ -13,7 +13,6 @@ export interface ZoneImpact {
   disruptedTravelMinutes: number
   delayMinutes: number
   population: number
-  estimatedTrips: number
 }
 
 export interface PoiPressure {
@@ -23,11 +22,6 @@ export interface PoiPressure {
   baselineRegions: number
   disruptedRegions: number
   addedRegions: number
-  baselineDemand: number
-  disruptedDemand: number
-  addedDemand: number
-  capacity: number | null
-  loadRatio: number | null
 }
 
 export interface PoiStationPressure {
