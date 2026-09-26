@@ -1,0 +1,5 @@
+geopandas>=1.0.1
+osmnx>=2.0.0
+psycopg[binary]>=3.2.4
+python-dotenv>=1.0.1
+requests>=2.32.0
