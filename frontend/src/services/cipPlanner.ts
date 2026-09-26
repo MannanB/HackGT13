@@ -14,17 +14,18 @@ const MAX_PROJECTS = 6
 const MAX_PER_CATEGORY = 2
 const TOP_GAPS = 10
 
-function equityMultiplier(zone: ResidentialZone) {
+function equityMultiplier(zone: ResidentialZone, optimizeForLowIncome: boolean) {
+  if (!optimizeForLowIncome) return 1
   let multiplier = 1
-  if (zone.medianIncome != null && zone.medianIncome < 45_000) multiplier += 0.45
-  else if (zone.medianIncome != null && zone.medianIncome < 65_000) multiplier += 0.2
+  if (zone.medianIncome != null && zone.medianIncome < 45_000) multiplier += 1.35
+  else if (zone.medianIncome != null && zone.medianIncome < 65_000) multiplier += 0.7
   if (zone.households && zone.noVehicleHouseholds != null) {
     const share = zone.noVehicleHouseholds / zone.households
-    if (share >= 0.18) multiplier += 0.35
-    else if (share >= 0.1) multiplier += 0.15
+    if (share >= 0.18) multiplier += 0.55
+    else if (share >= 0.1) multiplier += 0.25
   }
   if (zone.povertyPopulation && zone.povertyUniverse) {
-    if (zone.povertyPopulation / zone.povertyUniverse >= 0.22) multiplier += 0.25
+    if (zone.povertyPopulation / zone.povertyUniverse >= 0.22) multiplier += 0.45
   }
   return multiplier
 }
@@ -55,8 +56,10 @@ function collectGaps(input: {
   shutdownStations: string[]
   poiCriticalById: Record<string, PoiCriticalStation>
   categories: PoiCategory[]
+  optimizeForLowIncome: boolean
 }): ServiceGap[] {
   const categories = input.categories
+  const { optimizeForLowIncome } = input
   const scoped = {
     zones: input.zones,
     pois: input.pois,
@@ -92,7 +95,7 @@ function collectGaps(input: {
       const people = dailyActivityTrips(zone, category) ?? dailyZoneDemand(zone, category)
       const score =
         (access.minutes * people * categoryWeight(category) + extra * people * categoryWeight(category) * 1.6) *
-        equityMultiplier(zone)
+        equityMultiplier(zone, optimizeForLowIncome)
       const label = projectNoun(category)
       const incomeBit =
         zone.medianIncome != null
@@ -155,6 +158,7 @@ function rationaleFor(project: {
 export function planCapitalImprovements(input: {
   budget: number
   sector: CipSector
+  optimizeForLowIncome: boolean
   zones: ResidentialZone[]
   pois: PointOfInterest[]
   stations: Station[]
@@ -168,6 +172,7 @@ export function planCapitalImprovements(input: {
   const categories = sector.categories
   const maxPerCategory = categories.length === 1 ? MAX_PROJECTS : categories.length === 2 ? 3 : MAX_PER_CATEGORY
   const gaps = collectGaps({ ...input, categories })
+  const zoneWeight = (zone: ResidentialZone) => equityMultiplier(zone, input.optimizeForLowIncome)
   const occupied = input.pois.map((poi) => ({ latitude: poi.latitude, longitude: poi.longitude }))
   const inventory = [...input.pois]
   const projects: CipProject[] = []
@@ -212,6 +217,7 @@ export function planCapitalImprovements(input: {
         shutdownStations: input.shutdownStations,
         underservedLimit: 20,
         stationLimit: 16,
+        zoneWeight,
       })
       if (!site || site.regions === 0 || site.personMinutes <= 0) continue
       const cost = facilityCost(category)
@@ -258,6 +264,7 @@ export function planCapitalImprovements(input: {
     generatedAt: new Date().toISOString(),
     sector: sector.id,
     sectorLabel: sector.label,
+    optimizeForLowIncome: input.optimizeForLowIncome,
     disruptionStationNames: input.disruptionStationNames,
     gaps,
     projects,

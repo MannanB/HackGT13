@@ -90,12 +90,14 @@ interface ScenarioState {
   criticalFromCache: boolean
   cipBudget: number
   cipSector: CipSector
+  cipOptimizeLowIncome: boolean
   cipPlan: CipPlan | null
   cipStatus: string | null
 
   setAppMode: (mode: AppMode) => void
   setCipBudget: (budget: number) => void
   setCipSector: (sector: CipSector) => void
+  setCipOptimizeLowIncome: (value: boolean) => void
   generateCipPlan: () => void
   downloadCip: () => void
   setMapCenter: (longitude: number, latitude: number) => void
@@ -402,6 +404,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     criticalFromCache: false,
     cipBudget: 10_000_000,
     cipSector: 'general',
+    cipOptimizeLowIncome: false,
     cipPlan: null,
     cipStatus: null,
 
@@ -510,6 +513,8 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
 
     setCipSector: (cipSector) => set({ cipSector }),
 
+    setCipOptimizeLowIncome: (cipOptimizeLowIncome) => set({ cipOptimizeLowIncome }),
+
     generateCipPlan: () => {
       const generation = ++impactGeneration
       set({ computing: true, cipStatus: null })
@@ -524,6 +529,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           const plan = planCapitalImprovements({
             budget: state.cipBudget,
             sector: state.cipSector,
+            optimizeForLowIncome: state.cipOptimizeLowIncome,
             zones: state.zones,
             pois: state.pois,
             stations: state.stations,
