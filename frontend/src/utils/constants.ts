@@ -25,6 +25,9 @@ export const STATE_RGB = {
   shutdown: [255, 77, 94] as RGB,
 }
 
+/** Closure-induced demand that moved to a different destination. */
+export const SURGE_RGB: RGB = [255, 112, 92]
+
 export const IMPACT_BREAKS: { min: number; max: number; label: string; color: RGB }[] = [
   { min: 0, max: 5, label: '< 5', color: [246, 226, 122] },
   { min: 5, max: 15, label: '5 – 15', color: [240, 180, 41] },

@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Map, useControl, type MapRef } from 'react-map-gl/maplibre'
 import { ADDED_POI_LAYER, createAddedPoiLayers } from '@/components/map/AddedPoiLayer'
 import { createEventRadiusLayer } from '@/components/map/EventRadiusLayer'
+import { createPassengerFlowLayers } from '@/components/map/FlowMapLayer'
+import { createLiveTrainLayers, simulatedTrains } from '@/components/map/LiveTrainLayer'
 import { createMartaNetworkLayers } from '@/components/map/MartaNetworkLayer'
 import { createPoiLayers } from '@/components/map/PoiLayer'
 import { createRouteLayers } from '@/components/map/RouteLayer'
@@ -14,6 +16,7 @@ import { StationStatePicker } from '@/components/scenario/StationStatePicker'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { Segmented } from '@/components/ui/Segmented'
 import { selectTrace, useScenarioStore } from '@/store/scenarioStore'
+import { buildBaselineJourneys } from '@/services/accessSimulator'
 import type { PointOfInterest, PoiCategory } from '@/types/geography'
 import type { Station } from '@/types/network'
 import type { PoiStationPressure } from '@/types/simulation'
@@ -57,11 +60,14 @@ export function CivicMap() {
   const [hover, setHover] = useState<Placed<Hover> | null>(null)
   const [popover, setPopover] = useState<Placed<string> | null>(null)
   const [poiPopover, setPoiPopover] = useState<Placed<PointOfInterest> | null>(null)
+  const [motionTime, setMotionTime] = useState(() => performance.now())
+  const [mapZoom, setMapZoom] = useState(ATLANTA_VIEW.zoom)
 
   const stations = useScenarioStore((state) => state.stations)
   const transitEdges = useScenarioStore((state) => state.transitEdges)
   const zones = useScenarioStore((state) => state.zones)
   const pois = useScenarioStore((state) => state.pois)
+  const streetRoutes = useScenarioStore((state) => state.streetRoutes)
   const stationStates = useScenarioStore((state) => state.stationStates)
   const selectedStationId = useScenarioStore((state) => state.selectedStationId)
   const hoveredStationId = useScenarioStore((state) => state.hoveredStationId)
@@ -88,6 +94,7 @@ export function CivicMap() {
   const disruptionResult = useScenarioStore((state) => state.disruptionResult)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const gain = appMode === 'add'
+  const motionActive = stations.length > 0
 
   const shutdownIds = useMemo(
     () => new Set(Object.keys(stationStates).filter((id) => stationStates[id] === 'shutdown')),
@@ -102,6 +109,37 @@ export function CivicMap() {
       ),
     [zones, disruptionResult, gain, result],
   )
+  const baselineJourneys = useMemo(
+    () => buildBaselineJourneys({
+      serviceCategories: categories,
+      zones,
+      pois,
+      stations,
+      transitEdges,
+    }),
+    [categories, zones, pois, stations, transitEdges],
+  )
+  const trains = useMemo(
+    () => (motionActive ? simulatedTrains(stations, transitEdges, shutdownIds, motionTime) : []),
+    [motionActive, stations, transitEdges, shutdownIds, motionTime],
+  )
+
+  useEffect(() => {
+    if (!motionActive) return
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reducedMotion) return
+    let frame = 0
+    let last = 0
+    const animate = (now: number) => {
+      if (now - last >= 33) {
+        last = now
+        setMotionTime(now)
+      }
+      frame = window.requestAnimationFrame(animate)
+    }
+    frame = window.requestAnimationFrame(animate)
+    return () => window.cancelAnimationFrame(frame)
+  }, [motionActive])
 
   useEffect(() => {
     if (!focusRequest) return
@@ -128,11 +166,20 @@ export function CivicMap() {
       }),
       ...createEventRadiusLayer(intelEvent),
       ...createMartaNetworkLayers(transitEdges, stations, shutdownIds),
+      ...createPassengerFlowLayers(
+        gain ? disruptionResult : result,
+        baselineJourneys,
+        streetRoutes,
+        motionTime,
+        mapZoom,
+      ),
       ...createPoiLayers({
         pois,
         categories,
         pressure: result?.poiPressure ?? [],
         tracePoiId: trace?.poiId ?? null,
+        zoom: mapZoom,
+        gain,
       }),
       ...createRouteLayers(
         trace && routeView !== 'disrupted' ? trace.normalPath : null,
@@ -144,12 +191,14 @@ export function CivicMap() {
         selectedId: selectedStationId,
         hoveredId: hoveredStationId,
       }),
+      ...createLiveTrainLayers(trains),
       ...(addedPois.length > 0 ? createAddedPoiLayers(addedPois, draggingId) : []),
     ],
     [
       zoneData, selectedZoneId, hoveredZoneId, delayRange, extruded, transitEdges, stations,
       shutdownIds, pois, categories, result, trace, routeView, stationStates, selectedStationId,
-      hoveredStationId, gain, addedPois, draggingId, intelEvent,
+      hoveredStationId, gain, addedPois, draggingId, intelEvent, motionTime, trains,
+      baselineJourneys, streetRoutes, mapZoom, disruptionResult,
     ],
   )
 
@@ -280,6 +329,7 @@ export function CivicMap() {
           softenBasemapRoads(map)
           map.on('style.load', () => softenBasemapRoads(map))
         }}
+        onMove={(event) => setMapZoom(event.viewState.zoom)}
         onMoveEnd={(event) => setMapCenter(event.viewState.longitude, event.viewState.latitude)}
         reuseMaps
         style={{ width: '100%', height: '100%' }}

@@ -16,10 +16,11 @@ import {
   getAccessEdges,
   getExperimentalContext,
   getPointsOfInterest,
+  getStreetRoutes,
   getZones,
 } from '@/services/geoService'
 import { getNetwork } from '@/services/stationService'
-import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
+import type { PointOfInterest, PoiCategory, ResidentialZone, StreetRouteMap } from '@/types/geography'
 import type { Station, StationOperatingState, TransitEdge } from '@/types/network'
 import type { PoiCriticalStation, RouteView, SimulationResult, TraceImpact } from '@/types/simulation'
 import type { IntelEvent } from '@/types/intelligence'
@@ -42,6 +43,7 @@ interface ScenarioState {
   transitEdges: TransitEdge[]
   zones: ResidentialZone[]
   pois: PointOfInterest[]
+  streetRoutes: StreetRouteMap
 
   stationStates: Record<string, StationOperatingState>
   selectedStationId: string | null
@@ -243,6 +245,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
     transitEdges: [],
     zones: [],
     pois: [],
+    streetRoutes: {},
 
     stationStates: {},
     selectedStationId: null,
@@ -273,12 +276,13 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
         set({ loadStatus: 'loading', loadError: null, poiCriticalById: {}, poiCriticalProgress: 0, criticalFromCache: false })
       }
       try {
-        const [network, zones, pois, accessEdges, experimental] = await Promise.all([
+        const [network, zones, pois, accessEdges, experimental, streetRoutes] = await Promise.all([
           getNetwork(),
           getZones(),
           getPointsOfInterest(),
           getAccessEdges(),
           getExperimentalContext(),
+          getStreetRoutes(),
         ])
         const enriched = attachExperimental(zones, pois, experimental)
         const connected = attachAccess(enriched.zones, enriched.pois, accessEdges)
@@ -294,6 +298,7 @@ export const useScenarioStore = create<ScenarioState>((set, get) => {
           transitEdges: network.transitEdges,
           zones: connected.zones,
           pois: connected.pois,
+          streetRoutes,
           selectedStationId:
             get().selectedStationId ??
             network.stations.find((station) => /five points/i.test(station.name))?.id ??

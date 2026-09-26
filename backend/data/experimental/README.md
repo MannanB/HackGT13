@@ -13,3 +13,17 @@ capacity is used only where OpenStreetMap publishes a capacity-like tag.
 It contains public ACS, LODES, and OpenStreetMap-derived attributes used by the
 ripple experiment. The generator never connects to or writes to PostgreSQL.
 The generated JSON and downloaded extracts are intentionally gitignored.
+
+`street_routes.json` is a read-only walking-route cache built from the latest
+Georgia OpenStreetMap extract. Generate it while the backend is running:
+
+```bash
+pip install -e '.[data]'
+curl -L -o data/experimental/georgia-latest.osm.pbf \
+  https://download.geofabrik.de/north-america/us/georgia-latest.osm.pbf
+python scripts/download_street_network.py
+```
+
+This also keeps a local `streets.graph.json` for experimentation. None of the
+street files are loaded into PostgreSQL or tracked by Git. Street data ©
+OpenStreetMap contributors and is distributed under the ODbL.

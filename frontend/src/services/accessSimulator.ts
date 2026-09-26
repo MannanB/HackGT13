@@ -5,6 +5,7 @@ import type { LatLng, PointOfInterest, PoiCategory, ResidentialZone } from '@/ty
 import type { Station, TransitEdge } from '@/types/network'
 import type {
   PathNode,
+  PassengerJourney,
   PoiCriticalStation,
   PoiPressure,
   PoiStationPressure,
@@ -48,6 +49,27 @@ function zoneDemand(zone: ResidentialZone, category?: PoiCategory): number {
 function poiCapacity(poi: PointOfInterest): number | null {
   const capacity = poi.capacity ?? poi.enrollment ?? poi.jobsCount
   return capacity != null && capacity > 0 ? capacity : null
+}
+
+function nearestProducer(poi: PointOfInterest, zones: ResidentialZone[]): ResidentialZone | null {
+  let producer: ResidentialZone | null = null
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (const zone of zones) {
+    const distance = haversineKm(zone.centroid, poiPoint(poi))
+    if (distance >= bestDistance) continue
+    producer = zone
+    bestDistance = distance
+  }
+  return producer
+}
+
+function poiCohortDemand(
+  zone: ResidentialZone,
+  poi: PointOfInterest,
+  categoryCounts: Map<PoiCategory, number>,
+) {
+  const facilities = Math.max(1, categoryCounts.get(poi.category) ?? 1)
+  return Math.max(1, Math.round(zoneDemand(zone, poi.category) / Math.sqrt(facilities)))
 }
 
 interface AccessChoice {
@@ -295,6 +317,56 @@ function baseline(
   return baselineCache
 }
 
+/** A small, representative set of normal journeys for the ambient map animation. */
+export function buildBaselineJourneys(
+  request: Omit<SimulateScenarioRequest, 'maintenanceStations' | 'shutdownStations'>,
+): PassengerJourney[] {
+  if (request.stations.length === 0 || request.pois.length === 0) return []
+  const candidateZones = [...request.zones]
+    .sort((a, b) => zoneDemand(b) - zoneDemand(a))
+  const scoped: SimulateScenarioRequest = {
+    ...request,
+    zones: candidateZones,
+    maintenanceStations: [],
+    shutdownStations: [],
+  }
+  const grouped = groupByCategory(request.pois, request.serviceCategories)
+  const { beforeByZone, graph, nearest } = baseline(scoped, grouped)
+  const stationById = new Map(request.stations.map((station) => [station.id, station]))
+  const journeys: PassengerJourney[] = []
+
+  for (const zone of candidateZones) {
+    const trips = beforeByZone.get(zone.id)
+    if (!trips) continue
+    for (const [category, trip] of trips) {
+      journeys.push({
+        id: `${zone.id}:${category}`,
+        path: buildPath(zone, trip, stationById, new Set()),
+        estimatedTrips: zoneDemand(zone, category),
+        delayMinutes: 0,
+      })
+    }
+  }
+
+  const categoryCounts = new Map(
+    [...grouped].map(([category, categoryPois]) => [category, categoryPois.length]),
+  )
+  for (const poi of request.pois) {
+    if (!request.serviceCategories.includes(poi.category)) continue
+    const zone = nearestProducer(poi, candidateZones)
+    if (!zone) continue
+    const trip = optimalTrip(zone, poi, nearest, graph, new Set())
+    journeys.push({
+      id: `poi:${poi.id}`,
+      path: buildPath(zone, trip, stationById, new Set()),
+      estimatedTrips: poiCohortDemand(zone, poi, categoryCounts),
+      delayMinutes: 0,
+    })
+  }
+
+  return journeys.sort((a, b) => b.estimatedTrips - a.estimatedTrips)
+}
+
 export interface AdditionRequest extends SimulateScenarioRequest {
   addedPois: PointOfInterest[]
 }
@@ -508,6 +580,9 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   const blocked = new Set(shutdownStations)
   const unboardable = new Set([...maintenanceStations, ...shutdownStations])
   const grouped = groupByCategory(candidates, categories)
+  const categoryCounts = new Map(
+    [...grouped].map(([category, categoryPois]) => [category, categoryPois.length]),
+  )
   const stationById = new Map(stations.map((station) => [station.id, station]))
   const poiById = new Map(candidates.map((poi) => [poi.id, poi]))
   const beforeCount = new Map<string, number>()
@@ -516,6 +591,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
   const afterDemand = new Map<string, number>()
   const impacts: ZoneImpact[] = []
   const traces: Record<string, TraceImpact> = {}
+  const flowJourneys: PassengerJourney[] = []
 
   const { beforeByZone } = baseline(request, grouped)
 
@@ -546,6 +622,12 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       const demand = zoneDemand(zone, category)
       beforeDemand.set(baseline.poi.id, (beforeDemand.get(baseline.poi.id) ?? 0) + demand)
       afterDemand.set(disrupted.poi.id, (afterDemand.get(disrupted.poi.id) ?? 0) + demand)
+      flowJourneys.push({
+        id: `${zone.id}:${category}`,
+        path: buildPath(zone, disrupted, stationById, blocked),
+        estimatedTrips: demand,
+        delayMinutes: delay,
+      })
       const score = delay * weight
       if (score > focusScore || (score === focusScore && weight > focusWeight)) {
         focusScore = score
@@ -582,6 +664,19 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
       normalPath: buildPath(zone, beforeBest, stationById, blocked),
       disruptedPath: buildPath(zone, afterBest, stationById, blocked),
     }
+  }
+
+
+  for (const poi of candidates) {
+    const zone = nearestProducer(poi, zones)
+    if (!zone) continue
+    const trip = optimalTrip(zone, poi, disruptedNearest, disruptedGraph, blocked)
+    flowJourneys.push({
+      id: `poi:${poi.id}`,
+      path: buildPath(zone, trip, stationById, blocked),
+      estimatedTrips: poiCohortDemand(zone, poi, categoryCounts),
+      delayMinutes: 0,
+    })
   }
 
   impacts.sort((a, b) => b.delayMinutes - a.delayMinutes || b.population - a.population)
@@ -631,6 +726,7 @@ export function buildAccessSimulation(request: SimulateScenarioRequest): Simulat
     zoneImpacts: impacts,
     poiPressure,
     traces,
+    flowJourneys,
   }
 }
 

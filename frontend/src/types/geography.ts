@@ -22,6 +22,8 @@ export interface StationAccess {
   walkingMinutes: number
 }
 
+export type StreetRouteMap = Record<string, [number, number][]>
+
 export interface ResidentialZone {
   id: string
   name: string

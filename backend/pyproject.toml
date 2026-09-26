@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3.0", "httpx>=0.28.0"]
+data = ["osmium>=4.3.0"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

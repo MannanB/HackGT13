@@ -1,6 +1,6 @@
-import { IconLayer } from '@deck.gl/layers'
+import { PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers'
 import type { MartaLine, Station, TransitEdge } from '@/types/network'
-import { MARTA_LINES } from '@/utils/constants'
+import { MARTA_LINES, MARTA_LINE_RGB, type RGBA } from '@/utils/constants'
 
 export const LIVE_TRAIN_LAYER = 'live-trains'
 
@@ -10,6 +10,7 @@ export interface SimTrain {
   latitude: number
   longitude: number
   nextStation: string
+  trail: [number, number][]
 }
 
 interface Stop {
@@ -77,7 +78,7 @@ function along(stops: Stop[], t: number): { latitude: number; longitude: number;
     lengths.push(length)
     total += length
   }
-  let remaining = (t % 1) * total
+  let remaining = (((t % 1) + 1) % 1) * total
   for (let i = 0; i < lengths.length; i += 1) {
     if (remaining <= lengths[i] || i === lengths.length - 1) {
       const span = lengths[i] || 1
@@ -106,7 +107,7 @@ export function simulatedTrains(
   for (const line of MARTA_LINES) {
     const runs = openRuns(orderLine(line, stations, edges), shutdown)
     runs.forEach((stops, run) => {
-      const count = 1
+      const count = 2
       for (let n = 0; n < count; n += 1) {
         const forward = (now / LOOP_MS + n / count) % 1
         const backward = (1 - forward) % 1
@@ -115,7 +116,12 @@ export function simulatedTrains(
           ['back', backward],
         ] as const) {
           const at = along(stops, t)
-          trains.push({ id: `${line}-${run}-${n}-${way}`, line, ...at })
+          const tail = along(stops, way === 'out' ? t - 0.018 : t + 0.018)
+          const jump = Math.hypot(at.longitude - tail.longitude, at.latitude - tail.latitude)
+          const trail: [number, number][] = jump < 0.04
+            ? [[tail.longitude, tail.latitude], [at.longitude, at.latitude]]
+            : [[at.longitude, at.latitude]]
+          trains.push({ id: `${line}-${run}-${n}-${way}`, line, ...at, trail })
         }
       }
     })
@@ -123,32 +129,53 @@ export function simulatedTrains(
   return trains
 }
 
-const EMOJI = (() => {
-  const size = 64
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')
-  if (ctx) {
-    ctx.font = '52px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('🚆', size / 2, size / 2 + 2)
-  }
-  return { url: canvas.toDataURL(), width: size, height: size, anchorX: size / 2, anchorY: size / 2 }
-})()
-
 export function createLiveTrainLayers(trains: SimTrain[]) {
   return [
-    new IconLayer<SimTrain>({
+    new PathLayer<SimTrain>({
+      id: `${LIVE_TRAIN_LAYER}-trails`,
+      data: trains,
+      getPath: (train) => train.trail,
+      getColor: (train): RGBA => [...MARTA_LINE_RGB[train.line], 115],
+      getWidth: 3,
+      widthUnits: 'pixels',
+      widthMinPixels: 2,
+      capRounded: true,
+      pickable: false,
+    }),
+    new ScatterplotLayer<SimTrain>({
+      id: `${LIVE_TRAIN_LAYER}-glow`,
+      data: trains,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getRadius: 9,
+      radiusUnits: 'pixels',
+      getFillColor: (train): RGBA => [...MARTA_LINE_RGB[train.line], 42],
+      pickable: false,
+    }),
+    new ScatterplotLayer<SimTrain>({
       id: LIVE_TRAIN_LAYER,
       data: trains,
       getPosition: (d) => [d.longitude, d.latitude],
-      getIcon: () => EMOJI,
-      getSize: 22,
+      getRadius: 4,
+      radiusUnits: 'pixels',
+      getFillColor: (train): RGBA => [...MARTA_LINE_RGB[train.line], 255],
+      getLineColor: [245, 249, 255, 240],
+      lineWidthMinPixels: 1.25,
+      stroked: true,
+      pickable: false,
+    }),
+    new TextLayer<SimTrain>({
+      id: `${LIVE_TRAIN_LAYER}-mark`,
+      data: trains,
+      getPosition: (d) => [d.longitude, d.latitude],
+      getText: () => 'M',
+      getSize: 8,
       sizeUnits: 'pixels',
-      getColor: [255, 255, 255, 170],
-      pickable: true,
+      getColor: [5, 7, 11, 255],
+      fontFamily: 'Geist, sans-serif',
+      fontWeight: 800,
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'center',
+      pickable: false,
     }),
   ]
 }

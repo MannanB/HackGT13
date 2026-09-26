@@ -1,5 +1,5 @@
 import { apiGet, endpoints, fetchAllPages } from '@/services/api'
-import type { PointOfInterest, PoiCategory, ResidentialZone } from '@/types/geography'
+import type { PointOfInterest, PoiCategory, ResidentialZone, StreetRouteMap } from '@/types/geography'
 import type { AccessEdge } from '@/types/network'
 import type { MultiPolygon, Polygon } from 'geojson'
 
@@ -224,6 +224,18 @@ export async function getExperimentalContext(): Promise<ExperimentalContext | nu
   } catch (error) {
     console.warn('Experimental context unavailable', error)
     return null
+  }
+}
+
+export async function getStreetRoutes(): Promise<StreetRouteMap> {
+  try {
+    const payload = await apiGet<{ available: boolean; routes: StreetRouteMap }>(
+      endpoints.experimentalStreetRoutes,
+    )
+    return payload.available ? payload.routes : {}
+  } catch (error) {
+    console.warn('Experimental street routes unavailable', error)
+    return {}
   }
 }
 

@@ -85,7 +85,6 @@ export function createStationLayers({
       outlineColor: [8, 10, 16, 230],
       getTextAnchor: 'middle',
       getAlignmentBaseline: 'center',
-      collisionEnabled: false,
       updateTriggers: { getText: triggers, getSize: triggers },
     }),
     new TextLayer<Station>({

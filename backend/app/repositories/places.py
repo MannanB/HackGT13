@@ -137,7 +137,7 @@ def list_pois(
             SELECT {columns}
             FROM points_of_interest
             WHERE {where}
-            ORDER BY name
+            ORDER BY name, id
             LIMIT %(limit)s OFFSET %(offset)s
             """
         ).format(columns=sql.SQL(POI_COLUMNS), where=where),

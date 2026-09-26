@@ -12,8 +12,8 @@ export function PoiPressureList({ pressure, gain }: { pressure: PoiPressure[]; g
       </h3>
       <p className="mb-2 px-1 text-[12px] leading-relaxed text-fog-400">
         {gain
-          ? 'Estimated transit-dependent trips that would switch to it.'
-          : 'Estimated transit-dependent trips shifted here after the closure.'}
+          ? 'Modeled transit-dependent trips/day that would switch to it.'
+          : 'Modeled transit-dependent trips/day shifted here after the closure.'}
       </p>
       <div className="space-y-1">
         {ranked.map((item) => (
@@ -24,7 +24,7 @@ export function PoiPressureList({ pressure, gain }: { pressure: PoiPressure[]; g
             <span className="min-w-0 truncate pr-2 text-sm">{item.poiName}</span>
             <span className="shrink-0 text-right">
               <span className={`block text-sm font-medium tabular-nums ${gain ? 'text-emerald-400' : 'text-impact-2'}`}>
-                +{formatPopulation(item.addedDemand)} trips
+                +{formatPopulation(item.addedDemand)} trips/day
               </span>
               <span className="block text-[10px] text-fog-500">
                 {item.loadRatio == null

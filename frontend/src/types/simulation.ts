@@ -13,6 +13,7 @@ export interface ZoneImpact {
   disruptedTravelMinutes: number
   delayMinutes: number
   population: number
+  /** Modeled transit-dependent trip assignments per day. */
   estimatedTrips: number
 }
 
@@ -25,6 +26,7 @@ export interface PoiPressure {
   addedRegions: number
   baselineDemand: number
   disruptedDemand: number
+  /** Additional modeled trip assignments per day. */
   addedDemand: number
   capacity: number | null
   loadRatio: number | null
@@ -70,6 +72,13 @@ export interface RoutePath {
   travelMinutes: number
 }
 
+export interface PassengerJourney {
+  id: string
+  path: RoutePath
+  estimatedTrips: number
+  delayMinutes: number
+}
+
 export interface TraceImpact {
   zoneId: string
   poiId: string
@@ -85,6 +94,7 @@ export interface SimulationResult {
   zoneImpacts: ZoneImpact[]
   poiPressure: PoiPressure[]
   traces: Record<string, TraceImpact>
+  flowJourneys?: PassengerJourney[]
 }
 
 export interface SimulateScenarioRequest {

@@ -8,6 +8,7 @@ export const endpoints = {
   poiCriticalCache: (fingerprint: string) =>
     `/api/v1/poi-critical-cache/${encodeURIComponent(fingerprint)}`,
   experimentalContext: '/api/v1/experimental/context',
+  experimentalStreetRoutes: '/api/v1/experimental/street-routes',
 } as const
 
 interface Page<T> {
