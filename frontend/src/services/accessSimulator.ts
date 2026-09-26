@@ -30,6 +30,25 @@ interface Trip {
   stationIds: string[]
 }
 
+const ANCHORED_CATEGORIES = new Set<PoiCategory>(['school', 'university', 'government'])
+
+function isAnchoredCategory(category: PoiCategory) {
+  return ANCHORED_CATEGORIES.has(category)
+}
+
+function geographicallyClosest(zone: ResidentialZone, pois: PointOfInterest[]): PointOfInterest | null {
+  let best: PointOfInterest | null = null
+  let bestKm = Number.POSITIVE_INFINITY
+  for (const poi of pois) {
+    const km = haversineKm(zone.centroid, poiPoint(poi))
+    if (!best || km < bestKm || (km === bestKm && poi.id < best.id)) {
+      best = poi
+      bestKm = km
+    }
+  }
+  return best
+}
+
 function poiPoint(poi: PointOfInterest): LatLng {
   return { latitude: poi.latitude, longitude: poi.longitude }
 }
@@ -217,6 +236,11 @@ function bestByCategory(
 ): Map<PoiCategory, Trip> {
   const chosen = new Map<PoiCategory, Trip>()
   for (const [category, pois] of grouped) {
+    if (isAnchoredCategory(category)) {
+      const assigned = geographicallyClosest(zone, pois)
+      if (assigned) chosen.set(category, optimalTrip(zone, assigned, nearest, graph, blocked))
+      continue
+    }
     let best: Trip | null = null
     for (const poi of pois) {
       const trip = optimalTrip(zone, poi, nearest, graph, blocked)
@@ -287,7 +311,7 @@ function baselineKey(request: SimulateScenarioRequest): string {
   const edges = request.transitEdges
     .map((edge) => `${edge.id}:${edge.travelMinutes}:${edge.frequencyMinutes}`)
     .join(',')
-  return `${categories}|${zones}|${pois}|${request.stations.length}|${edges}`
+  return `${categories}|${zones}|${pois}|${request.stations.length}|${edges}|anchored-geo`
 }
 
 function groupByCategory(pois: PointOfInterest[], categories: PoiCategory[]) {
@@ -404,6 +428,15 @@ export function buildAdditionSimulation(request: AdditionRequest): SimulationRes
     const bestNew = new Map<PoiCategory, Trip>()
     for (const poi of addedPois) {
       if (!before.has(poi.category)) continue
+      if (isAnchoredCategory(poi.category)) {
+        const assigned = before.get(poi.category)?.poi
+        if (
+          assigned &&
+          haversineKm(zone.centroid, poiPoint(poi)) >= haversineKm(zone.centroid, poiPoint(assigned))
+        ) {
+          continue
+        }
+      }
       const trip = optimalTrip(zone, poi, nearest, graph, blocked)
       const current = bestNew.get(poi.category)
       if (!current || trip.minutes < current.minutes) bestNew.set(poi.category, trip)
@@ -547,7 +580,11 @@ export function findOptimalAdditionSite(request: {
     let regions = 0
     let value = 0
     for (const zone of request.zones) {
-      const beforeMinutes = beforeByZone.get(zone.id)?.get(request.category)?.minutes ?? Number.POSITIVE_INFINITY
+      const beforeTrip = beforeByZone.get(zone.id)?.get(request.category)
+      const beforeMinutes = beforeTrip?.minutes ?? Number.POSITIVE_INFINITY
+      if (isAnchoredCategory(request.category) && beforeTrip) {
+        if (haversineKm(zone.centroid, poiPoint(poi)) >= haversineKm(zone.centroid, poiPoint(beforeTrip.poi))) continue
+      }
       const trip = optimalTrip(zone, poi, nearest, graph, new Set())
       const saved = beforeMinutes - trip.minutes
       if (saved < MIN_ADDITION_GAIN_MINUTES) continue
