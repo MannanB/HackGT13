@@ -25,7 +25,6 @@ EXPECTED_PATHS = [
     "/api/v1/hospital-choice/model",
     "/api/v1/activity/model",
     "/api/v1/build/stations",
-    "/api/v1/build/pois",
 ]
 
 TABLES = [

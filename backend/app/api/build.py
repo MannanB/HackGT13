@@ -1,4 +1,4 @@
-"""Permanent network edits: add a rail stop or a destination and persist it.
+"""Permanent network edits: add or remove a rail stop and persist it.
 
 Unlike the scenario tools, everything here writes to Postgres. A new station is
 wired into its line with transit edges in both directions, and walking links
@@ -6,7 +6,6 @@ wired into its line with transit edges in both directions, and walking links
 """
 
 import re
-from uuid import UUID
 
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,13 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.common import require_known_stations
 from app.deps import get_db
 from app.repositories import access as access_repo
-from app.repositories import places as place_repo
 from app.repositories import stations as station_repo
 from app.repositories import transit as transit_repo
 from app.schemas import (
-    PoiBuild,
-    PoiBuildResult,
-    PoiRemoveResult,
     StationBuild,
     StationBuildResult,
     StationRemoveResult,
@@ -32,7 +27,6 @@ router = APIRouter(prefix="/api/v1/build", tags=["build"])
 FALLBACK_KM_PER_MINUTE = 0.55
 FALLBACK_FREQUENCY_MINUTES = 12.0
 MIN_TRAVEL_MINUTES = 0.5
-MANUAL_SOURCE = "manual"
 
 
 def _slug(name: str) -> str:
@@ -106,7 +100,7 @@ def build_station(
                     )
                 )
 
-        total_access = access_repo.rebuild_all(conn)
+        total_access = access_repo.absorb_station(conn, station_id)
         station_access = access_repo.count_for_station(conn, station_id)
 
     return {
@@ -134,6 +128,7 @@ def remove_station(
             "SELECT count(*) AS count FROM transit_edges WHERE from_station = %(id)s OR to_station = %(id)s",
             {"id": station_id},
         ).fetchone()["count"]
+        affected = access_repo.locations_for_station(conn, station_id)
         station_repo.delete_station(conn, station_id)  # cascades transit + access edges
 
         by_line: dict[str, list[dict]] = {}
@@ -163,7 +158,7 @@ def remove_station(
                     )
                 )
 
-        total_access = access_repo.rebuild_all(conn)
+        total_access = access_repo.rebuild_locations(conn, affected)
 
     return {
         "station": station,
@@ -171,46 +166,3 @@ def remove_station(
         "bridged_edges": bridged,
         "total_access_edges": total_access,
     }
-
-
-@router.delete("/pois/{poi_id}", response_model=PoiRemoveResult)
-def remove_poi(
-    poi_id: str,
-    conn: psycopg.Connection = Depends(get_db),
-) -> dict:
-    try:
-        UUID(poi_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail=f"POI {poi_id} not found") from None
-    poi = place_repo.get_poi(conn, poi_id)
-    if poi is None:
-        raise HTTPException(status_code=404, detail=f"POI {poi_id} not found")
-    with conn.transaction():
-        removed = conn.execute(
-            "SELECT count(*) AS count FROM access_edges WHERE location_type = 'poi' AND location_id = %s",
-            (poi_id,),
-        ).fetchone()["count"]
-        place_repo.delete_poi(conn, poi_id)
-    return {"poi": poi, "removed_access_edges": removed}
-
-
-@router.post("/pois", response_model=PoiBuildResult, status_code=201)
-def build_poi(
-    payload: PoiBuild,
-    conn: psycopg.Connection = Depends(get_db),
-) -> dict:
-    with conn.transaction():
-        poi = place_repo.create_poi(
-            conn,
-            {
-                "name": payload.name,
-                "category": payload.category.lower(),
-                "location": {"lon": payload.location.lon, "lat": payload.location.lat},
-                "source": MANUAL_SOURCE,
-                "source_id": None,
-                "jobs_count": payload.jobs_count,
-                "enrollment": payload.enrollment,
-            },
-        )
-        access = access_repo.rebuild_for_location(conn, "poi", str(poi["id"]))
-    return {"poi": poi, "access_edges": access}

@@ -1,7 +1,5 @@
 import { apiDelete, apiPost, endpoints } from '@/services/api'
-import { mapPoi, type ApiPoi } from '@/services/geoService'
 import { mapStation, mapTransitEdge, type ApiStation, type ApiTransitEdge } from '@/services/stationService'
-import type { PointOfInterest, PoiCategory } from '@/types/geography'
 import type { MartaLine, Station, TransitEdge } from '@/types/network'
 
 /** Backend line names are capitalised ("Red"); the UI uses lowercase. */
@@ -83,49 +81,5 @@ export async function removeStation(stationId: string): Promise<StationRemoveRes
       .map(mapTransitEdge)
       .filter((edge): edge is TransitEdge => edge !== null),
     totalAccessEdges: result.total_access_edges,
-  }
-}
-
-export interface PoiRemoveResult {
-  poi: PointOfInterest
-  removedAccessEdges: number
-}
-
-export async function removePoi(poiId: string): Promise<PoiRemoveResult> {
-  const result = await apiDelete<{ poi: ApiPoi; removed_access_edges: number }>(
-    `${endpoints.buildPois}/${encodeURIComponent(poiId)}`,
-  )
-  return { poi: mapPoi(result.poi), removedAccessEdges: result.removed_access_edges }
-}
-
-export interface PoiBuildInput {
-  name: string
-  category: PoiCategory
-  longitude: number
-  latitude: number
-}
-
-export interface PoiBuildResult {
-  poi: PointOfInterest
-  accessEdges: { stationId: string; walkingMinutes: number }[]
-}
-
-interface ApiPoiBuildResult {
-  poi: ApiPoi
-  access_edges: { station_id: string; walking_minutes: number }[]
-}
-
-export async function createPoi(input: PoiBuildInput): Promise<PoiBuildResult> {
-  const result = await apiPost<ApiPoiBuildResult>(endpoints.buildPois, {
-    name: input.name,
-    category: input.category,
-    location: { lon: input.longitude, lat: input.latitude },
-  })
-  return {
-    poi: mapPoi(result.poi),
-    accessEdges: result.access_edges.map((edge) => ({
-      stationId: edge.station_id,
-      walkingMinutes: edge.walking_minutes,
-    })),
   }
 }

@@ -1,11 +1,9 @@
 import { ArrowLeft, Check, Link2, Loader2, Trash2, X } from 'lucide-react'
 import { useMemo } from 'react'
-import { Segmented } from '@/components/ui/Segmented'
-import { useBuildStore, type BuildKind } from '@/store/buildStore'
+import { useBuildStore } from '@/store/buildStore'
 import { useScenarioStore } from '@/store/scenarioStore'
 import type { MartaLine, Station } from '@/types/network'
-import { SERVICE_CATEGORIES, categoryMeta, categoryRgb } from '@/utils/categories'
-import { MARTA_LINES, MARTA_LINE_HEX, hex } from '@/utils/constants'
+import { MARTA_LINES, MARTA_LINE_HEX } from '@/utils/constants'
 import { haversineKm } from '@/utils/geo'
 import { cn } from '@/utils/cn'
 
@@ -20,14 +18,12 @@ function titleCase(line: MartaLine): string {
   return line.charAt(0).toUpperCase() + line.slice(1)
 }
 
-/** Left-sidebar controls for the Build tab: place something new, or act on the node you clicked. */
+/** Left-sidebar controls for the Build tab: place a stop, or remove the one you clicked. */
 export function BuildSidebar() {
   const stations = useScenarioStore((state) => state.stations)
   const edges = useScenarioStore((state) => state.transitEdges)
   const loadStatus = useScenarioStore((state) => state.loadStatus)
 
-  const kind = useBuildStore((state) => state.kind)
-  const setKind = useBuildStore((state) => state.setKind)
   const pending = useBuildStore((state) => state.pending)
   const setCoordinate = useBuildStore((state) => state.setCoordinate)
   const stationName = useBuildStore((state) => state.stationName)
@@ -43,10 +39,6 @@ export function BuildSidebar() {
   const setMinutesOverride = useBuildStore((state) => state.setMinutesOverride)
   const frequency = useBuildStore((state) => state.frequency)
   const setFrequency = useBuildStore((state) => state.setFrequency)
-  const poiName = useBuildStore((state) => state.poiName)
-  const setPoiName = useBuildStore((state) => state.setPoiName)
-  const category = useBuildStore((state) => state.category)
-  const setCategory = useBuildStore((state) => state.setCategory)
   const target = useBuildStore((state) => state.target)
   const selectTarget = useBuildStore((state) => state.selectTarget)
   const confirming = useBuildStore((state) => state.confirming)
@@ -101,13 +93,13 @@ export function BuildSidebar() {
   const offLineNeighbors = neighbors.filter((station) => !station.lines.includes(line))
 
   const targetLinks = useMemo(() => {
-    if (target?.type !== 'station') return []
+    if (!target) return []
     const byLine = new Map<MartaLine, Set<string>>()
     for (const edge of edges) {
       const other =
-        edge.fromStation === target.station.id
+        edge.fromStation === target.id
           ? edge.toStation
-          : edge.toStation === target.station.id
+          : edge.toStation === target.id
             ? edge.fromStation
             : null
       if (!other) continue
@@ -120,12 +112,14 @@ export function BuildSidebar() {
     }))
   }, [edges, target, stationById])
 
-  const stationReady = Boolean(pending) && stationName.trim().length > 0 && neighborIds.length > 0
-  const poiReady = Boolean(pending) && poiName.trim().length > 0
-  const canSave = loadStatus === 'ready' && !saving && (kind === 'station' ? stationReady : poiReady)
-  const targetIsNeighbor = target?.type === 'station' && neighborIds.includes(target.station.id)
+  const canSave =
+    loadStatus === 'ready' &&
+    !saving &&
+    Boolean(pending) &&
+    stationName.trim().length > 0 &&
+    neighborIds.length > 0
+  const targetIsNeighbor = Boolean(target && neighborIds.includes(target.id))
 
-  // A selected node replaces the add form: you are either adding something or acting on something.
   if (target) {
     return (
       <section className="space-y-2">
@@ -141,49 +135,38 @@ export function BuildSidebar() {
         </div>
         <div className="rounded-xl bg-white/[0.03] p-2.5 ring-1 ring-white/10">
           <div className="min-w-0">
-            <div className="truncate text-[12.5px] font-medium">
-              {target.type === 'station' ? target.station.name : target.poi.name}
+            <div className="truncate text-[12.5px] font-medium">{target.name}</div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-fog-500">
+              <span className="flex gap-0.5">
+                {target.lines.map((item) => (
+                  <span key={item} className="h-1 w-3 rounded-full" style={{ background: MARTA_LINE_HEX[item] }} />
+                ))}
+              </span>
+              Station · {target.id}
             </div>
-            {target.type === 'station' ? (
-              <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-fog-500">
-                <span className="flex gap-0.5">
-                  {target.station.lines.map((item) => (
-                    <span key={item} className="h-1 w-3 rounded-full" style={{ background: MARTA_LINE_HEX[item] }} />
-                  ))}
-                </span>
-                Station · {target.station.id}
-              </div>
-            ) : (
-              <div className="mt-0.5 text-[10.5px]" style={{ color: hex(categoryRgb(target.poi.category)) }}>
-                {categoryMeta(target.poi.category)?.label ?? target.poi.category}
-                {target.poi.source && <span className="text-fog-500"> · from {target.poi.source}</span>}
-              </div>
-            )}
           </div>
 
-          {target.type === 'station' && (
-            <ul className="mt-2 space-y-0.5 text-[10.5px] text-fog-400">
-              {targetLinks.length === 0 && <li>Not linked to any other station.</li>}
-              {targetLinks.map((item) => (
-                <li key={item.line} className="flex items-start gap-1.5">
-                  <span className="mt-1 h-1 w-3 shrink-0 rounded-full" style={{ background: MARTA_LINE_HEX[item.line] }} />
-                  <span>
-                    {item.names.join(' · ')}
-                    {item.names.length === 2 && <span className="text-fog-500"> — joined directly if removed</span>}
-                    {item.names.length === 1 && <span className="text-fog-500"> — line would end there</span>}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="mt-2 space-y-0.5 text-[10.5px] text-fog-400">
+            {targetLinks.length === 0 && <li>Not linked to any other station.</li>}
+            {targetLinks.map((item) => (
+              <li key={item.line} className="flex items-start gap-1.5">
+                <span className="mt-1 h-1 w-3 shrink-0 rounded-full" style={{ background: MARTA_LINE_HEX[item.line] }} />
+                <span>
+                  {item.names.join(' · ')}
+                  {item.names.length === 2 && <span className="text-fog-500"> — joined directly if removed</span>}
+                  {item.names.length === 1 && <span className="text-fog-500"> — line would end there</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
 
           <div className="mt-2.5 flex gap-1.5">
-            {target.type === 'station' && kind === 'station' && pending && (
+            {pending && (
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => {
-                  toggleNeighbor(target.station.id)
+                  toggleNeighbor(target.id)
                   selectTarget(null)
                 }}
                 className={cn(
@@ -212,9 +195,7 @@ export function BuildSidebar() {
           {confirming && (
             <div className="mt-2 rounded-lg bg-shut/10 p-2 ring-1 ring-shut/30">
               <p className="text-[11px] leading-relaxed text-fog-200">
-                Permanently deletes{' '}
-                <span className="font-medium">{target.type === 'station' ? target.station.name : target.poi.name}</span>{' '}
-                from the shared database.
+                Permanently deletes <span className="font-medium">{target.name}</span> from the shared database.
               </p>
               <div className="mt-1.5 flex gap-1.5">
                 <button
@@ -238,273 +219,204 @@ export function BuildSidebar() {
             </div>
           )}
         </div>
-        <p className="text-[10.5px] text-fog-500">Click another node to switch, or click empty map to go back to adding.</p>
+        <p className="text-[10.5px] text-fog-500">Click another station to switch, or click empty map to go back to adding.</p>
       </section>
     )
   }
 
   return (
-    <>
-      <section className="space-y-2">
-        <h2 className="eyebrow">Report</h2>
-        <Segmented<BuildKind>
-          size="sm"
-          value={kind}
-          onChange={setKind}
-          options={[
-            { value: 'station', label: 'Train stop' },
-            {
-              value: 'poi',
-              label: 'Destination',
-              activeClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/40',
-            },
-          ]}
-        />
-        <p className="text-[11.5px] leading-relaxed text-fog-500">
-          {kind === 'station'
-            ? 'Click the map to place the stop, then connect it to existing stations.'
-            : 'Click the map to place it. Walking links to nearby stations are computed for you.'}{' '}
-          Saved permanently to the shared database.
-        </p>
+    <section className="space-y-2">
+      <h2 className="eyebrow">Report</h2>
+      <p className="text-[11.5px] leading-relaxed text-fog-500">
+        Click the map to drop a train stop, then drag it into place and connect it to existing stations.
+        Saved permanently to the shared database.
+      </p>
 
-        <div className="grid grid-cols-2 gap-1.5">
-          <div>
-            <label className={LABEL} htmlFor="build-lat">Latitude</label>
-            <input
-              id="build-lat"
-              className={cn(INPUT, 'font-mono')}
-              type="number"
-              step="0.0001"
-              placeholder="click map"
-              value={pending ? pending.latitude.toFixed(5) : ''}
-              onChange={(event) => setCoordinate('latitude', Number(event.target.value))}
-            />
-          </div>
-          <div>
-            <label className={LABEL} htmlFor="build-lng">Longitude</label>
-            <input
-              id="build-lng"
-              className={cn(INPUT, 'font-mono')}
-              type="number"
-              step="0.0001"
-              placeholder="click map"
-              value={pending ? pending.longitude.toFixed(5) : ''}
-              onChange={(event) => setCoordinate('longitude', Number(event.target.value))}
-            />
-          </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <div>
+          <label className={LABEL} htmlFor="build-lat">Latitude</label>
+          <input
+            id="build-lat"
+            className={cn(INPUT, 'font-mono')}
+            type="number"
+            step="0.0001"
+            placeholder="click map"
+            value={pending ? pending.latitude.toFixed(5) : ''}
+            onChange={(event) => setCoordinate('latitude', Number(event.target.value))}
+          />
         </div>
+        <div>
+          <label className={LABEL} htmlFor="build-lng">Longitude</label>
+          <input
+            id="build-lng"
+            className={cn(INPUT, 'font-mono')}
+            type="number"
+            step="0.0001"
+            placeholder="click map"
+            value={pending ? pending.longitude.toFixed(5) : ''}
+            onChange={(event) => setCoordinate('longitude', Number(event.target.value))}
+          />
+        </div>
+      </div>
 
-        {kind === 'station' ? (
-          <>
-            <div>
-              <label className={LABEL} htmlFor="build-station-name">Station name</label>
+      <div>
+        <label className={LABEL} htmlFor="build-station-name">Station name</label>
+        <input
+          id="build-station-name"
+          className={INPUT}
+          placeholder="e.g. Emory University"
+          value={stationName}
+          onChange={(event) => setStationName(event.target.value)}
+        />
+      </div>
+
+      <div>
+        <div className={LABEL}>Line</div>
+        <div className="grid grid-cols-4 gap-1">
+          {MARTA_LINES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={line === value}
+              onClick={() => setLine(value)}
+              className={cn(
+                'flex items-center justify-center gap-1 rounded-lg px-1.5 py-1 text-[11px] ring-1 transition-colors',
+                line === value
+                  ? 'bg-white/[0.08] text-fog-100 ring-white/20'
+                  : 'text-fog-400 ring-white/5 hover:text-fog-100',
+              )}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: MARTA_LINE_HEX[value] }} />
+              {titleCase(value)}
+            </button>
+          ))}
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-fog-500">
+          <span>Also served by</span>
+          {MARTA_LINES.filter((value) => value !== line).map((value) => (
+            <label key={value} className="flex items-center gap-1">
               <input
-                id="build-station-name"
-                className={INPUT}
-                placeholder="e.g. Emory University"
-                value={stationName}
-                onChange={(event) => setStationName(event.target.value)}
+                type="checkbox"
+                className="accent-current"
+                checked={extraLines.includes(value)}
+                onChange={() => toggleExtraLine(value)}
               />
-            </div>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: MARTA_LINE_HEX[value] }} />
+              {titleCase(value)}
+            </label>
+          ))}
+        </div>
+      </div>
 
-            <div>
-              <div className={LABEL}>Line</div>
-              <div className="grid grid-cols-4 gap-1">
-                {MARTA_LINES.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-pressed={line === value}
-                    onClick={() => setLine(value)}
-                    className={cn(
-                      'flex items-center justify-center gap-1 rounded-lg px-1.5 py-1 text-[11px] ring-1 transition-colors',
-                      line === value
-                        ? 'bg-white/[0.08] text-fog-100 ring-white/20'
-                        : 'text-fog-400 ring-white/5 hover:text-fog-100',
-                    )}
+      <div>
+        <div className={LABEL}>Connects to</div>
+        <div className="space-y-1.5">
+          {[0, 1].map((index) => {
+            const id = neighborIds[index] ?? ''
+            const station = id ? stationById.get(id) : undefined
+            return (
+              <div key={index} className="rounded-lg bg-white/[0.03] p-1.5">
+                <div className="flex items-center gap-1.5">
+                  <select
+                    className={INPUT}
+                    value={id}
+                    disabled={index === 1 && neighborIds.length === 0}
+                    onChange={(event) => setNeighborAt(index, event.target.value)}
                   >
-                    <span className="h-2 w-2 rounded-full" style={{ background: MARTA_LINE_HEX[value] }} />
-                    {titleCase(value)}
-                  </button>
-                ))}
-              </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-fog-500">
-                <span>Also served by</span>
-                {MARTA_LINES.filter((value) => value !== line).map((value) => (
-                  <label key={value} className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      className="accent-current"
-                      checked={extraLines.includes(value)}
-                      onChange={() => toggleExtraLine(value)}
-                    />
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: MARTA_LINE_HEX[value] }} />
-                    {titleCase(value)}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className={LABEL}>Connects to</div>
-              <div className="space-y-1.5">
-                {[0, 1].map((index) => {
-                  const id = neighborIds[index] ?? ''
-                  const station = id ? stationById.get(id) : undefined
-                  return (
-                    <div key={index} className="rounded-lg bg-white/[0.03] p-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          className={INPUT}
-                          value={id}
-                          disabled={index === 1 && neighborIds.length === 0}
-                          onChange={(event) => setNeighborAt(index, event.target.value)}
-                        >
-                          <option value="">{index === 0 ? 'Pick a station…' : 'Optional second station…'}</option>
-                          {sortedStations.map((item) => (
-                            <option
-                              key={item.id}
-                              value={item.id}
-                              disabled={neighborIds.includes(item.id) && item.id !== id}
-                            >
-                              {item.name} · {item.lines.map(titleCase).join('/')}
-                            </option>
-                          ))}
-                        </select>
-                        {station && (
-                          <button
-                            type="button"
-                            onClick={() => toggleNeighbor(station.id)}
-                            className="rounded-md p-1 text-fog-500 hover:bg-white/5 hover:text-fog-100"
-                            aria-label={`Disconnect ${station.name}`}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                      {station && (
-                        <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-fog-500">
-                          <span className="shrink-0">Ride</span>
-                          <input
-                            className={cn(INPUT, 'w-16 py-0.5 font-mono text-[11.5px]')}
-                            type="number"
-                            min="0.1"
-                            step="0.1"
-                            placeholder={pending ? estimateMinutes(station).toFixed(1) : '—'}
-                            value={minutesOverride[station.id] ?? ''}
-                            onChange={(event) => setMinutesOverride(station.id, event.target.value)}
-                          />
-                          <span className="shrink-0">min</span>
-                          {!minutesOverride[station.id] && pending && (
-                            <span className="ml-auto truncate">estimated</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="mt-1 text-[10.5px] text-fog-500">Or click a station on the map and choose Connect.</p>
-              {replacesDirectHop && (
-                <p className="mt-1.5 text-[11px] text-fog-400">
-                  Trains will stop here between {neighbors[0]?.name} and {neighbors[1]?.name}; their direct hop is
-                  replaced.
-                </p>
-              )}
-              {offLineNeighbors.length > 0 && (
-                <p className="mt-1.5 text-[11px] text-maint">
-                  {offLineNeighbors.map((item) => item.name).join(' and ')}{' '}
-                  {offLineNeighbors.length === 1 ? "doesn't" : "don't"} currently serve the {titleCase(line)} line.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className={LABEL} htmlFor="build-frequency">Train every</label>
-              <div className="flex items-center gap-2">
-                <input
-                  id="build-frequency"
-                  className={cn(INPUT, 'w-20 font-mono')}
-                  type="number"
-                  min="1"
-                  step="0.5"
-                  placeholder={lineFrequency.toFixed(1)}
-                  value={frequency}
-                  onChange={(event) => setFrequency(event.target.value)}
-                />
-                <span className="text-[10.5px] text-fog-500">min · blank uses the line average</span>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div>
-              <label className={LABEL} htmlFor="build-poi-name">Name</label>
-              <input
-                id="build-poi-name"
-                className={INPUT}
-                placeholder="e.g. Westside Grocery"
-                value={poiName}
-                onChange={(event) => setPoiName(event.target.value)}
-              />
-            </div>
-            <div>
-              <div className={LABEL}>Type</div>
-              <div className="grid grid-cols-2 gap-1">
-                {SERVICE_CATEGORIES.map((meta) => {
-                  const Icon = meta.icon
-                  const active = category === meta.category
-                  return (
+                    <option value="">{index === 0 ? 'Pick a station…' : 'Optional second station…'}</option>
+                    {sortedStations.map((item) => (
+                      <option
+                        key={item.id}
+                        value={item.id}
+                        disabled={neighborIds.includes(item.id) && item.id !== id}
+                      >
+                        {item.name} · {item.lines.map(titleCase).join('/')}
+                      </option>
+                    ))}
+                  </select>
+                  {station && (
                     <button
-                      key={meta.category}
                       type="button"
-                      aria-pressed={active}
-                      onClick={() => setCategory(meta.category)}
-                      className={cn(
-                        'flex items-center gap-1.5 rounded-lg px-2 py-1 text-left text-[11.5px] ring-1 transition-colors',
-                        active
-                          ? 'bg-white/[0.08] text-fog-100 ring-white/20'
-                          : 'text-fog-400 ring-white/5 hover:text-fog-100',
-                      )}
-                      style={active ? { color: hex(meta.rgb) } : undefined}
+                      onClick={() => toggleNeighbor(station.id)}
+                      className="rounded-md p-1 text-fog-500 hover:bg-white/5 hover:text-fog-100"
+                      aria-label={`Disconnect ${station.name}`}
                     >
-                      <Icon className="h-3.5 w-3.5" />
-                      {meta.label}
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                  )
-                })}
+                  )}
+                </div>
+                {station && (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-fog-500">
+                    <span className="shrink-0">Ride</span>
+                    <input
+                      className={cn(INPUT, 'w-16 py-0.5 font-mono text-[11.5px]')}
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      placeholder={pending ? estimateMinutes(station).toFixed(1) : '—'}
+                      value={minutesOverride[station.id] ?? ''}
+                      onChange={(event) => setMinutesOverride(station.id, event.target.value)}
+                    />
+                    <span className="shrink-0">min</span>
+                    {!minutesOverride[station.id] && pending && (
+                      <span className="ml-auto truncate">estimated</span>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          </>
-        )}
-
-        <button
-          type="button"
-          disabled={!canSave}
-          onClick={() => void submit()}
-          className={cn(
-            'flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium ring-1 disabled:cursor-not-allowed disabled:opacity-40',
-            kind === 'station'
-              ? 'bg-signal/15 text-signal-soft ring-signal/30 hover:bg-signal/25'
-              : 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/40 hover:bg-emerald-500/25',
-          )}
-        >
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-          {saving ? 'Saving…' : kind === 'station' ? 'Add station permanently' : 'Add destination permanently'}
-        </button>
-        {!canSave && !saving && loadStatus === 'ready' && (
-          <p className="text-[10.5px] text-fog-500">
-            {!pending
-              ? 'Place it on the map first.'
-              : kind === 'station'
-                ? !stationName.trim()
-                  ? 'Give the station a name.'
-                  : 'Connect it to at least one existing station.'
-                : 'Give the destination a name.'}
+            )
+          })}
+        </div>
+        <p className="mt-1 text-[10.5px] text-fog-500">Or click a station on the map and choose Connect.</p>
+        {replacesDirectHop && (
+          <p className="mt-1.5 text-[11px] text-fog-400">
+            Trains will stop here between {neighbors[0]?.name} and {neighbors[1]?.name}; their direct hop is
+            replaced.
           </p>
         )}
-      </section>
+        {offLineNeighbors.length > 0 && (
+          <p className="mt-1.5 text-[11px] text-maint">
+            {offLineNeighbors.map((item) => item.name).join(' and ')}{' '}
+            {offLineNeighbors.length === 1 ? "doesn't" : "don't"} currently serve the {titleCase(line)} line.
+          </p>
+        )}
+      </div>
 
-    </>
+      <div>
+        <label className={LABEL} htmlFor="build-frequency">Train every</label>
+        <div className="flex items-center gap-2">
+          <input
+            id="build-frequency"
+            className={cn(INPUT, 'w-20 font-mono')}
+            type="number"
+            min="1"
+            step="0.5"
+            placeholder={lineFrequency.toFixed(1)}
+            value={frequency}
+            onChange={(event) => setFrequency(event.target.value)}
+          />
+          <span className="text-[10.5px] text-fog-500">min · blank uses the line average</span>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        disabled={!canSave}
+        onClick={() => void submit()}
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-signal/15 px-3 py-1.5 text-[12px] font-medium text-signal-soft ring-1 ring-signal/30 hover:bg-signal/25 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+        {saving ? 'Saving…' : 'Add station permanently'}
+      </button>
+      {!canSave && !saving && loadStatus === 'ready' && (
+        <p className="text-[10.5px] text-fog-500">
+          {!pending
+            ? 'Place it on the map first.'
+            : !stationName.trim()
+              ? 'Give the station a name.'
+              : 'Connect it to at least one existing station.'}
+        </p>
+      )}
+    </section>
   )
 }
