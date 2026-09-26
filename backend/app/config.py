@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    xai_api_key: str = ""
+    xai_model: str = "grok-4"
 
     @property
     def cors_origin_list(self) -> list[str]:
