@@ -198,7 +198,7 @@ export function CivicMap() {
       return
     }
     hoverStation(null)
-    if (id === 'pois' && info.object) {
+    if ((id === 'pois' || id === 'pois-hit') && info.object) {
       hoverZone(null)
       setHover(place({ kind: 'poi', poi: info.object as PointOfInterest }, info, 240, 60))
       return
@@ -223,7 +223,7 @@ export function CivicMap() {
       return
     }
     setPopover(null)
-    if (id === 'pois' && info.object) {
+    if ((id === 'pois' || id === 'pois-hit') && info.object) {
       setHover(null)
       setPoiPopover(place(info.object as PointOfInterest, info, 320, 300))
       return
