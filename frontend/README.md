@@ -1,4 +1,4 @@
-# Civic Stacktrace — frontend
+# Ripple — frontend
 
 Map-first React MVP for simulating MARTA station disruptions in Atlanta.
 

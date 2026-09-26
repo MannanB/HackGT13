@@ -45,12 +45,6 @@ export function ServiceLayerToggle() {
 
   return (
     <table className="w-full border-separate border-spacing-y-1 text-left">
-      <thead>
-        <tr className="text-[10px] font-medium uppercase tracking-[0.12em] text-fog-400">
-          <th className="px-2 pb-1 font-medium">Category</th>
-          <th className="w-16 px-1 pb-1 text-right font-medium">Weight</th>
-        </tr>
-      </thead>
       <tbody>
         {services.map((service) => {
           const Icon = service.icon
