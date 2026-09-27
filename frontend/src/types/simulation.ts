@@ -81,6 +81,8 @@ export interface ImpactSummary {
   /** Modeled transit-dependent arrivals affected during the selected clock hour. */
   visitorsAffected: number
   averageAddedTravelMinutes: number
+  /** Longest added or saved trip among affected neighborhoods. */
+  maxAddedTravelMinutes: number
   zonesAffected: number
 }
 

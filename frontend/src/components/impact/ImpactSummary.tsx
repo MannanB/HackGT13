@@ -5,7 +5,7 @@ import type { ImpactSummary as ImpactSummaryData } from '@/types/simulation'
 
 export function ImpactSummary({ summary, gain }: { summary: ImpactSummaryData; gain: boolean }) {
   const population = useCountUp(summary.populationAffected)
-  const delay = useCountUp(summary.averageAddedTravelMinutes)
+  const delay = useCountUp(gain ? summary.averageAddedTravelMinutes : summary.maxAddedTravelMinutes)
   const lost = useCountUp(summary.zonesAffected)
 
   const metrics = [
@@ -18,7 +18,7 @@ export function ImpactSummary({ summary, gain }: { summary: ImpactSummaryData; g
     },
     {
       icon: Clock3,
-      label: gain ? 'Avg. time saved' : 'Avg. added travel time',
+      label: gain ? 'Avg. time saved' : 'Max added travel time',
       value: `${gain ? '−' : '+'}${Math.round(delay)}`,
       suffix: ' min',
       note: 'vs. normal',
